@@ -21,7 +21,7 @@ contract DIDRegistry {
     mapping(bytes32 => DIDDocument) private _documents;
     mapping(address => bytes32) public didOf;          // reverse lookup: controller -> DID
     address public guardianRecoveryContract;            // only this contract may force-rotate a key
-    address public owner;
+    address public immutable owner;
     /// @notice Pluggable signature verifier — swap this address to migrate from ECDSA to Dilithium
     ///         without touching any other contract (SECURITY.md §6, audit item A8).
     ///         Zero address = no on-chain signature verification (acceptable during migration window).
@@ -46,6 +46,7 @@ contract DIDRegistry {
     }
 
     function setGuardianRecoveryContract(address recovery) external onlyOwner {
+        if (recovery == address(0)) revert("Zero address not allowed");
         guardianRecoveryContract = recovery;
     }
 
@@ -53,6 +54,7 @@ contract DIDRegistry {
     ///         This is the only function that needs to be called for a full post-quantum migration.
     ///         Emits an auditable event so BEL security ops can track the changeover.
     function setSignatureVerifier(address verifier) external onlyOwner {
+        if (verifier == address(0)) revert("Zero address not allowed");
         address old = address(signatureVerifier);
         signatureVerifier = ISignatureVerifier(verifier);
         emit SignatureVerifierUpdated(old, verifier);

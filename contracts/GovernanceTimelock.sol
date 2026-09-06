@@ -10,7 +10,7 @@ import {TimeBoundAccessControl} from "./TimeBoundAccessControl.sol";
 ///         freeze execution pending Super Admin review. Even a legitimately-signed-but-fraudulent
 ///         transaction is reversible before finalization, immutable after.
 contract GovernanceTimelock {
-    TimeBoundAccessControl public accessControl;
+    TimeBoundAccessControl public immutable accessControl;
     uint256 public constant MIN_DELAY = 24 hours;
     uint256 public constant MAX_DELAY = 48 hours;
 
@@ -103,9 +103,9 @@ contract GovernanceTimelock {
         if (block.timestamp < q.eta) revert NotYetExecutable();
 
         q.status = Status.Executed;
+        emit TransactionExecuted(txId);
+
         (bool ok, ) = q.target.call(q.data);
         if (!ok) revert ExecutionFailed();
-
-        emit TransactionExecuted(txId);
     }
 }

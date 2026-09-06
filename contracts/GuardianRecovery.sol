@@ -9,7 +9,7 @@ import {DIDRegistry} from "./DIDRegistry.sol";
 ///         pre-registers 3–5 guardians and a signature threshold; losing the key triggers an M-of-N
 ///         guardian-signed, time-locked rotation. No single guardian ever has unilateral control.
 contract GuardianRecovery {
-    DIDRegistry public didRegistry;
+    DIDRegistry public immutable didRegistry;
     uint256 public constant RECOVERY_TIMELOCK = 24 hours;
     uint8 public constant MIN_GUARDIANS = 3;
     uint8 public constant MAX_GUARDIANS = 5;
@@ -102,8 +102,8 @@ contract GuardianRecovery {
         if (block.timestamp < r.initiatedAt + RECOVERY_TIMELOCK) revert TimelockNotElapsed();
 
         r.finalized = true;
-        didRegistry.forceRotateKey(did, r.newController, r.newPubKey);
         emit RecoveryFinalized(did, r.newController);
+        didRegistry.forceRotateKey(did, r.newController, r.newPubKey);
     }
 
     function _isGuardian(bytes32 did, address addr) internal view returns (bool) {

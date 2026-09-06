@@ -18,7 +18,7 @@ export default function AuditPage() {
         <div>
           <h2 className="text-[15px] font-medium text-ink-50">Audit trail</h2>
           <p className="mt-0.5 text-[13px] text-ink-400">
-            Nothing here is trusted unless it's an on-chain event — this table is re-derivable from
+            Nothing here is trusted unless it&apos;s an on-chain event — this table is re-derivable from
             raw chain data at any time.
           </p>
         </div>
