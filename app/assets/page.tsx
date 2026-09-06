@@ -1,0 +1,90 @@
+"use client";
+
+import { assets } from "@/lib/mock-data";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { truncateMiddle } from "@/lib/utils";
+import { FileCheck2, Upload, UserCheck, Boxes } from "lucide-react";
+
+const mintSteps = [
+  { label: "Upload to IPFS", icon: Upload, done: true },
+  { label: "Admin proposes", icon: FileCheck2, done: true },
+  { label: "Manager co-signs", icon: UserCheck, done: false },
+];
+
+export default function AssetsPage() {
+  return (
+    <div className="mx-auto max-w-7xl px-6 py-6">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h2 className="text-[15px] font-medium text-ink-50">Digital asset registry</h2>
+          <p className="mt-0.5 text-[13px] text-ink-400">
+            ERC-721 tokens, content-addressed on IPFS, minted only with dual attestation.
+          </p>
+        </div>
+        <Button>
+          <Boxes size={14} />
+          Propose mint
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_300px]">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {assets.map((asset) => (
+            <Card key={asset.tokenId} className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="mono-value text-[12px] text-ink-600">#{asset.tokenId}</span>
+                {asset.legalReference && <Badge tone="signal">legal ref.</Badge>}
+              </div>
+              <div className="grid-motif flex h-24 items-center justify-center rounded-xl border border-graphite-800 bg-graphite-900">
+                <Boxes size={22} className="text-ink-600" strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-[13px] font-medium text-ink-50">{asset.name}</p>
+                <p className="mono-value mt-1 truncate text-[11px] text-ink-600">
+                  {truncateMiddle(asset.cid, 10, 6)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between border-t border-graphite-800 pt-3 text-[12px]">
+                <span className="text-ink-400">Owner</span>
+                <span className="mono-value text-ink-200">{truncateMiddle(asset.ownerDid, 10, 4)}</span>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <Card>
+          <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow — Asset #45</h3>
+          <div className="flex flex-col gap-4">
+            {mintSteps.map((step, i) => (
+              <div key={step.label} className="flex items-center gap-3">
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+                    step.done
+                      ? "border-verified-500/40 bg-verified-500/10 text-verified-400"
+                      : "border-graphite-700 bg-graphite-800 text-ink-600"
+                  }`}
+                >
+                  <step.icon size={14} strokeWidth={1.75} />
+                </div>
+                <div className="flex-1">
+                  <p className={`text-[13px] ${step.done ? "text-ink-50" : "text-ink-400"}`}>
+                    {step.label}
+                  </p>
+                </div>
+                {step.done && <Badge tone="verified">done</Badge>}
+                {i < mintSteps.length - 1 && (
+                  <span className="absolute ml-4 mt-8 h-4 w-px bg-graphite-700" aria-hidden />
+                )}
+              </div>
+            ))}
+          </div>
+          <Button variant="secondary" className="mt-5 w-full" disabled>
+            Awaiting Manager co-signature
+          </Button>
+        </Card>
+      </div>
+    </div>
+  );
+}

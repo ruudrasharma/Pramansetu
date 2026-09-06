@@ -1,0 +1,38 @@
+# ─── Node ────────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Next.js ─────────────────────────────────────────────────────────────────
+.next/
+out/
+
+# ─── Hardhat / Solidity ──────────────────────────────────────────────────────
+artifacts/
+cache/
+typechain-types/
+deployments/      # generated at deploy time, contains real addresses — do not commit
+coverage/
+coverage.json
+
+# ─── Environment & Secrets ───────────────────────────────────────────────────
+# NEVER commit real keys or addresses. .env.example is committed, .env.local is not.
+.env
+.env.local
+.env.*.local
+
+# ─── OS / Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+# Playwright output
+playwright-report/
+test-results/
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.zip
+task.md         # internal build tracker, not project source

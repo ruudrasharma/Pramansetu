@@ -1,0 +1,77 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html, body {
+    background-color: #0A0C10;
+    color: #F4F5F7;
+  }
+
+  * {
+    border-color: #1B1F26;
+  }
+
+  ::selection {
+    background-color: rgba(91, 141, 239, 0.28);
+  }
+
+  /* thin, quiet scrollbars — this is a data-dense app, chrome should stay out of the way */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #242933;
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #323847;
+  }
+
+  :focus-visible {
+    outline: 2px solid #5B8DEF;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .mono-value {
+    font-family: var(--font-geist-mono), "IBM Plex Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .panel-surface {
+    background-color: #12151A;
+    border: 1px solid #1B1F26;
+  }
+
+  .card-surface {
+    background-color: #161A21;
+    border: 1px solid #1B1F26;
+  }
+
+  .grid-motif {
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,0.028) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.028) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}
