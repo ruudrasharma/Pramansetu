@@ -1,0 +1,128 @@
+"""
+BEL Chain IDAM subgraph schema (PS 26125).
+
+This schema mirrors docs/DATABASE_SCHEMA.md §2 (indexer layer).
+All entities are re-derivable from raw on-chain events — the indexer
+is a read-only cache, NOT a source of truth. Deleting and re-syncing
+it must produce identical data.
+"""
+
+type Identity @entity {
+  id: ID!                          # DID hash (bytes32 as hex string)
+  controller: Bytes!               # controlling wallet address
+  keyType: String!                 # "ES256K" | "Dilithium3" etc.
+  pubKey: Bytes!                   # current public key bytes
+  metadataURI: String!             # ipfs:// URI for off-chain metadata
+  createdAt: BigInt!               # block timestamp
+  updatedAt: BigInt!
+  credentials: [Credential!]!      @derivedFrom(field: "subject")
+  ownedAssets: [Asset!]!           @derivedFrom(field: "owner")
+  roleGrants: [RoleGrant!]!        @derivedFrom(field: "account")
+}
+
+type Credential @entity {
+  id: ID!                          # vcId (bytes32 as hex)
+  subject: Identity!               # → Identity
+  issuerDid: Bytes!
+  vcHash: Bytes!                   # commitment to off-chain VC payload
+  role: String!
+  validUntil: BigInt!
+  revoked: Boolean!
+  revokedAt: BigInt
+  revokedBy: Bytes
+  issuedAt: BigInt!
+  txHash: Bytes!
+}
+
+type RoleGrant @entity {
+  id: ID!                          # <role>-<account>-<txHash>
+  role: Bytes!                     # role hash (bytes32)
+  roleLabel: String                # human label if known (ADMIN_ROLE etc.)
+  account: Identity                # → Identity (may be null if DID not yet indexed)
+  accountAddress: Bytes!
+  grantedBy: Bytes!
+  validUntil: BigInt!
+  revoked: Boolean!
+  revokedAt: BigInt
+  grantedAt: BigInt!
+  txHash: Bytes!
+}
+
+type Asset @entity {
+  id: ID!                          # tokenId as string
+  tokenId: BigInt!
+  cid: String!                     # IPFS CID
+  owner: Identity                  # → Identity (null if owner address has no DID)
+  ownerAddress: Bytes!
+  vcId: Bytes!                     # credential gating transferability
+  legalReference: Bytes            # optional off-chain doc hash
+  proposedBy: Bytes!
+  coSignedBy: Bytes!
+  mintedAt: BigInt!
+  txHash: Bytes!
+}
+
+type MintRequest @entity {
+  id: ID!                          # requestId as string
+  requestId: BigInt!
+  cid: String!
+  vcId: Bytes!
+  recipient: Bytes!
+  proposer: Bytes!
+  coSigner: Bytes
+  executed: Boolean!
+  proposedAt: BigInt!
+  executedAt: BigInt
+}
+
+type PlatformAction @entity {
+  id: ID!                          # actionId as string
+  actionId: BigInt!
+  actionType: Int!                 # 1=emergencyRevoke 2=pause 3=unpause
+  role: Bytes!
+  account: Bytes!
+  proposer: Bytes!
+  coSigner: Bytes
+  executed: Boolean!
+  proposedAt: BigInt!
+  executedAt: BigInt
+}
+
+type GovernanceTx @entity {
+  id: ID!                          # txId as string
+  txId: BigInt!
+  target: Bytes!
+  calldata: Bytes!
+  eta: BigInt!
+  executed: Boolean!
+  executedAt: BigInt
+  dispute: Dispute                 @derivedFrom(field: "governanceTx")
+  queuedAt: BigInt!
+  txHash: Bytes!
+}
+
+type Dispute @entity {
+  id: ID!                          # txId as string
+  governanceTx: GovernanceTx!
+  raisedBy: Bytes!
+  reason: String!
+  resolved: Boolean!
+  raisedAt: BigInt!
+  txHash: Bytes!
+}
+
+# ── Unified audit log ────────────────────────────────────────────────────────
+# Every significant on-chain event lands here, in addition to its typed entity.
+# This powers the Overview ledger stream and Audit page table without a join.
+
+type AuditEvent @entity {
+  id: ID!                          # <contract>-<txHash>-<logIndex>
+  type: String!                    # EventType string matching mock-data.ts union
+  actorAddress: Bytes!
+  actorDid: Bytes                  # null if actor has no DID
+  summary: String!                 # human-readable one-liner
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  txHash: Bytes!
+  riskScore: Int                   # null until anomaly service annotates
+}

@@ -1,0 +1,133 @@
+/**
+ * lib/hooks/useAccessControl.ts
+ *
+ * React hooks for TimeBoundAccessControl — time-bound RBAC, multisig role grants,
+ * and the 2-of-N platform action queue (emergencyRevoke / pause / unpause).
+ */
+
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { TimeBoundAccessControlAbi } from "@/lib/abis";
+import { contractAddresses } from "@/lib/wagmi";
+
+const address = contractAddresses.accessControl;
+
+// ── Constants (role hashes — match contracts/TimeBoundAccessControl.sol) ────
+export const ROLE = {
+  SUPER_ADMIN: "0x" + "0".repeat(64) as `0x${string}`, // DEFAULT_ADMIN_ROLE
+  SUPER_ADMIN_ROLE: "0x" + Buffer.from("SUPER_ADMIN_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+  ADMIN_ROLE:       "0x" + Buffer.from("ADMIN_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+  MANAGER_ROLE:     "0x" + Buffer.from("MANAGER_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+  ISSUER_ROLE:      "0x" + Buffer.from("ISSUER_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+  AUDITOR_ROLE:     "0x" + Buffer.from("AUDITOR_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+} as const;
+
+// ── Read hooks ──────────────────────────────────────────────────────────────
+
+/**
+ * Check if an account currently holds a role (false if expired).
+ */
+export function useHasRole(role: `0x${string}` | undefined, account: `0x${string}` | undefined) {
+  return useReadContract({
+    address,
+    abi: TimeBoundAccessControlAbi,
+    functionName: "hasRole",
+    args: role && account ? [role, account] : undefined,
+    query: { enabled: !!role && !!account && !!address },
+  });
+}
+
+/**
+ * Get the unix timestamp at which an account's role expires.
+ * Returns type(uint256).max for permanent grants.
+ */
+export function useRoleExpiry(role: `0x${string}` | undefined, account: `0x${string}` | undefined) {
+  return useReadContract({
+    address,
+    abi: TimeBoundAccessControlAbi,
+    functionName: "roleExpiry",
+    args: role && account ? [role, account] : undefined,
+    query: { enabled: !!role && !!account && !!address },
+  });
+}
+
+/**
+ * Check if the platform is currently paused.
+ */
+export function usePlatformPaused() {
+  return useReadContract({
+    address,
+    abi: TimeBoundAccessControlAbi,
+    functionName: "paused",
+    query: { enabled: !!address },
+  });
+}
+
+// ── Write hooks ─────────────────────────────────────────────────────────────
+
+/**
+ * grantTimedRole — single-signer role grant for lower-privilege roles.
+ * High-privilege grants use proposePlatformAction instead.
+ */
+export function useGrantTimedRole() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function grantTimedRole({
+    role,
+    account,
+    validUntil,
+  }: {
+    role: `0x${string}`;
+    account: `0x${string}`;
+    validUntil: bigint;
+  }) {
+    if (!address) throw new Error("AccessControl address not configured");
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "grantTimedRole", args: [role, account, validUntil] });
+  }
+
+  return { grantTimedRole, hash, isPending: isPending || isConfirming, isSuccess, error };
+}
+
+/**
+ * proposePlatformAction — first signature in the 2-of-N multisig queue.
+ * actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause
+ */
+export function useProposePlatformAction() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function proposePlatformAction({
+    actionType,
+    role,
+    account,
+  }: {
+    actionType: number;
+    role: `0x${string}`;
+    account: `0x${string}`;
+  }) {
+    if (!address) throw new Error("AccessControl address not configured");
+    writeContract({
+      address,
+      abi: TimeBoundAccessControlAbi,
+      functionName: "proposePlatformAction",
+      args: [actionType, role, account],
+    });
+  }
+
+  return { proposePlatformAction, hash, isPending: isPending || isConfirming, isSuccess, error };
+}
+
+/**
+ * coSignPlatformAction — second signature; executes action when threshold met.
+ */
+export function useCoSignPlatformAction() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function coSignPlatformAction(actionId: bigint) {
+    if (!address) throw new Error("AccessControl address not configured");
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "coSignPlatformAction", args: [actionId] });
+  }
+
+  return { coSignPlatformAction, hash, isPending: isPending || isConfirming, isSuccess, error };
+}

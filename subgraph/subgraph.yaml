@@ -1,0 +1,146 @@
+specVersion: 0.0.5
+description: BEL Chain IDAM indexer — identity, access control, and digital asset events (PS 26125)
+repository: https://github.com/ruudrasharma/SIH2026
+
+schema:
+  file: ./schema.graphql
+
+dataSources:
+
+  - kind: ethereum/contract
+    name: DIDRegistry
+    network: matic-testnet   # Polygon Amoy; change to matic for mainnet
+    source:
+      # Fill in after deploy: deployments/amoy.json → contracts.didRegistry
+      address: "0x0000000000000000000000000000000000000000"
+      abi: DIDRegistry
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Identity
+        - AuditEvent
+      abis:
+        - name: DIDRegistry
+          file: ../artifacts/contracts/DIDRegistry.sol/DIDRegistry.json
+      eventHandlers:
+        - event: DIDCreated(indexed bytes32,indexed address,string,uint256)
+          handler: handleDIDCreated
+        - event: KeyRotated(indexed bytes32,bytes,string,uint256)
+          handler: handleKeyRotated
+      file: ./src/did-registry.ts
+
+  - kind: ethereum/contract
+    name: CredentialRegistry
+    network: matic-testnet
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: CredentialRegistry
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Credential
+        - AuditEvent
+      abis:
+        - name: CredentialRegistry
+          file: ../artifacts/contracts/CredentialRegistry.sol/CredentialRegistry.json
+      eventHandlers:
+        - event: CredentialIssued(indexed bytes32,indexed bytes32,indexed bytes32,string,uint256)
+          handler: handleCredentialIssued
+        - event: CredentialRevoked(indexed bytes32,indexed address)
+          handler: handleCredentialRevoked
+      file: ./src/credential-registry.ts
+
+  - kind: ethereum/contract
+    name: TimeBoundAccessControl
+    network: matic-testnet
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: TimeBoundAccessControl
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - RoleGrant
+        - PlatformAction
+        - AuditEvent
+      abis:
+        - name: TimeBoundAccessControl
+          file: ../artifacts/contracts/TimeBoundAccessControl.sol/TimeBoundAccessControl.json
+      eventHandlers:
+        - event: RoleGranted(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleGranted
+        - event: RoleRevoked(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleRevoked
+        - event: ActionProposed(indexed uint256,uint8,bytes32,address,address)
+          handler: handleActionProposed
+        - event: ActionExecuted(indexed uint256,uint8)
+          handler: handleActionExecuted
+        - event: Paused(address)
+          handler: handlePaused
+        - event: Unpaused(address)
+          handler: handleUnpaused
+      file: ./src/access-control.ts
+
+  - kind: ethereum/contract
+    name: AssetRegistry
+    network: matic-testnet
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: AssetRegistry
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Asset
+        - MintRequest
+        - AuditEvent
+      abis:
+        - name: AssetRegistry
+          file: ../artifacts/contracts/AssetRegistry.sol/AssetRegistry.json
+      eventHandlers:
+        - event: MintProposed(indexed uint256,string,bytes32,address,address)
+          handler: handleMintProposed
+        - event: MintCoSigned(indexed uint256,address)
+          handler: handleMintCoSigned
+        - event: AssetMinted(indexed uint256,indexed address,string,bytes32)
+          handler: handleAssetMinted
+        - event: Transfer(indexed address,indexed address,indexed uint256)
+          handler: handleTransfer
+      file: ./src/asset-registry.ts
+
+  - kind: ethereum/contract
+    name: GovernanceTimelock
+    network: matic-testnet
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: GovernanceTimelock
+      startBlock: 0
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - GovernanceTx
+        - Dispute
+        - AuditEvent
+      abis:
+        - name: GovernanceTimelock
+          file: ../artifacts/contracts/GovernanceTimelock.sol/GovernanceTimelock.json
+      eventHandlers:
+        - event: TransactionQueued(indexed uint256,address,uint256)
+          handler: handleTransactionQueued
+        - event: DisputeRaised(indexed uint256,indexed address,string)
+          handler: handleDisputeRaised
+        - event: TransactionExecuted(indexed uint256)
+          handler: handleTransactionExecuted
+      file: ./src/governance-timelock.ts
