@@ -53,9 +53,8 @@ export function ContextBar() {
           </kbd>
         </button>
 
-        <div className="flex items-center gap-2 rounded-lg border border-signal-500/30 bg-signal-500/10 px-3 py-1.5">
-          <span className="mono-value text-[11px] font-medium text-signal-400">SUPER_ADMIN</span>
-        </div>
+        {/* WalletConnect button */}
+        <w3m-button />
       </div>
     </header>
   );

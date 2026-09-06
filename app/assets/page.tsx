@@ -1,17 +1,73 @@
 "use client";
 
-import { assets } from "@/lib/mock-data";
+import { useState } from "react";
+import { useAccount } from "wagmi";
+import { useOwnerOf, useVcIdOf, useTokenURI } from "@/lib/hooks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { truncateMiddle } from "@/lib/utils";
-import { FileCheck2, Upload, UserCheck, Boxes } from "lucide-react";
+import { FileCheck2, Upload, UserCheck, Boxes, Search } from "lucide-react";
 
 const mintSteps = [
   { label: "Upload to IPFS", icon: Upload, done: true },
   { label: "Admin proposes", icon: FileCheck2, done: true },
   { label: "Manager co-signs", icon: UserCheck, done: false },
 ];
+
+function AssetLookup() {
+  const [tokenIdInput, setTokenIdInput] = useState("");
+  const [searchTokenId, setSearchTokenId] = useState<bigint | undefined>();
+
+  const { data: ownerDid, isLoading: isOwnerLoading } = useOwnerOf(searchTokenId);
+  const { data: vcId } = useVcIdOf(searchTokenId);
+  const { data: uri } = useTokenURI(searchTokenId);
+
+  return (
+    <Card className="flex flex-col gap-6 p-6">
+      <div className="flex gap-2">
+        <input 
+          type="number"
+          placeholder="Enter Token ID"
+          className="flex-1 rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-600 focus:border-graphite-600 focus:outline-none"
+          value={tokenIdInput}
+          onChange={(e) => setTokenIdInput(e.target.value)}
+        />
+        <Button onClick={() => setSearchTokenId(tokenIdInput ? BigInt(tokenIdInput) : undefined)}>
+          <Search size={14} />
+          Lookup
+        </Button>
+      </div>
+
+      {isOwnerLoading ? (
+        <div className="flex items-center justify-center py-8 text-[13px] text-ink-500">Querying asset...</div>
+      ) : searchTokenId !== undefined ? (
+        ownerDid && ownerDid !== "0x0000000000000000000000000000000000000000000000000000000000000000" ? (
+          <div className="flex flex-col gap-3 rounded-lg border border-graphite-800 bg-graphite-900/50 p-4">
+            <div className="flex items-center justify-between">
+              <span className="mono-value text-[12px] text-ink-600">#{searchTokenId.toString()}</span>
+              {vcId && vcId !== "0x0000000000000000000000000000000000000000000000000000000000000000" && <Badge tone="signal">Legal Ref</Badge>}
+            </div>
+            <div>
+              <p className="text-[13px] font-medium text-ink-50">Token URI (CID)</p>
+              <p className="mono-value mt-1 truncate text-[11px] text-ink-600">
+                {uri || "ipfs://..."}
+              </p>
+            </div>
+            <div className="flex items-center justify-between border-t border-graphite-800 pt-3 text-[12px]">
+              <span className="text-ink-400">Owner DID</span>
+              <span className="mono-value text-ink-200">{truncateMiddle(ownerDid, 10, 4)}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-[13px] text-ink-500">Asset not found or not minted yet.</div>
+        )
+      ) : (
+        <div className="py-8 text-center text-[13px] text-ink-600">Enter a Token ID to view asset details directly from the chain.</div>
+      )}
+    </Card>
+  );
+}
 
 export default function AssetsPage() {
   return (
@@ -30,29 +86,7 @@ export default function AssetsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_300px]">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {assets.map((asset) => (
-            <Card key={asset.tokenId} className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="mono-value text-[12px] text-ink-600">#{asset.tokenId}</span>
-                {asset.legalReference && <Badge tone="signal">legal ref.</Badge>}
-              </div>
-              <div className="grid-motif flex h-24 items-center justify-center rounded-xl border border-graphite-800 bg-graphite-900">
-                <Boxes size={22} className="text-ink-600" strokeWidth={1.5} />
-              </div>
-              <div>
-                <p className="text-[13px] font-medium text-ink-50">{asset.name}</p>
-                <p className="mono-value mt-1 truncate text-[11px] text-ink-600">
-                  {truncateMiddle(asset.cid, 10, 6)}
-                </p>
-              </div>
-              <div className="flex items-center justify-between border-t border-graphite-800 pt-3 text-[12px]">
-                <span className="text-ink-400">Owner</span>
-                <span className="mono-value text-ink-200">{truncateMiddle(asset.ownerDid, 10, 4)}</span>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <AssetLookup />
 
         <Card>
           <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow — Asset #45</h3>

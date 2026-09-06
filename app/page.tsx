@@ -9,36 +9,7 @@ import { EventRow } from "@/components/modules/EventRow";
 import { DetailPanelProvider } from "@/components/shell/DetailPanelContext";
 import { DetailPanel } from "@/components/shell/DetailPanel";
 import { Fingerprint, Hourglass, Landmark, Octagon, RefreshCw } from "lucide-react";
-
-const healthCards = [
-  {
-    label: "Active identities",
-    value: systemHealth.activeIdentities,
-    icon: Fingerprint,
-    tone: "text-signal-400 bg-signal-500/10",
-  },
-  {
-    label: "Roles expiring < 24h",
-    value: systemHealth.expiringIn24h,
-    icon: Hourglass,
-    tone: "text-alert-400 bg-alert-500/10",
-  },
-  {
-    label: "Pending governance",
-    value: systemHealth.pendingGovernance,
-    icon: Landmark,
-    tone: "text-verified-400 bg-verified-500/10",
-  },
-  {
-    label: "Platform status",
-    value: systemHealth.platformPaused ? "Paused" : "Operational",
-    icon: Octagon,
-    tone: systemHealth.platformPaused
-      ? "text-danger-400 bg-danger-500/10"
-      : "text-verified-400 bg-verified-500/10",
-  },
-];
-
+import { usePlatformPaused } from "@/lib/hooks";
 /**
  * OverviewPage — the live command center.
  *
@@ -47,6 +18,37 @@ const healthCards = [
  * Clicking any row opens the DetailPanel slide-in without hiding this stream.
  */
 export default function OverviewPage() {
+  const { data: isPaused } = usePlatformPaused();
+
+  const healthCards = [
+    {
+      label: "Active identities",
+      value: systemHealth.activeIdentities,
+      icon: Fingerprint,
+      tone: "text-signal-400 bg-signal-500/10",
+    },
+    {
+      label: "Roles expiring < 24h",
+      value: systemHealth.expiringIn24h,
+      icon: Hourglass,
+      tone: "text-alert-400 bg-alert-500/10",
+    },
+    {
+      label: "Pending governance",
+      value: systemHealth.pendingGovernance,
+      icon: Landmark,
+      tone: "text-verified-400 bg-verified-500/10",
+    },
+    {
+      label: "Platform status",
+      value: isPaused ? "Paused" : "Operational",
+      icon: Octagon,
+      tone: isPaused
+        ? "text-danger-400 bg-danger-500/10"
+        : "text-verified-400 bg-verified-500/10",
+    },
+  ];
+
   // Simulate live stream: prepend a synthetic event on "Refresh"
   const [events, setEvents] = useState(
     [...auditEvents].sort((a, b) => b.timestamp - a.timestamp)

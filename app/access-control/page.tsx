@@ -8,9 +8,65 @@ import { ExpiryRing } from "@/components/modules/ExpiryRing";
 import { truncateMiddle, expiryLevel } from "@/lib/utils";
 import { Octagon, AlertTriangle } from "lucide-react";
 
-const roleOrder = ["SUPER_ADMIN", "ADMIN", "MANAGER", "AUDITOR", "USER"] as const;
+import { useAccount } from "wagmi";
+import { ROLE, useRoleExpiry, usePlatformPaused } from "@/lib/hooks";
+
+const rolesToDisplay = [
+  { name: "SUPER_ADMIN", hash: ROLE.SUPER_ADMIN_ROLE },
+  { name: "ADMIN", hash: ROLE.ADMIN_ROLE },
+  { name: "MANAGER", hash: ROLE.MANAGER_ROLE },
+  { name: "AUDITOR", hash: ROLE.AUDITOR_ROLE },
+];
+
+function RoleRow({ roleName, roleHash, account }: { roleName: string; roleHash: `0x${string}`; account: `0x${string}` }) {
+  const { data: expiry, isLoading } = useRoleExpiry(roleHash, account);
+  
+  if (isLoading) return (
+    <tr className="border-b border-graphite-800 last:border-none hover:bg-graphite-800/30">
+      <td className="px-5 py-3"><Badge tone="neutral">{roleName}</Badge></td>
+      <td className="px-5 py-3" colSpan={3}><span className="text-ink-500">Loading...</span></td>
+    </tr>
+  );
+
+  const expiryTimestamp = Number(expiry ?? 0) * 1000;
+  // if expiry is 0, they don't have the role. If it's max uint256, it's permanent.
+  const hasRole = expiryTimestamp > Date.now();
+  const level = expiryLevel(expiryTimestamp);
+
+  return (
+    <tr className="border-b border-graphite-800 last:border-none hover:bg-graphite-800/30">
+      <td className="px-5 py-3">
+        <Badge tone={hasRole ? "neutral" : "neutral"}>{roleName}</Badge>
+      </td>
+      <td className="px-5 py-3">
+        {hasRole ? (
+          <span className="mono-value text-ink-200">{truncateMiddle(account, 16, 6)}</span>
+        ) : (
+          <span className="text-ink-600">—</span>
+        )}
+      </td>
+      <td className="px-5 py-3">
+        {hasRole ? <ExpiryRing expiresAt={expiryTimestamp} size={28} /> : <span className="text-ink-600">—</span>}
+      </td>
+      <td className="px-5 py-3">
+        {!hasRole ? (
+          <Badge tone="neutral" className="opacity-50">inactive</Badge>
+        ) : level === "expired" ? (
+          <Badge tone="danger">expired</Badge>
+        ) : level === "critical" ? (
+          <Badge tone="alert">expiring soon</Badge>
+        ) : (
+          <Badge tone="verified">active</Badge>
+        )}
+      </td>
+    </tr>
+  );
+}
 
 export default function AccessControlPage() {
+  const { address, isConnected } = useAccount();
+  const { data: isPaused } = usePlatformPaused();
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-5 flex items-center justify-between">
@@ -24,44 +80,29 @@ export default function AccessControlPage() {
         <Button variant="secondary">Grant timed role</Button>
       </div>
 
-      <Card className="mb-5 overflow-hidden p-0">
-        <table className="w-full text-left text-[13px]">
-          <thead>
-            <tr className="border-b border-graphite-800 text-[11px] uppercase tracking-wide text-ink-600">
-              <th className="px-5 py-3 font-medium">Identity</th>
-              <th className="px-5 py-3 font-medium">Held role</th>
-              <th className="px-5 py-3 font-medium">Expiry</th>
-              <th className="px-5 py-3 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {identities.map((identity) => {
-              const level = expiryLevel(identity.roleExpiresAt);
-              return (
-                <tr key={identity.did} className="border-b border-graphite-800 last:border-none hover:bg-graphite-800/30">
-                  <td className="px-5 py-3">
-                    <span className="mono-value text-ink-200">{truncateMiddle(identity.did, 16, 6)}</span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <Badge tone="neutral">{identity.role}</Badge>
-                  </td>
-                  <td className="px-5 py-3">
-                    <ExpiryRing expiresAt={identity.roleExpiresAt} size={28} />
-                  </td>
-                  <td className="px-5 py-3">
-                    {level === "expired" ? (
-                      <Badge tone="danger">expired — hasRole() now false</Badge>
-                    ) : level === "critical" ? (
-                      <Badge tone="alert">expiring soon</Badge>
-                    ) : (
-                      <Badge tone="verified">active</Badge>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <Card className="mb-5 min-h-[200px] overflow-hidden p-0">
+        {!isConnected ? (
+          <div className="flex h-[200px] flex-col items-center justify-center gap-3 text-ink-400">
+            <p className="text-[14px]">Connect your wallet to view your access roles.</p>
+            <w3m-button />
+          </div>
+        ) : (
+          <table className="w-full text-left text-[13px]">
+            <thead>
+              <tr className="border-b border-graphite-800 text-[11px] uppercase tracking-wide text-ink-600">
+                <th className="px-5 py-3 font-medium">Role</th>
+                <th className="px-5 py-3 font-medium">Identity</th>
+                <th className="px-5 py-3 font-medium">Expiry</th>
+                <th className="px-5 py-3 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rolesToDisplay.map((r) => (
+                <RoleRow key={r.name} roleName={r.name} roleHash={r.hash} account={address as `0x${string}`} />
+              ))}
+            </tbody>
+          </table>
+        )}
       </Card>
 
       <Card className="border-danger-500/25 bg-danger-500/[0.04]">
@@ -79,9 +120,9 @@ export default function AccessControlPage() {
               </p>
             </div>
           </div>
-          <Button variant="danger" className="shrink-0">
+          <Button variant="danger" className="shrink-0" disabled={isPaused}>
             <AlertTriangle size={14} />
-            Pause platform
+            {isPaused ? "Platform is Paused" : "Pause platform"}
           </Button>
         </div>
       </Card>

@@ -5,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { wagmiConfig } from "@/lib/wagmi";
 import { useState } from "react";
 
+// Initialize Web3Modal (this attaches it to the Wagmi config and injects the UI)
+import "@/lib/web3modal";
+
 /**
  * Web3Providers — wraps the app in WagmiProvider + QueryClientProvider.
  * Kept as a separate 'use client' file so layout.tsx can remain a Server Component
