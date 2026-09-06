@@ -20,6 +20,7 @@ describe("AssetRegistry", function () {
   let credRegistry: CredentialRegistry;
 
   let superAdmin: SignerWithAddress;
+  let superAdmin2: SignerWithAddress;
   let adminUser: SignerWithAddress;
   let managerUser: SignerWithAddress;
   let recipient: SignerWithAddress;
@@ -34,7 +35,7 @@ describe("AssetRegistry", function () {
   const RECIPIENT_DID = ethers.keccak256(ethers.toUtf8Bytes("recipient-did"));
 
   beforeEach(async () => {
-    [superAdmin, adminUser, managerUser, recipient, stranger] = await ethers.getSigners();
+    [superAdmin, superAdmin2, adminUser, managerUser, recipient, stranger] = await ethers.getSigners();
 
     // ── deploy TimeBoundAccessControl (proxy) ──────────────────────────────
     const ACFactory = await ethers.getContractFactory("TimeBoundAccessControl");
@@ -69,7 +70,42 @@ describe("AssetRegistry", function () {
       { kind: "uups", unsafeSkipStorageCheck: true }
     )) as unknown as AssetRegistry;
     await assetRegistry.waitForDeployment();
+
+    // Grant superAdmin2 SUPER_ADMIN_ROLE (for 2-of-2 platform actions in tests)
+    const ts2 = (await ethers.provider.getBlock("latest"))!.timestamp;
+    await ac.connect(superAdmin).grantTimedRole(
+      ethers.keccak256(ethers.toUtf8Bytes("SUPER_ADMIN_ROLE")),
+      superAdmin2.address,
+      ts2 + 999999
+    );
   });
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  /** Issue a credential and return its vcId; use vcId as the recipientDid arg in proposeMint
+   *  so vcIdOf[tokenId] is valid and isValid() returns true during transfers (Phase 2.3). */
+  async function issueVcForRecipient(): Promise<string> {
+    const subjectDid = ethers.keccak256(ethers.toUtf8Bytes("recipient-did"));
+    const issuerDid  = ethers.keccak256(ethers.toUtf8Bytes("issuer-did"));
+    const vcHash     = ethers.keccak256(ethers.toUtf8Bytes("some-vc-payload"));
+    const validUntil = Math.floor(Date.now() / 1000) + 86400 * 365;
+    const tx = await credRegistry.connect(superAdmin).issueCredential(
+      subjectDid, issuerDid, vcHash, "Asset Holder", validUntil
+    );
+    const r = await tx.wait();
+    const ev = r!.logs.map((l) => { try { return credRegistry.interface.parseLog(l as any); } catch { return null; } })
+      .find((e) => e?.name === "CredentialIssued");
+    return ev!.args.vcId;
+  }
+
+  /** Propose + coSign a platform pause action (2-of-2 SUPER_ADMIN). */
+  async function platformPause() {
+    const tx = await ac.connect(superAdmin).proposePlatformAction(2, ethers.ZeroHash, ethers.ZeroAddress);
+    const r = await tx.wait();
+    const ev = r!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+      .find((e) => e?.name === "ActionProposed");
+    await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+  }
 
   // ── proposeMint ──────────────────────────────────────────────────────────
 
@@ -90,45 +126,80 @@ describe("AssetRegistry", function () {
   // ── coSignMint — dual attestation ────────────────────────────────────────
 
   describe("coSignMint", () => {
-    let requestId: bigint;
-
-    beforeEach(async () => {
-      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, RECIPIENT_DID, recipient.address);
-      const receipt = await tx.wait();
-      const event = receipt!.logs
-        .map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } })
-        .find((e) => e?.name === "MintProposed");
-      requestId = event!.args.requestId;
-    });
-
     it("MANAGER_ROLE (distinct from proposer) can co-sign and mints the token", async () => {
+      const vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
       await expect(
-        assetRegistry.connect(managerUser).coSignMint(requestId)
-      )
-        .to.emit(assetRegistry, "MintCoSigned")
+        assetRegistry.connect(managerUser).coSignMint(ev!.args.requestId)
+      ).to.emit(assetRegistry, "MintCoSigned")
         .and.to.emit(assetRegistry, "AssetMinted");
-
-      // Token 0 belongs to recipient
       expect(await assetRegistry.ownerOf(0)).to.equal(recipient.address);
     });
 
     it("proposer cannot be the co-signer (SameSignerNotAllowed)", async () => {
+      const vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
       await expect(
-        assetRegistry.connect(adminUser).coSignMint(requestId)
+        assetRegistry.connect(adminUser).coSignMint(ev!.args.requestId)
       ).to.be.revertedWithCustomError(assetRegistry, "SameSignerNotAllowed");
     });
 
     it("stranger (no MANAGER/ADMIN role) cannot co-sign", async () => {
+      const vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
       await expect(
-        assetRegistry.connect(stranger).coSignMint(requestId)
+        assetRegistry.connect(stranger).coSignMint(ev!.args.requestId)
       ).to.be.revertedWith("caller must be MANAGER_ROLE or ADMIN_ROLE");
     });
 
     it("cannot co-sign twice (AlreadyExecuted)", async () => {
-      await assetRegistry.connect(managerUser).coSignMint(requestId);
+      const vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
+      await assetRegistry.connect(managerUser).coSignMint(ev!.args.requestId);
       await expect(
-        assetRegistry.connect(managerUser).coSignMint(requestId)
+        assetRegistry.connect(managerUser).coSignMint(ev!.args.requestId)
       ).to.be.revertedWithCustomError(assetRegistry, "AlreadyExecuted");
+    });
+  });
+
+  // ── credential-gated transfer (Phase 2.3) ──────────────────────────────
+
+  describe("credential-gated transfer", () => {
+    let tokenId: bigint;
+    let vcId: string;
+
+    beforeEach(async () => {
+      vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
+      const mintTx = await assetRegistry.connect(managerUser).coSignMint(ev!.args.requestId);
+      const mintR = await mintTx.wait();
+      const mintEv = mintR!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "AssetMinted");
+      tokenId = mintEv!.args.tokenId;
+    });
+
+    it("transfer succeeds when vcId is valid", async () => {
+      // credentialRegistry.isValid(vcId) = true (not revoked, not expired)
+      await expect(
+        assetRegistry.connect(recipient).transferFrom(recipient.address, stranger.address, tokenId)
+      ).to.emit(assetRegistry, "Transfer");
+    });
+
+    it("transfer reverts when credential is revoked (RecipientCredentialInvalid)", async () => {
+      // Revoke the credential — superAdmin has DEFAULT_ADMIN_ROLE on CredentialRegistry
+      await credRegistry.connect(superAdmin).revokeCredential(vcId);
+      await expect(
+        assetRegistry.connect(recipient).transferFrom(recipient.address, stranger.address, tokenId)
+      ).to.be.revertedWithCustomError(assetRegistry, "RecipientCredentialInvalid");
     });
   });
 
@@ -136,7 +207,8 @@ describe("AssetRegistry", function () {
 
   describe("tokenURI", () => {
     it("returns ipfs://<cid> for a minted token", async () => {
-      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, RECIPIENT_DID, recipient.address);
+      const vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
       const r = await tx.wait();
       const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
       await assetRegistry.connect(managerUser).coSignMint(ev!.args.requestId);
@@ -176,18 +248,20 @@ describe("AssetRegistry", function () {
 
   describe("pause propagation", () => {
     it("proposeMint reverts when platform is paused", async () => {
-      await ac.connect(superAdmin).pause();
+      await platformPause();
+      const vcId = await issueVcForRecipient();
       await expect(
-        assetRegistry.connect(adminUser).proposeMint(TEST_CID, RECIPIENT_DID, recipient.address)
+        assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address)
       ).to.be.revertedWith("AssetRegistry: platform paused");
     });
 
     it("coSignMint reverts when platform is paused", async () => {
-      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, RECIPIENT_DID, recipient.address);
+      const vcId = await issueVcForRecipient();
+      const tx = await assetRegistry.connect(adminUser).proposeMint(TEST_CID, vcId, recipient.address);
       const r = await tx.wait();
       const ev = r!.logs.map((l) => { try { return assetRegistry.interface.parseLog(l as any); } catch { return null; } }).find((e) => e?.name === "MintProposed");
 
-      await ac.connect(superAdmin).pause();
+      await platformPause();
 
       await expect(
         assetRegistry.connect(managerUser).coSignMint(ev!.args.requestId)

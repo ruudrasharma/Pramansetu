@@ -160,64 +160,110 @@ describe("TimeBoundAccessControl", function () {
     });
   });
 
-  // ── emergencyRevoke ──────────────────────────────────────────────────────
+  // ── proposePlatformAction / coSignPlatformAction ──────────────────────
+  // Replaces: direct emergencyRevoke(), pause(), unpause() — all now require 2 SUPER_ADMIN sigs.
 
-  describe("emergencyRevoke", () => {
-    it("SUPER_ADMIN can instantly expire a role", async () => {
+  describe("proposePlatformAction / coSignPlatformAction", () => {
+    let auditorExpiry: number;
+
+    beforeEach(async () => {
       const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
-      // Grant AUDITOR_ROLE (admin = SUPER_ADMIN_ROLE, so superAdmin can call grantTimedRole directly)
-      await ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, user.address, ts + 86400);
+      auditorExpiry = ts + 86400;
+      // Grant AUDITOR_ROLE to user so we can test emergencyRevoke (actionType=1)
+      await ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, user.address, auditorExpiry);
+    });
 
-      // sanity: roleExpiry is set
-      expect(await ac.roleExpiry(AUDITOR_ROLE, user.address)).to.be.gt(0);
+    it("non-SUPER_ADMIN cannot propose a platform action", async () => {
+      await expect(
+        ac.connect(stranger).proposePlatformAction(2, ethers.ZeroHash, ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(ac, "AccessControlUnauthorizedAccount");
+    });
+
+    it("rejects invalid actionType", async () => {
+      await expect(
+        ac.connect(superAdmin).proposePlatformAction(0, ethers.ZeroHash, ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(ac, "InvalidActionType");
+      await expect(
+        ac.connect(superAdmin).proposePlatformAction(4, ethers.ZeroHash, ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(ac, "InvalidActionType");
+    });
+
+    it("rejects duplicate signer on coSign", async () => {
+      const tx = await ac.connect(superAdmin).proposePlatformAction(2, ethers.ZeroHash, ethers.ZeroAddress);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await expect(
+        ac.connect(superAdmin).coSignPlatformAction(ev!.args.actionId)
+      ).to.be.revertedWithCustomError(ac, "DuplicateSigner");
+    });
+
+    it("actionType=1 (emergencyRevoke): 2 SUPER_ADMINs expire a role", async () => {
+      expect(await ac.hasRole(AUDITOR_ROLE, user.address)).to.be.true;
+
+      const tx = await ac.connect(superAdmin).proposePlatformAction(1, AUDITOR_ROLE, user.address);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
 
       await expect(
-        ac.connect(superAdmin).emergencyRevoke(AUDITOR_ROLE, user.address)
-      ).to.emit(ac, "EmergencyRevoked");
+        ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId)
+      ).to.emit(ac, "EmergencyRevoked").withArgs(AUDITOR_ROLE, user.address, superAdmin2.address);
 
-      // roleExpiry now = block.timestamp → hasRole returns false
       expect(await ac.hasRole(AUDITOR_ROLE, user.address)).to.be.false;
     });
 
-    it("non-SUPER_ADMIN cannot emergencyRevoke", async () => {
+    it("actionType=2 (pause): 2 SUPER_ADMINs pause the contract", async () => {
+      const tx = await ac.connect(superAdmin).proposePlatformAction(2, ethers.ZeroHash, ethers.ZeroAddress);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+
       await expect(
-        ac.connect(stranger).emergencyRevoke(AUDITOR_ROLE, user.address)
-      ).to.be.revertedWithCustomError(ac, "AccessControlUnauthorizedAccount");
-    });
-  });
+        ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId)
+      ).to.emit(ac, "ActionExecuted");
 
-  // ── pause / unpause ──────────────────────────────────────────────────────
-
-  describe("pause / unpause", () => {
-    it("SUPER_ADMIN can pause and grantTimedRole is blocked when paused", async () => {
-      await ac.connect(superAdmin).pause();
+      // grantTimedRole is now blocked
       const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
       await expect(
-        ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, user.address, ts + 86400)
+        ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, stranger.address, ts + 86400)
       ).to.be.revertedWithCustomError(ac, "EnforcedPause");
     });
 
-    it("proposePrivilegedGrant is blocked when paused", async () => {
-      await ac.connect(superAdmin).pause();
+    it("actionType=3 (unpause): 2 SUPER_ADMINs restore operation", async () => {
+      // pause first via 2-of-2
+      const tx1 = await ac.connect(superAdmin).proposePlatformAction(2, ethers.ZeroHash, ethers.ZeroAddress);
+      const r1 = await tx1.wait();
+      const ev1 = r1!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev1!.args.actionId);
+
+      // unpause via 2-of-2
+      const tx2 = await ac.connect(superAdmin).proposePlatformAction(3, ethers.ZeroHash, ethers.ZeroAddress);
+      const r2 = await tx2.wait();
+      const ev2 = r2!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev2!.args.actionId);
+
+      // grantTimedRole works again
+      const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
+      await expect(
+        ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, stranger.address, ts + 86400)
+      ).to.emit(ac, "TimedRoleGranted");
+    });
+
+    it("proposePrivilegedGrant is blocked when platform is paused", async () => {
+      // pause via 2-of-2
+      const tx = await ac.connect(superAdmin).proposePlatformAction(2, ethers.ZeroHash, ethers.ZeroAddress);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+
       const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
       await expect(
         ac.connect(superAdmin).proposePrivilegedGrant(ADMIN_ROLE, admin.address, ts + 86400)
       ).to.be.revertedWithCustomError(ac, "EnforcedPause");
-    });
-
-    it("unpause restores operation", async () => {
-      await ac.connect(superAdmin).pause();
-      await ac.connect(superAdmin).unpause();
-      const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
-      await expect(
-        ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, user.address, ts + 86400)
-      ).to.emit(ac, "TimedRoleGranted");
-    });
-
-    it("non-SUPER_ADMIN cannot pause", async () => {
-      await expect(
-        ac.connect(stranger).pause()
-      ).to.be.revertedWithCustomError(ac, "AccessControlUnauthorizedAccount");
     });
   });
 

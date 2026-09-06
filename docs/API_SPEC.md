@@ -15,38 +15,46 @@ token. Every function below reverts if the caller's DID does not hold the requir
 |---|---|---|
 | Create DID | `createDID(bytes pubKey, string metadataURI) → bytes32 did` | Any address (gated by prior onboarding credential issuance off-chain) |
 | Resolve DID | `resolveDID(bytes32 did) view → DIDDocument` | Public read |
-| Rotate key | `rotateKey(bytes32 did, bytes newPubKey) → bool` | Controller only, or via `GuardianRecovery` |
+| Rotate key | `rotateKey(bytes32 did, bytes newPubKey, string keyType, bytes proof) → void` | Controller only — `proof` checked against `signatureVerifier` if configured |
+| Set verifier | `setSignatureVerifier(address verifier)` | Owner — swaps ECDSA → Dilithium without schema change |
+| Set recovery | `setGuardianRecoveryContract(address recovery)` | Owner |
 
 ### CredentialRegistry
 | Function | Signature | Access |
 |---|---|---|
-| Issue credential | `issueCredential(bytes32 subjectDid, bytes32 vcHash, string role, uint256 validUntil) → bytes32 vcId` | `ISSUER_ROLE` |
-| Revoke credential | `revokeCredential(bytes32 vcId)` | `ISSUER_ROLE` or Super Admin |
+| Issue credential | `issueCredential(bytes32 subjectDid, bytes32 issuerDid, bytes32 vcHash, string role, uint256 validUntil) → bytes32 vcId` | `ISSUER_ROLE` |
+| Revoke credential | `revokeCredential(bytes32 vcId)` | `ISSUER_ROLE` **or** `DEFAULT_ADMIN_ROLE` (emergency path — Phase 2.2) |
 | Check status | `isValid(bytes32 vcId) view → bool` | Public read |
 
 ### TimeBoundAccessControl
 | Function | Signature | Access |
 |---|---|---|
-| Grant timed role | `grantTimedRole(bytes32 role, address account, uint256 validUntil)` | Role admin, 2-of-3 Admin multisig for high-privilege roles |
+| Grant timed role | `grantTimedRole(bytes32 role, address account, uint256 validUntil)` | Role admin (single sig for low-privilege roles) |
+| Propose privileged grant | `proposePrivilegedGrant(bytes32 role, address account, uint256 validUntil) → uint256 grantId` | `SUPER_ADMIN_ROLE` |
+| Co-sign privileged grant | `coSignGrant(uint256 grantId)` | Second distinct `SUPER_ADMIN_ROLE` — executes on threshold |
 | Check role | `hasRole(bytes32 role, address account) view → bool` | Public read; auto-false past expiry |
-| Emergency revoke | `emergencyRevoke(bytes32 role, address account)` | any 2 Super Admins |
-| Pause / unpause | `pause()` / `unpause()` | any 2 Super Admins (multisig) |
+| Propose platform action | `proposePlatformAction(uint8 actionType, bytes32 role, address account) → uint256 actionId` | `SUPER_ADMIN_ROLE` — actionType: 1=emergencyRevoke, 2=pause, 3=unpause |
+| Co-sign platform action | `coSignPlatformAction(uint256 actionId)` | Second distinct `SUPER_ADMIN_ROLE` — executes on threshold |
+
+> **Breaking change (Phase 2.5+2.6):** `emergencyRevoke()`, `pause()`, and `unpause()` are removed as direct single-signer calls. All destructive platform actions now require 2-of-N SUPER_ADMIN co-signatures via `proposePlatformAction` + `coSignPlatformAction`.
 
 ### AssetRegistry
 | Function | Signature | Access |
 |---|---|---|
-| Propose mint | `proposeMint(string cid, bytes32 recipientDid) → uint256 requestId` | `ADMIN_ROLE` |
-| Co-sign mint | `coSignMint(uint256 requestId)` | `MANAGER_ROLE` or second `ADMIN_ROLE`, distinct from proposer |
-| Transfer | `safeTransferFrom(address from, address to, uint256 tokenId)` | Owner; reverts if recipient DID's credential is invalid/revoked |
-| Get metadata | `tokenURI(uint256 tokenId) view → string` | Public read (returns IPFS CID) |
+| Propose mint | `proposeMint(string cid, bytes32 vcId, address recipient) → uint256 requestId` | `ADMIN_ROLE` — `vcId` is the CredentialRegistry ID authorizing this recipient; stored as `vcIdOf[tokenId]` |
+| Co-sign mint | `coSignMint(uint256 requestId) → uint256 tokenId` | `MANAGER_ROLE` or second `ADMIN_ROLE`, distinct from proposer |
+| Transfer | `transferFrom(address from, address to, uint256 tokenId)` | Owner; reverts with `RecipientCredentialInvalid` if `vcIdOf[tokenId]` is no longer valid |
+| Get metadata | `tokenURI(uint256 tokenId) view → string` | Public read — returns `ipfs://<CID>` |
+| Attach legal ref | `attachLegalReference(uint256 tokenId, bytes32 hash)` | Token owner |
+| VC lookup | `vcIdOf(uint256 tokenId) view → bytes32` | Public read — returns the VC gating this token's transferability |
 
 ### GuardianRecovery
 | Function | Signature | Access |
 |---|---|---|
-| Register guardians | `registerGuardians(bytes32 did, address[] guardians, uint8 threshold)` | DID controller |
-| Initiate recovery | `initiateRecovery(bytes32 did, bytes newPubKey)` | Any registered guardian |
+| Register guardians | `registerGuardians(bytes32 did, address[] guardians, uint8 threshold)` | **DID controller only** (Phase 2.1 fix — previously unguarded) |
+| Initiate recovery | `initiateRecovery(bytes32 did, address newController, bytes newPubKey)` | Any registered guardian |
 | Sign recovery | `signRecovery(bytes32 did)` | Registered guardian, once each |
-| Finalize | `finalizeRecovery(bytes32 did)` | Anyone, once threshold + timelock satisfied |
+| Finalize | `finalizeRecovery(bytes32 did)` | Anyone, once threshold + 24h timelock satisfied |
 
 ### GovernanceTimelock
 | Function | Signature | Access |

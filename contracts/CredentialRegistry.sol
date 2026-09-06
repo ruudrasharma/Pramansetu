@@ -63,7 +63,15 @@ contract CredentialRegistry is AccessControl {
         emit CredentialIssued(vcId, subjectDid, issuerDid, role, validUntil);
     }
 
-    function revokeCredential(bytes32 vcId) external onlyRole(ISSUER_ROLE) {
+    /// @notice Revoke a credential, immediately making isValid() return false.
+    ///         Callable by: the original ISSUER_ROLE holder OR the DEFAULT_ADMIN_ROLE (emergency path).
+    ///         The emergency path exists for terminated employees, compromised issuer keys, or
+    ///         regulatory takedown orders where waiting for the original issuer is not acceptable
+    ///         (docs/SECURITY.md §5.2, audit item A5).
+    function revokeCredential(bytes32 vcId) external {
+        bool isIssuer = hasRole(ISSUER_ROLE, msg.sender);
+        bool isAdmin  = hasRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        require(isIssuer || isAdmin, "CredentialRegistry: caller must be ISSUER_ROLE or DEFAULT_ADMIN_ROLE");
         if (!credentials[vcId].exists) revert CredentialNotFound();
         credentials[vcId].revoked = true;
         emit CredentialRevoked(vcId, block.timestamp);

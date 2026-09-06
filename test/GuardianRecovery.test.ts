@@ -5,12 +5,9 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 /**
  * GuardianRecovery tests — TESTING.md §1 "GuardianRecovery.test.ts"
- * Covers: registration bounds (3–5 guardians); M-of-N threshold enforcement;
- *         timelock window respected; finalize reverts before threshold met;
- *         notAGuardian reverts; duplicate signature reverts.
- *
- * NOTE: Tests for the controller-only check on registerGuardians are marked
- * as pending (@TODO) — they will become active once Phase 2.1 fix is applied.
+ * Covers: registration bounds (3–5 guardians); controller-only auth on registerGuardians;
+ *         M-of-N threshold enforcement; timelock window respected; finalize reverts before
+ *         threshold met; notAGuardian reverts; duplicate signature reverts.
  */
 describe("GuardianRecovery", function () {
   let didRegistry: DIDRegistry;
@@ -112,6 +109,17 @@ describe("GuardianRecovery", function () {
           4
         )
       ).to.be.revertedWithCustomError(guardianRecovery, "InvalidThreshold");
+    });
+
+    it("non-controller cannot register guardians (NotController)", async () => {
+      // Phase 2.1 fix: only the DID controller may set their guardian list
+      await expect(
+        guardianRecovery.connect(stranger).registerGuardians(
+          subjectDid,
+          [guardian1.address, guardian2.address, guardian3.address],
+          2
+        )
+      ).to.be.revertedWithCustomError(guardianRecovery, "NotController");
     });
   });
 

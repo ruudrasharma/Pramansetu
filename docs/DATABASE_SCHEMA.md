@@ -11,36 +11,39 @@ true at all times as a system invariant.
 ### DIDRegistry
 | Field | Type | Notes |
 |---|---|---|
-| `documents[did]` | `struct DIDDocument { address controller; string keyType; bytes pubKey; string metadataURI; uint256 createdAt; }` | mapping keyed by DID identifier |
-| `controllerOf[address]` | `bytes32` (did hash) | reverse lookup |
+| `_documents[did]` | `struct DIDDocument { address controller; string keyType; bytes pubKey; string metadataURI; uint256 createdAt; bool exists; }` | private mapping keyed by DID hash |
+| `didOf[address]` | `bytes32` (did hash) | reverse lookup: controller address → DID (Phase 2.8 fix: was `controllerOf`) |
+| `guardianRecoveryContract` | `address` | only this contract may call `forceRotateKey` |
+| `signatureVerifier` | `ISignatureVerifier` | pluggable verifier; zero address = skip proof check (Phase 2.4) |
 
 ### CredentialRegistry
 | Field | Type | Notes |
 |---|---|---|
-| `credentialHash[vcId]` | `bytes32` | hash of off-chain VC payload |
-| `revoked[vcId]` | `bool` | revocation flag, checked at auth time |
-| `issuer[vcId]` | `bytes32` (did) | must hold `ISSUER_ROLE` |
+| `credentials[vcId]` | `struct Credential { bytes32 subjectDid; bytes32 issuerDid; bytes32 vcHash; string role; uint256 validUntil; bool revoked; bool exists; }` | mapping keyed by vcId |
+
+> **Note:** Off-chain VC payload is never stored on-chain. `vcHash` is a commitment; `isValid()` checks `exists && !revoked && block.timestamp < validUntil`.
 
 ### TimeBoundAccessControl
 | Field | Type | Notes |
 |---|---|---|
 | `roleExpiry[role][account]` | `uint256` (unix ts) | `hasRole()` returns false once `block.timestamp >= this` |
 | `_roles[role][account]` | `bool` (OZ AccessControl base) | standard grant flag |
-| `pendingGrants[grantId]` | `struct { role; account; validUntil; signatures[]; }` | 2-of-3 multisig staging |
+| `pendingGrants[grantId]` | `struct { bytes32 role; address account; uint256 validUntil; address proposer; address[] signers; bool executed; }` | 2-of-N multisig staging for privileged grants |
+| `pendingActions[actionId]` | `struct { uint8 actionType; bytes32 role; address account; address proposer; address[] signers; bool executed; }` | 2-of-N staging for emergencyRevoke/pause/unpause (Phase 2.5+2.6) |
 
 ### AssetRegistry (ERC-721 extension)
 | Field | Type | Notes |
 |---|---|---|
-| `tokenMetadataCID[tokenId]` | `string` (IPFS CID) | content-addressed, on-chain reference only |
-| `legalReference[tokenId]` | `bytes32` | hash of off-chain signed attestation, optional |
-| `pendingMints[requestId]` | `struct { cid; recipientDid; proposer; coSigner; executed; }` | dual-attestation staging |
+| `assetMeta[tokenId]` | `struct AssetMeta { string cid; bytes32 legalReference; uint256 mintedAt; }` | IPFS CID is content-addressed |
+| `vcIdOf[tokenId]` | `bytes32` (vcId) | CredentialRegistry ID gating this token's transferability (Phase 2.3) |
+| `pendingMints[requestId]` | `struct { string cid; bytes32 recipientDid; address recipient; address proposer; address coSigner; bool executed; }` | dual-attestation staging |
 
 ### GuardianRecovery
 | Field | Type | Notes |
 |---|---|---|
-| `guardiansOf[did]` | `address[]` | 3–5 registered guardian addresses |
+| `guardiansOf[did]` | `address[]` | 3–5 registered guardian addresses; only DID controller may set (Phase 2.1) |
 | `recoveryThreshold[did]` | `uint8` | M in M-of-N |
-| `activeRecovery[did]` | `struct { newPubKey; signatures[]; initiatedAt; timelockEnd; }` | in-progress recovery |
+| `activeRecovery[did]` | `struct { address newController; bytes newPubKey; address[] signers; uint256 initiatedAt; bool finalized; }` | in-progress recovery; 24h timelock from `initiatedAt` |
 
 ### GovernanceTimelock
 | Field | Type | Notes |

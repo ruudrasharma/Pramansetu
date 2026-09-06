@@ -101,24 +101,46 @@ describe("DIDRegistry", function () {
       did = event!.args.did;
     });
 
-    it("controller can rotate key", async () => {
+    it("controller can rotate key (no verifier configured — proof ignored)", async () => {
       const newKey = ethers.randomBytes(64);
+      // When signatureVerifier = zero address, proof param is passed but not checked.
+      const newController = ethers.getAddress(
+        "0x" + ethers.keccak256(newKey).slice(-40)
+      );
       await expect(
-        didRegistry.connect(alice).rotateKey(did, newKey, "ES256K")
-      ).to.emit(didRegistry, "KeyRotated").withArgs(did, alice.address, "ES256K", (v: any) => true);
+        didRegistry.connect(alice).rotateKey(did, newKey, "ES256K", "0x")
+      ).to.emit(didRegistry, "KeyRotated");
+      // Controller is now the address derived from keccak256(newPubKey)
+      const doc = await didRegistry.resolveDID(did);
+      expect(doc.keyType).to.equal("ES256K");
     });
 
     it("non-controller cannot rotate key", async () => {
       await expect(
-        didRegistry.connect(bob).rotateKey(did, ethers.randomBytes(64), "ES256K")
+        didRegistry.connect(bob).rotateKey(did, ethers.randomBytes(64), "ES256K", "0x")
       ).to.be.revertedWithCustomError(didRegistry, "NotController");
     });
 
     it("can update keyType (crypto-agility)", async () => {
       const newKey = ethers.randomBytes(64);
-      await didRegistry.connect(alice).rotateKey(did, newKey, "DILITHIUM3");
+      await didRegistry.connect(alice).rotateKey(did, newKey, "DILITHIUM3", "0x");
       const doc = await didRegistry.resolveDID(did);
       expect(doc.keyType).to.equal("DILITHIUM3");
+    });
+
+    it("setSignatureVerifier emits SignatureVerifierUpdated", async () => {
+      const fakeVerifier = ethers.Wallet.createRandom().address;
+      await expect(
+        didRegistry.connect(owner).setSignatureVerifier(fakeVerifier)
+      ).to.emit(didRegistry, "SignatureVerifierUpdated")
+        .withArgs(ethers.ZeroAddress, fakeVerifier);
+      expect(await didRegistry.signatureVerifier()).to.equal(fakeVerifier);
+    });
+
+    it("non-owner cannot setSignatureVerifier", async () => {
+      await expect(
+        didRegistry.connect(alice).setSignatureVerifier(ethers.Wallet.createRandom().address)
+      ).to.be.revertedWithCustomError(didRegistry, "NotAuthorized");
     });
   });
 

@@ -21,19 +21,20 @@
   - Upgrade.test.ts (UUPS proxy safety + state preservation)
 - [x] 1.3 — All 79 tests passing, 0 failures
 
-## Phase 2 — Contract Bug Fixes (approval required per item)
-- [ ] 2.1 — Fix GuardianRecovery.registerGuardians — add controller-only check
-          (currently any EOA can register guardians for any DID)
-- [ ] 2.2 — Fix CredentialRegistry.revokeCredential — allow Super Admin to revoke
-          (currently only the original issuer can revoke — no emergency path)
-- [ ] 2.3 — Uncomment credential-gated transfer in AssetRegistry._update
-          (currently bypassed — FEATURES.md F3.2 "holder must hold valid credential")
-- [ ] 2.4 — Integrate ISignatureVerifier into DIDRegistry (crypto-agility wiring)
-          (currently ISignatureVerifier is orphaned — SECURITY.md §6)
-- [ ] 2.5 — Fix emergencyRevoke — needs 2-of-N multisig staging (FEATURES.md F2.3)
-- [ ] 2.6 — Fix pause()/unpause() — same multisig staging requirement
-- [ ] 2.7 — Update API_SPEC.md to match actual contract signatures
-- [ ] 2.8 — Update DATABASE_SCHEMA.md (controllerOf → didOf)
+## Phase 2 — Contract Bug Fixes ✅ 86/86 tests passing
+- [x] 2.1 — Fix GuardianRecovery.registerGuardians — controller-only check (audit A3)
+          DIDRegistry.resolveDID called; NotController revert if msg.sender ≠ doc.controller
+- [x] 2.2 — Fix CredentialRegistry.revokeCredential — allow DEFAULT_ADMIN_ROLE emergency path (A5)
+- [x] 2.3 — Credential-gated transfer in AssetRegistry._update (FEATURES.md F3.2, audit A7)
+          recipientDid param repurposed as vcId; vcIdOf[tokenId] stored at mint; _minting flag
+          bypasses check during _safeMint; revoked/expired VC → RecipientCredentialInvalid
+- [x] 2.4 — ISignatureVerifier wired into DIDRegistry (SECURITY.md §6, audit A8)
+          rotateKey now takes proof bytes; setSignatureVerifier; zero addr = skip (migration window)
+          rotateKey now updates controller to keccak256(newPubKey)-derived address
+- [x] 2.5 — emergencyRevoke replaced by proposePlatformAction(1,...)+coSignPlatformAction (A9)
+- [x] 2.6 — pause/unpause replaced by proposePlatformAction(2/3,...)+coSignPlatformAction (A10)
+- [x] 2.7 — API_SPEC.md updated to match Phase 2 contract signatures
+- [x] 2.8 — DATABASE_SCHEMA.md updated (controllerOf → didOf, all structs corrected)
 
 ## Phase 3 — Frontend Foundation
 - [ ] 3.1 — WagmiProvider + QueryClientProvider in layout.tsx

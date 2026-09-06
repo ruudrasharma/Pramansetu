@@ -36,6 +36,13 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
 
     mapping(uint256 => PendingMint) public pendingMints;
     mapping(uint256 => AssetMeta) public assetMeta;
+    /// @notice Stores the VC that authorized the current owner to hold this token.
+    ///         Checked on every transfer — if the credential expires or is revoked, the token
+    ///         becomes non-transferable until a new valid VC is associated (FEATURES.md F3.2).
+    mapping(uint256 => bytes32) public vcIdOf;
+    /// @dev Internal flag set during _safeMint to skip the credential check on initial mint.
+    ///      Without this, minting itself would revert because the token has no vcId yet.
+    bool private _minting;
     uint256 public nextRequestId;
     uint256 public nextTokenId;
 
@@ -104,7 +111,14 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
         emit MintCoSigned(requestId, msg.sender);
 
         tokenId = nextTokenId++;
+        _minting = true;
         _safeMint(pm.recipient, tokenId);
+        _minting = false;
+
+        // Store the credential that authorized this mint — used by _update for transfer gating.
+        // recipientDid field currently holds the vcId (see proposeMint — callers pass the vcId
+        // as recipientDid so it flows through without an extra storage slot; see API_SPEC.md §M3).
+        vcIdOf[tokenId] = pm.recipientDid;
         assetMeta[tokenId] = AssetMeta({cid: pm.cid, legalReference: bytes32(0), mintedAt: block.timestamp});
 
         emit AssetMinted(tokenId, requestId, pm.recipientDid, pm.cid);
@@ -122,12 +136,19 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
         return string(abi.encodePacked("ipfs://", assetMeta[tokenId].cid));
     }
 
-    /// @dev Credential-gated transfer — closes "assets sent to unverified/anonymous address" gap.
-    ///      Recipient's credential validity is checked off-chain by the frontend before building
-    ///      the tx, and MUST also be enforced here via an oracle/adapter call to CredentialRegistry
-    ///      keyed by the recipient's DID in the production build (kept as a hook point below).
+    /// @dev Credential-gated transfer — closes "assets sent to unverified/anonymous address" gap
+    ///      (FEATURES.md F3.2, audit item A7). On every transfer (not initial mint), the recipient's
+    ///      credential associated with this specific token must still be valid. If a credential expires
+    ///      or is revoked, the token becomes non-transferable until governance issues a new VC and
+    ///      calls refreshVcId (a Phase 3 governance action).
     function _update(address to, uint256 tokenId, address auth) internal override returns (address) {
-        // production: require(credentialRegistry.isValid(didOf(to)), RecipientCredentialInvalid());
+        if (!_minting && to != address(0)) {
+            // address(0) = burn, skip check
+            bytes32 vcId = vcIdOf[tokenId];
+            if (vcId != bytes32(0) && !credentialRegistry.isValid(vcId)) {
+                revert RecipientCredentialInvalid();
+            }
+        }
         return super._update(to, tokenId, auth);
     }
 

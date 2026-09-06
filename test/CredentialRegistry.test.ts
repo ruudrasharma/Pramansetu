@@ -139,10 +139,19 @@ describe("CredentialRegistry", function () {
       ).to.emit(registry, "CredentialRevoked").withArgs(vcId, (v: any) => true);
     });
 
-    it("non-ISSUER_ROLE cannot revoke", async () => {
+    it("DEFAULT_ADMIN_ROLE (super admin) can emergency-revoke (Phase 2.2)", async () => {
+      // admin = the deployer who got DEFAULT_ADMIN_ROLE in the constructor
+      await expect(
+        registry.connect(admin).revokeCredential(vcId)
+      ).to.emit(registry, "CredentialRevoked");
+      expect(await registry.isValid(vcId)).to.be.false;
+    });
+
+    it("non-issuer non-admin cannot revoke", async () => {
+      // Phase 2.2: revokeCredential now uses a require() string, not a custom error
       await expect(
         registry.connect(stranger).revokeCredential(vcId)
-      ).to.be.revertedWithCustomError(registry, "AccessControlUnauthorizedAccount");
+      ).to.be.revertedWith("CredentialRegistry: caller must be ISSUER_ROLE or DEFAULT_ADMIN_ROLE");
     });
 
     it("reverts on unknown vcId with CredentialNotFound", async () => {

@@ -33,6 +33,7 @@ contract GuardianRecovery {
 
     error InvalidGuardianCount();
     error InvalidThreshold();
+    error NotController();
     error NotAGuardian();
     error DuplicateSignature();
     error ThresholdNotMet();
@@ -40,14 +41,22 @@ contract GuardianRecovery {
     error NoActiveRecovery();
     error AlreadyFinalized();
 
+
     constructor(address didRegistryAddr) {
         didRegistry = DIDRegistry(didRegistryAddr);
     }
 
     /// @notice Called once by a DID controller, any time before they need it.
+    ///         Only the current DID controller may register (or update) the guardian set.
+    ///         This prevents a third party from overwriting guardians on a DID they don't own,
+    ///         which would be a complete identity takeover vector (audit item A3).
     function registerGuardians(bytes32 did, address[] calldata guardians, uint8 threshold) external {
         if (guardians.length < MIN_GUARDIANS || guardians.length > MAX_GUARDIANS) revert InvalidGuardianCount();
         if (threshold == 0 || threshold > guardians.length) revert InvalidThreshold();
+
+        // Auth: only the current DID controller may touch the guardian set.
+        DIDRegistry.DIDDocument memory doc = didRegistry.resolveDID(did);
+        if (doc.controller != msg.sender) revert NotController();
 
         guardiansOf[did] = guardians;
         recoveryThreshold[did] = threshold;

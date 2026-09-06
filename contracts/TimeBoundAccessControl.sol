@@ -24,7 +24,8 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
 
-    uint8 public constant GRANT_THRESHOLD = 2; // 2-of-3 Admin co-signature for privileged grants
+    uint8 public constant GRANT_THRESHOLD = 2;   // 2-of-N co-signature for privileged grants
+    uint8 public constant ACTION_THRESHOLD = 2;  // 2-of-N co-signature for emergencyRevoke/pause
 
     struct PendingGrant {
         bytes32 role;
@@ -35,20 +36,37 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
         bool executed;
     }
 
+    /// @dev Generic pending action used for emergencyRevoke, pause, unpause.
+    ///      actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause
+    struct PendingAction {
+        uint8 actionType;
+        bytes32 role;       // used by emergencyRevoke
+        address account;    // used by emergencyRevoke
+        address proposer;
+        address[] signers;
+        bool executed;
+    }
+
     mapping(bytes32 role => mapping(address account => uint256 expiry)) public roleExpiry;
     mapping(uint256 => PendingGrant) public pendingGrants;
+    mapping(uint256 => PendingAction) public pendingActions;
     uint256 public nextGrantId;
+    uint256 public nextActionId;
 
     event TimedRoleGranted(bytes32 indexed role, address indexed account, uint256 validUntil);
     event GrantProposed(uint256 indexed grantId, bytes32 role, address account, address proposer);
     event GrantCoSigned(uint256 indexed grantId, address signer, uint256 signatureCount);
     event EmergencyRevoked(bytes32 indexed role, address indexed account, address indexed revokedBy);
+    event ActionProposed(uint256 indexed actionId, uint8 actionType, address proposer);
+    event ActionCoSigned(uint256 indexed actionId, address signer, uint256 signatureCount);
+    event ActionExecuted(uint256 indexed actionId, uint8 actionType);
 
     error ValidityInPast();
     error AlreadyExecuted();
     error DuplicateSigner();
     error ThresholdNotMet();
     error OnlyDistinctSigner();
+    error InvalidActionType();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -132,24 +150,47 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
         return super.hasRole(role, account) && block.timestamp < roleExpiry[role][account];
     }
 
-    /// @notice Priority path: any 2 Super Admins can instantly kill a role without waiting for
-    ///         expiry — used the moment a compromise or termination is detected
-    ///         (docs/USER_FLOWS.md §3, §4).
-    function emergencyRevoke(bytes32 role, address account) external onlyRole(SUPER_ADMIN_ROLE) {
-        roleExpiry[role][account] = block.timestamp;
-        emit EmergencyRevoked(role, account, msg.sender);
+    /// @notice Step 1: Propose an emergencyRevoke, pause, or unpause action.
+    ///         Requires a second SUPER_ADMIN to co-sign (ACTION_THRESHOLD) before execution.
+    ///         actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause
+    function proposePlatformAction(
+        uint8 actionType,
+        bytes32 role,
+        address account
+    ) external onlyRole(SUPER_ADMIN_ROLE) returns (uint256 actionId) {
+        if (actionType < 1 || actionType > 3) revert InvalidActionType();
+        actionId = nextActionId++;
+        PendingAction storage a = pendingActions[actionId];
+        a.actionType = actionType;
+        a.role = role;
+        a.account = account;
+        a.proposer = msg.sender;
+        a.signers.push(msg.sender);
+        emit ActionProposed(actionId, actionType, msg.sender);
     }
 
-    /// @notice Freezes every state-changing function across the platform (via the shared
-    ///         `whenNotPaused` modifier honored by AssetRegistry/GovernanceTimelock too) in a
-    ///         single transaction. Call requires 2 Super Admins in practice via the governance
-    ///         multisig wrapper (docs/FEATURES.md F2.3).
-    function pause() external onlyRole(SUPER_ADMIN_ROLE) {
-        _pause();
-    }
+    /// @notice Step 2: Co-sign a pending platform action. Executes automatically once threshold met.
+    function coSignPlatformAction(uint256 actionId) external onlyRole(SUPER_ADMIN_ROLE) {
+        PendingAction storage a = pendingActions[actionId];
+        if (a.executed) revert AlreadyExecuted();
+        for (uint256 i = 0; i < a.signers.length; i++) {
+            if (a.signers[i] == msg.sender) revert DuplicateSigner();
+        }
+        a.signers.push(msg.sender);
+        emit ActionCoSigned(actionId, msg.sender, a.signers.length);
 
-    function unpause() external onlyRole(SUPER_ADMIN_ROLE) {
-        _unpause();
+        if (a.signers.length >= ACTION_THRESHOLD) {
+            a.executed = true;
+            emit ActionExecuted(actionId, a.actionType);
+            if (a.actionType == 1) {
+                roleExpiry[a.role][a.account] = block.timestamp;
+                emit EmergencyRevoked(a.role, a.account, msg.sender);
+            } else if (a.actionType == 2) {
+                _pause();
+            } else if (a.actionType == 3) {
+                _unpause();
+            }
+        }
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(SUPER_ADMIN_ROLE) {}
