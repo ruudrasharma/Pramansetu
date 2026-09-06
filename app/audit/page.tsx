@@ -8,7 +8,8 @@ import { EventRow } from "@/components/modules/EventRow";
 import { formatRelativeTime } from "@/lib/utils";
 import { Download, TriangleAlert } from "lucide-react";
 
-const riskTone = (score: number) => (score >= 65 ? "danger" : score >= 40 ? "alert" : "neutral") as const;
+const riskTone = (score: number): "danger" | "alert" | "neutral" =>
+  score >= 65 ? "danger" : score >= 40 ? "alert" : "neutral";
 
 export default function AuditPage() {
   return (

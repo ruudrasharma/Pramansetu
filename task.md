@@ -36,12 +36,31 @@
 - [x] 2.7 — API_SPEC.md updated to match Phase 2 contract signatures
 - [x] 2.8 — DATABASE_SCHEMA.md updated (controllerOf → didOf, all structs corrected)
 
-## Phase 3 — Frontend Foundation
-- [ ] 3.1 — WagmiProvider + QueryClientProvider in layout.tsx
-- [ ] 3.2 — Build lib/abis/ with TypeScript ABI exports
-- [ ] 3.3 — Implement ⌘K command palette (cmdk)
-- [ ] 3.4 — Implement slide-in detail panel
-- [ ] 3.5 — Real-time ledger stream animation (AnimatePresence)
+## Phase 3 — Frontend Foundation ✅ 0 TS errors · build ✓ (9/9 pages)
+- [x] 3.1 — WagmiProvider + QueryClientProvider in layout.tsx
+          Web3Providers.tsx wrapper ('use client'); QueryClient created in useState
+          (prevents cross-request cache leakage in Next.js App Router)
+- [x] 3.2 — lib/abis/ — typed ABI exports from all 6 Hardhat artifacts
+          DIDRegistryAbi, CredentialRegistryAbi, TimeBoundAccessControlAbi,
+          AssetRegistryAbi, GuardianRecoveryAbi, GovernanceTimelockAbi
+          (import from lib/abis/ not artifacts/ — swap point for viem codegen)
+- [x] 3.3 — ⌘K Command Palette (cmdk) — CommandPalette.tsx
+          Groups: Navigate · Identity · Access Control · Assets · Governance
+          Fuzzy search across label + description + keywords
+          Opens via ⌘K/Ctrl+K shortcut AND ContextBar button (commandPaletteSignal)
+          Backdrop is blurred, not opaque — spec: "content stays visible"
+- [x] 3.4 — Slide-in Detail Panel — DetailPanel.tsx + DetailPanelContext.tsx
+          Spring animation (stiffness 300, damping 28) from right edge
+          Semi-transparent backdrop; primary content fully visible underneath
+          Shows: event type badge, summary, actor DID (copyable), tx hash, timestamp
+          PolygonScan link in footer; keyboard accessible
+- [x] 3.5 — Live ledger stream animation — AnimatePresence on Overview page
+          Each event: upward slide y=-12 + fade, spring stiffness 300 damping 30
+          "Simulate" button demonstrates live event arrival without RPC
+          Clicking any event row opens DetailPanel
+          Health cards animate in on mount
+          next.config.js: webpack stubs for @x402/* and @coinbase/cdp-sdk
+          tsconfig.json: excludes test/, scripts/, typechain-types/
 
 ## Phase 4 — Wire Live Data
 - [ ] 4.1 — Deploy contracts to Polygon Amoy

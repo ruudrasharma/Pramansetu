@@ -3,6 +3,8 @@ import { Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { CommandRail } from "@/components/shell/CommandRail";
 import { ContextBar } from "@/components/shell/ContextBar";
+import { Web3Providers } from "@/components/shell/Web3Providers";
+import { CommandPalette } from "@/components/shell/CommandPalette";
 
 // UI_UX_SPEC.md specifies Geist / Geist Mono as the target typefaces. Using Inter + IBM Plex Mono
 // here (same CSS variable names) so the project runs with zero extra font-file setup; swap to
@@ -29,13 +31,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-graphite-950 font-sans text-ink-50 antialiased">
-        <div className="flex h-screen overflow-hidden">
-          <CommandRail />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <ContextBar />
-            <main className="flex-1 overflow-y-auto">{children}</main>
+        <Web3Providers>
+          <div className="flex h-screen overflow-hidden">
+            <CommandRail />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <ContextBar />
+              <main className="flex-1 overflow-y-auto">{children}</main>
+            </div>
           </div>
-        </div>
+          {/* ⌘K command palette — global, rendered outside the flex layout so it overlays everything */}
+          <CommandPalette />
+        </Web3Providers>
       </body>
     </html>
   );

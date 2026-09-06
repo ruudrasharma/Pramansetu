@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Search, Circle } from "lucide-react";
 import { systemHealth } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { commandPaletteSignal } from "@/lib/commandPaletteSignal";
 
 const titles: Record<string, string> = {
   "/": "Overview",
@@ -17,8 +18,9 @@ const titles: Record<string, string> = {
 export function ContextBar() {
   const pathname = usePathname();
   const title =
-    Object.entries(titles).find(([href]) => (href === "/" ? pathname === "/" : pathname.startsWith(href)))?.[1] ??
-    "Overview";
+    Object.entries(titles).find(([href]) =>
+      href === "/" ? pathname === "/" : pathname.startsWith(href)
+    )?.[1] ?? "Overview";
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-graphite-800 bg-graphite-950/80 px-6 backdrop-blur">
@@ -38,7 +40,9 @@ export function ContextBar() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* ⌘K button — fires commandPaletteSignal so CommandPalette opens (same as keyboard shortcut) */}
         <button
+          onClick={() => commandPaletteSignal.open()}
           className="flex items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-3 py-1.5 text-[13px] text-ink-400 transition-colors hover:border-graphite-600 hover:text-ink-200"
           aria-label="Open command palette"
         >
