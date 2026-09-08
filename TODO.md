@@ -42,15 +42,11 @@ After: run `T-003`.
 
 ## 🟢 Medium Priority — Polish & Robustness
 
-### T-009: Anomaly detection service integration
-`GET /audit/anomalies` (see API_SPEC.md §2) is a computed layer.
-Wire it into the Audit page `AnomalyAlerts` card as a real API call
-with a clear "⚠ NOT from chain" disclaimer (UI_UX_SPEC §2.6).
+### T-015: ZK Privacy Module (Phase 4)
+Implement Zero-Knowledge proofs for selective credential disclosure and transaction privacy.
 
-### T-010: IPFS upload flow for asset CIDs
-`useProposeMint` takes a `cid` string. Add a `lib/ipfs.ts` helper
-using Pinata (`PINATA_API_KEY` / `PINATA_SECRET_API_KEY`) to upload
-the asset metadata JSON and return the CID before calling `proposeMint`.
+### T-016: Oracle Attestation (Phase 4)
+Integrate decentralized oracles for off-chain data validation.
 
 ---
 
