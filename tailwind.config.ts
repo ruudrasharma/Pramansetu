@@ -7,35 +7,35 @@ const config: Config = {
     extend: {
       colors: {
         graphite: {
-          950: "#0A0C10",
-          900: "#12151A",
-          850: "#161A21",
-          800: "#1B1F26",
-          700: "#242933",
-          600: "#323847",
+          950: "var(--graphite-950)",
+          900: "var(--graphite-900)",
+          850: "var(--graphite-850)",
+          800: "var(--graphite-800)",
+          700: "var(--graphite-700)",
+          600: "var(--graphite-600)",
         },
         ink: {
-          50: "#F4F5F7",
-          200: "#C7CCD6",
-          400: "#8B93A1",
-          600: "#5B6371",
+          50: "var(--ink-50)",
+          200: "var(--ink-200)",
+          400: "var(--ink-400)",
+          600: "var(--ink-600)",
         },
         signal: {
-          400: "#7196F2",
-          500: "#5B8DEF",
-          600: "#4472D6",
+          400: "var(--signal-400)",
+          500: "var(--signal-500)",
+          600: "var(--signal-600)",
         },
         verified: {
-          400: "#4FCB94",
-          500: "#34B37A",
+          400: "var(--verified-400)",
+          500: "var(--verified-500)",
         },
         alert: {
-          400: "#EFC066",
-          500: "#E0A63E",
+          400: "var(--alert-400)",
+          500: "var(--alert-500)",
         },
         danger: {
-          400: "#EC6E72",
-          500: "#E5484D",
+          400: "var(--danger-400)",
+          500: "var(--danger-500)",
         },
       },
       fontFamily: {
@@ -47,8 +47,8 @@ const config: Config = {
         "2xl": "20px",
       },
       boxShadow: {
-        panel: "0 1px 0 0 rgba(255,255,255,0.04) inset, 0 20px 40px -20px rgba(0,0,0,0.6)",
-        glow: "0 0 0 1px rgba(91,141,239,0.25), 0 0 24px rgba(91,141,239,0.12)",
+        panel: "var(--shadow-panel)",
+        glow: "var(--shadow-glow)",
       },
       keyframes: {
         "pulse-ring": {

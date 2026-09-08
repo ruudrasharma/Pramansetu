@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
-import type { AuditEvent, EventType } from "@/lib/mock-data";
+import type { AuditEvent, EventType } from "@/lib/mock/fixtures";
 import { formatRelativeTime, truncateMiddle } from "@/lib/utils";
 import { useDetailPanel } from "@/components/shell/DetailPanelContext";
 

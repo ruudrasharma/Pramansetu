@@ -53,7 +53,7 @@ NEXT_PUBLIC_APP_ENV=development                  # development | staging | produ
 | Env | Chain | Frontend Host | Indexer |
 |---|---|---|---|
 | `development` | Hardhat local node (`localhost:8545`) | `next dev` | local Graph node (docker-compose) |
-| `staging` (hackathon demo) | Polygon Amoy testnet | Vercel preview | hosted subgraph |
+| `staging` (hackathon demo) | Ethereum Sepolia testnet | Vercel preview | hosted subgraph |
 | `production` | Permissioned Hyperledger Fabric / Polygon Edge | BEL internal infra | self-hosted Graph node |
 
 ## Secrets Management

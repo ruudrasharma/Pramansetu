@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
-import { AuditEvent } from "@/lib/mock-data";
+import { AuditEvent } from "@/lib/mock/fixtures";
 
 /**
  * DetailPanelContext — app-wide state for the slide-in right detail panel.

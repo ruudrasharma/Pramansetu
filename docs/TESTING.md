@@ -56,7 +56,7 @@ modules where a missed branch = a security bypass), ≥90% overall.
 | Environment | Purpose |
 |---|---|
 | Hardhat local network | Fast unit/integration test loop |
-| Polygon Amoy testnet | Pre-demo E2E dry run with real gas/latency |
+| Ethereum Sepolia testnet | Pre-demo E2E dry run with real gas/latency |
 | Staging (Vercel preview + hosted subgraph) | Full-stack E2E before each judged milestone |
 
 ## 7. CI Gate

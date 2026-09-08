@@ -138,13 +138,13 @@ export function DetailPanel() {
             {/* Footer — link to block explorer */}
             <div className="shrink-0 border-t border-graphite-800 p-4">
               <a
-                href={`https://amoy.polygonscan.com/tx/${event.txHash}`}
+                href={`https://sepolia.etherscan.io/tx/${event.txHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-graphite-700 bg-graphite-800 px-4 py-2 text-[13px] text-ink-400 transition-colors hover:border-graphite-600 hover:text-ink-200"
               >
                 <ExternalLink size={13} strokeWidth={1.75} />
-                View on PolygonScan
+                View on Etherscan
               </a>
             </div>
           </motion.aside>

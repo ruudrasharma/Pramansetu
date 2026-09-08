@@ -27,13 +27,13 @@ npm run start                 # next start (production mode, local)
 ## 3. Contract Deployment (Testnet)
 
 ```bash
-# hardhat.config.ts already targets Polygon Amoy — see ENVIRONMENT.md
+# hardhat.config.ts already targets Ethereum Sepolia — see ENVIRONMENT.md
 npm run deploy:testnet
 # → deploys DIDRegistry, CredentialRegistry, TimeBoundAccessControl (proxy),
 #   AssetRegistry (proxy), GuardianRecovery, GovernanceTimelock
-# → writes addresses to deployments/amoy.json
+# → writes addresses to deployments/sepolia.json
 # → copy addresses into .env.local (NEXT_PUBLIC_*_ADDRESS vars)
-npx hardhat verify --network amoy <address> <constructor args>
+npx hardhat verify --network sepolia <address> <constructor args>
 ```
 
 ## 4. Subgraph Deployment

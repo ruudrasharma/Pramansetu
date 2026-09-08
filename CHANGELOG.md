@@ -24,6 +24,7 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 ---
 
 ## [Unreleased] — post-deploy
+- **Migration:** Changed public testnet target from Polygon Amoy to Ethereum Sepolia.
 
 ### Planned
 - Wire `lib/hooks/` reads into live UI pages (replace `mock-data.ts` calls)

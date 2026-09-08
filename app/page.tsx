@@ -1,163 +1,110 @@
-"use client";
-
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { auditEvents, systemHealth, identities, governanceItems, type EventType, type AuditEvent } from "@/lib/mock-data";
+import Link from "next/link";
+import { Fingerprint, ShieldCheck, Boxes, ScrollText, Landmark, ArrowRight, KeyRound } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { EventRow } from "@/components/modules/EventRow";
-import { DetailPanelProvider } from "@/components/shell/DetailPanelContext";
-import { DetailPanel } from "@/components/shell/DetailPanel";
-import { Fingerprint, Hourglass, Landmark, Octagon, RefreshCw } from "lucide-react";
-import { usePlatformPaused } from "@/lib/hooks";
-/**
- * OverviewPage — the live command center.
- *
- * The ledger stream is wrapped in AnimatePresence so each event row animates
- * in with an upward slide + fade as it "arrives from the chain" (UI_UX_SPEC.md §1 Motion).
- * Clicking any row opens the DetailPanel slide-in without hiding this stream.
- */
-export default function OverviewPage() {
-  const { data: isPaused } = usePlatformPaused();
 
-  const healthCards = [
-    {
-      label: "Active identities",
-      value: systemHealth.activeIdentities,
-      icon: Fingerprint,
-      tone: "text-signal-400 bg-signal-500/10",
-    },
-    {
-      label: "Roles expiring < 24h",
-      value: systemHealth.expiringIn24h,
-      icon: Hourglass,
-      tone: "text-alert-400 bg-alert-500/10",
-    },
-    {
-      label: "Pending governance",
-      value: systemHealth.pendingGovernance,
-      icon: Landmark,
-      tone: "text-verified-400 bg-verified-500/10",
-    },
-    {
-      label: "Platform status",
-      value: isPaused ? "Paused" : "Operational",
-      icon: Octagon,
-      tone: isPaused
-        ? "text-danger-400 bg-danger-500/10"
-        : "text-verified-400 bg-verified-500/10",
-    },
-  ];
+const modules = [
+  {
+    icon: Fingerprint,
+    title: "Decentralized Identity",
+    description:
+      "Soulbound, guardian-recoverable DIDs replace the centralized IAM database — no single point of compromise, no password to phish.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Time-Bound RBAC",
+    description:
+      "Roles carry a validity window and expire on-chain automatically. No manual revocation path to forget, no standing access to abuse.",
+  },
+  {
+    icon: Boxes,
+    title: "Dual-Attestation Assets",
+    description:
+      "Every digital asset is minted only after two independent roles co-sign — provenance is enforced by the contract, not a spreadsheet.",
+  },
+  {
+    icon: ScrollText,
+    title: "Immutable Audit + Anomaly Detection",
+    description:
+      "Every state change emits a typed, tamper-proof event. Rule-based detection flags what's unusual — and always names the rule that fired.",
+  },
+  {
+    icon: Landmark,
+    title: "Multi-Sig Governance",
+    description:
+      "No Admin key acts alone. High-value transfers cool off before finalizing, and any Auditor can freeze one mid-window.",
+  },
+];
 
-  // Simulate live stream: prepend a synthetic event on "Refresh"
-  const [events, setEvents] = useState(
-    [...auditEvents].sort((a, b) => b.timestamp - a.timestamp)
-  );
-
-  function simulateLiveEvent() {
-    const syntheticTypes: EventType[] = ["DIDCreated", "RoleGranted", "AssetMinted", "CredentialIssued"];
-    const type = syntheticTypes[Math.floor(Math.random() * syntheticTypes.length)] ?? "DIDCreated";
-    const newEvent: AuditEvent = {
-      id: `evt-live-${Date.now()}`,
-      type,
-      actorDid: identities[0]?.did ?? "did:ethr:0x0000",
-      summary: `[LIVE] ${type} event arrived from chain`,
-      timestamp: Date.now(),
-      txHash: `0x${Math.random().toString(16).slice(2, 6)}…${Math.random().toString(16).slice(2, 6)}`,
-    };
-    setEvents((prev) => [newEvent, ...prev].slice(0, 30));
-  }
-
+export default function LandingPage() {
   return (
-    <DetailPanelProvider>
-      <div className="mx-auto max-w-7xl px-6 py-6">
-        {/* Health strip */}
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {healthCards.map(({ label, value, icon: Icon, tone }) => (
-            <motion.div
-              key={label}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 280, damping: 26 }}
-            >
-              <Card className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-[12px] text-ink-400">{label}</p>
-                  <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>
-                    <Icon size={14} strokeWidth={1.75} />
-                  </div>
-                </div>
-                <p className="mt-2 text-[26px] font-medium leading-none text-ink-50">{value}</p>
-              </Card>
-            </motion.div>
-          ))}
+    <div className="min-h-screen bg-graphite-950">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <div className="flex items-center gap-2">
+          <div className="mono-value flex h-8 w-8 items-center justify-center rounded-lg bg-signal-500/15 text-[12px] font-semibold text-signal-400">
+            BC
+          </div>
+          <span className="text-[14px] font-medium text-ink-50">BEL SecureChain</span>
         </div>
+        <Link href="/auth">
+          <Button variant="secondary">Connect Wallet</Button>
+        </Link>
+      </header>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
-          {/* Ledger stream */}
-          <Card>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-[14px] font-medium text-ink-50">Ledger stream</h2>
-              <div className="flex items-center gap-3">
-                <span className="text-[12px] text-ink-600">Newest first · live from chain events</span>
-                {/* Simulate a live event arriving — demonstrates AnimatePresence */}
-                <button
-                  onClick={simulateLiveEvent}
-                  title="Simulate incoming chain event"
-                  className="flex items-center gap-1.5 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1 text-[12px] text-ink-400 transition-colors hover:border-graphite-600 hover:text-ink-200"
-                >
-                  <RefreshCw size={11} strokeWidth={1.75} />
-                  Simulate
-                </button>
-              </div>
+      <main className="mx-auto max-w-6xl px-6 pb-24 pt-16">
+        <div className="mx-auto max-w-3xl text-center">
+          <Badge tone="signal" className="mx-auto">
+            SIH 2026 · PS 26125 · Bharat Electronics Limited
+          </Badge>
+          <h1 className="mt-5 text-[34px] font-medium leading-tight text-ink-50 sm:text-[44px]">
+            Blockchain-based identity, access, and digital asset management — built for defense-sector trust.
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-relaxed text-ink-400">
+            Replaces centralized IAM with on-chain decentralized identity, enforces RBAC inside smart
+            contracts instead of application code, and tracks organizational assets as dual-attested,
+            credential-gated NFTs — with an immutable, AI-monitored audit trail and multi-sig governance
+            watching every privileged action.
+          </p>
+          <div className="mt-8 flex flex-col items-center gap-3">
+            <Link href="/auth">
+              <Button className="px-6 py-3 text-[14px]">
+                Connect Wallet <ArrowRight size={15} />
+              </Button>
+            </Link>
+            <div className="flex items-center gap-1.5 text-[12px] text-ink-500">
+              <KeyRound size={13} />
+              Passwordless by design — no password field exists anywhere in this app.
             </div>
-            {/* AnimatePresence makes each new event slide in from top (UI_UX_SPEC §1 Motion) */}
-            <AnimatePresence initial={false}>
-              {events.map((event, i) => (
-                <EventRow key={event.id} event={event} index={i} />
-              ))}
-            </AnimatePresence>
-          </Card>
-
-          {/* Right column */}
-          <div className="flex flex-col gap-5">
-            <Card>
-              <h2 className="mb-3 text-[14px] font-medium text-ink-50">Roles expiring soon</h2>
-              <div className="flex flex-col gap-3">
-                {identities
-                  .filter((i) => i.roleExpiresAt > Date.now())
-                  .sort((a, b) => a.roleExpiresAt - b.roleExpiresAt)
-                  .slice(0, 3)
-                  .map((identity) => (
-                    <div key={identity.did} className="flex items-center justify-between text-[13px]">
-                      <span className="mono-value truncate text-ink-200">
-                        {identity.did.slice(0, 14)}…
-                      </span>
-                      <Badge tone="alert">{identity.role}</Badge>
-                    </div>
-                  ))}
-              </div>
-            </Card>
-
-            <Card>
-              <h2 className="mb-3 text-[14px] font-medium text-ink-50">Governance queue</h2>
-              <div className="flex flex-col gap-3">
-                {governanceItems.map((item) => (
-                  <div key={item.id} className="text-[13px]">
-                    <p className="truncate text-ink-200">{item.title}</p>
-                    <Badge tone={item.status === "disputed" ? "danger" : "signal"} className="mt-1">
-                      {item.status}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </Card>
           </div>
         </div>
-      </div>
 
-      {/* Detail panel — renders alongside content, not over it */}
-      <DetailPanel />
-    </DetailPanelProvider>
+        <div className="mt-20 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {modules.map(({ icon: Icon, title, description }) => (
+            <Card key={title} className="flex flex-col gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
+                <Icon size={17} strokeWidth={1.75} />
+              </div>
+              <h3 className="text-[14px] font-medium text-ink-50">{title}</h3>
+              <p className="text-[13px] leading-relaxed text-ink-400">{description}</p>
+            </Card>
+          ))}
+          <Card className="flex flex-col justify-center gap-2 border-dashed bg-transparent">
+            <p className="text-[13px] font-medium text-ink-50">Prototype → production</p>
+            <p className="text-[12px] leading-relaxed text-ink-400">
+              Deployed today on Ethereum Sepolia testnet; architected with a documented migration path to a
+              permissioned Hyperledger Fabric / Polygon Edge chain for BEL&apos;s data-localization needs.
+            </p>
+            <Link href="/compliance" className="mt-1 flex items-center gap-1 text-[12px] font-medium text-signal-400">
+              View architecture <ArrowRight size={12} />
+            </Link>
+          </Card>
+        </div>
+      </main>
+
+      <footer className="border-t border-graphite-800 py-6 text-center text-[12px] text-ink-600">
+        BEL SecureChain — Blockchain & Cybersecurity · SIH 2026 PS 26125
+      </footer>
+    </div>
   );
 }

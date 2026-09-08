@@ -6,19 +6,25 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { keccak256, toBytes } from "viem";
 import { TimeBoundAccessControlAbi } from "@/lib/abis";
 import { contractAddresses } from "@/lib/wagmi";
 
 const address = contractAddresses.accessControl;
 
 // ── Constants (role hashes — match contracts/TimeBoundAccessControl.sol) ────
+// Every non-default role there is declared as `keccak256("<NAME>_ROLE")` (Solidity's
+// standard OZ AccessControl pattern) — these must be computed the same way, not derived
+// from the ASCII bytes of the name itself, or every hasRole()/roleExpiry() call against
+// the real contract silently checks the wrong role.
 export const ROLE = {
   SUPER_ADMIN: "0x" + "0".repeat(64) as `0x${string}`, // DEFAULT_ADMIN_ROLE
-  SUPER_ADMIN_ROLE: "0x" + Buffer.from("SUPER_ADMIN_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  ADMIN_ROLE:       "0x" + Buffer.from("ADMIN_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  MANAGER_ROLE:     "0x" + Buffer.from("MANAGER_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  ISSUER_ROLE:      "0x" + Buffer.from("ISSUER_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  AUDITOR_ROLE:     "0x" + Buffer.from("AUDITOR_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+  SUPER_ADMIN_ROLE: keccak256(toBytes("SUPER_ADMIN_ROLE")),
+  ADMIN_ROLE: keccak256(toBytes("ADMIN_ROLE")),
+  MANAGER_ROLE: keccak256(toBytes("MANAGER_ROLE")),
+  ISSUER_ROLE: keccak256(toBytes("ISSUER_ROLE")),
+  AUDITOR_ROLE: keccak256(toBytes("AUDITOR_ROLE")),
+  USER_ROLE: keccak256(toBytes("USER_ROLE")),
 } as const;
 
 // ── Read hooks ──────────────────────────────────────────────────────────────

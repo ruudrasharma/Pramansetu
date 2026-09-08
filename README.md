@@ -35,7 +35,7 @@ Deep detail on each module lives in [`FEATURES.md`](./FEATURES.md) and [`ARCHITE
 ## Tech Stack (short version — full detail in [`TECH_STACK.md`](./TECH_STACK.md))
 
 - **Contracts:** Solidity 0.8.x, OpenZeppelin (AccessControl, Pausable, UUPS Proxy, ERC-721), Hardhat
-- **Chain (prototype):** Polygon Amoy / Ethereum Sepolia testnet
+- **Chain (prototype):** Ethereum Sepolia testnet
 - **Chain (production target):** Hyperledger Fabric or permissioned Polygon Edge
 - **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS + Framer Motion + shadcn/ui (customized)
 - **Web3 layer:** wagmi + viem + ethers.js
@@ -91,7 +91,7 @@ npm run compile:contracts
 # 4. Run contract tests
 npm run test:contracts
 
-# 5. Deploy to Polygon Amoy testnet
+# 5. Deploy to Ethereum Sepolia testnet
 npm run deploy:testnet
 
 # 6. Run the frontend

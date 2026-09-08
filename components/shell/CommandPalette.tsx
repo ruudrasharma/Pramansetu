@@ -24,7 +24,7 @@ import { commandPaletteSignal } from "@/lib/commandPaletteSignal";
  *
  * Opens via:
  *   1. ⌘K / Ctrl+K keyboard shortcut (global keydown listener)
- *   2. commandPaletteSignal.open() fired by the ContextBar ⌘K button
+ *   2. commandPaletteSignal.open() fired by the TopBar ⌘K button
  *
  * Groups: Navigate · Identity · Access Control · Assets · Governance
  * Fuzzy search across label + description + keywords via cmdk's built-in filter.
@@ -65,7 +65,7 @@ export function CommandPalette() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // 2. Signal from ContextBar button click
+  // 2. Signal from TopBar button click
   useEffect(() => {
     return commandPaletteSignal.listen(() => setOpen(true));
   }, []);
@@ -74,11 +74,11 @@ export function CommandPalette() {
     // ── Navigate ──────────────────────────────────────────────────────────
     {
       id: "nav-overview",
-      label: "Overview",
+      label: "Dashboard",
       description: "Platform health + live ledger stream",
       icon: LayoutGrid,
       group: "Navigate",
-      action: () => navigate("/"),
+      action: () => navigate("/dashboard"),
     },
     {
       id: "nav-identity",
@@ -90,11 +90,11 @@ export function CommandPalette() {
     },
     {
       id: "nav-access",
-      label: "Access Control",
+      label: "Roles & Access",
       description: "Time-bound role matrix + multisig grants",
       icon: ShieldCheck,
       group: "Navigate",
-      action: () => navigate("/access-control"),
+      action: () => navigate("/roles"),
     },
     {
       id: "nav-assets",
@@ -148,7 +148,7 @@ export function CommandPalette() {
       description: "Propose a 2-of-N timed role grant (requires co-signature)",
       icon: FileCheck,
       group: "Access Control",
-      action: () => navigate("/access-control?action=grant"),
+      action: () => navigate("/roles?action=grant"),
       keywords: ["grant", "role", "rbac", "admin", "permission", "timed"],
     },
     {
@@ -157,7 +157,7 @@ export function CommandPalette() {
       description: "Propose emergencyRevoke / pause — requires 2 Super Admin sigs",
       icon: ShieldAlert,
       group: "Access Control",
-      action: () => navigate("/access-control?action=platform-action"),
+      action: () => navigate("/roles?action=platform-action"),
       keywords: ["pause", "freeze", "emergency", "revoke", "super admin"],
     },
 

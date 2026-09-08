@@ -1,9 +1,10 @@
 # TODO — BEL Chain
 
 ## 🔴 Blocking (needed before demo)
-- [ ] Wire real wagmi hooks in `lib/wagmi.ts` to deployed Amoy testnet addresses (currently scaffolded
+- [ ] Wire real wagmi hooks in `lib/wagmi.ts` to deployed Sepolia testnet addresses (currently scaffolded
       with placeholders — see ENVIRONMENT.md).
-- [ ] Deploy contracts to Polygon Amoy and populate `NEXT_PUBLIC_*_ADDRESS` env vars.
+- [ ] Deploy contracts to Ethereum Sepolia and populate `NEXT_PUBLIC_*_ADDRESS` env vars.
+  - **Demo Risk Warning:** Sepolia testnet faucets are often gated (require mainnet ETH balance) and generally slower/harder to farm than Amoy's. This could present a risk when trying to fund multiple tester wallets for the live demo.
 - [ ] Stand up the subgraph (hosted service) and point `NEXT_PUBLIC_SUBGRAPH_URL` at it.
 - [ ] Replace `lib/mock-data.ts` reads in each page with live subgraph queries once indexer is live.
 - [ ] Record a rehearsed demo script covering all 5 modules within the judging time limit.
