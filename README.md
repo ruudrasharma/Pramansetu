@@ -47,7 +47,7 @@ Deep detail on each module lives in [`FEATURES.md`](./FEATURES.md) and [`ARCHITE
 ## Repository Structure
 
 ```
-bel-chain/
+Cipherloom/
 ├── docs/                     # this documentation set
 ├── contracts/                # Solidity source (DID, RBAC, NFT, Governance, Recovery)
 │   ├── DIDRegistry.sol
