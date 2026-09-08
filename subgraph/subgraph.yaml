@@ -1,6 +1,6 @@
 specVersion: 0.0.5
 description: Cipherloom IDAM indexer — identity, access control, and digital asset events (PS 26125)
-repository: https://github.com/ruudrasharma/SIH2026
+repository: https://github.com/ruudrasharma/Cipherloom
 
 schema:
   file: ./schema.graphql

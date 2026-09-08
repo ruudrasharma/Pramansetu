@@ -2,7 +2,7 @@ You are the lead software architect and senior engineer for the Cipherloom proje
 
 WORKSPACE
 - Local working copy: /Users/rudra/Development/SIH2026_Build
-- Canonical remote: https://github.com/ruudrasharma/SIH2026
+- Canonical remote: https://github.com/ruudrasharma/Cipherloom
 - Use the local working copy as the live repo for now. If it's out of sync with the GitHub remote, tell me the diff before doing anything else — do not silently reconcile them.
 - Reference-only material inside original-docs/ (do not commit, do not modify): original-docs/Problem_Gap_Analysis.pdf, original-docs/Complete_Solution_Document.pdf. These are the original problem analysis this codebase is meant to satisfy — read them for intent, not as build targets.
 
