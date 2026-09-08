@@ -1,5 +1,5 @@
 specVersion: 0.0.5
-description: BEL Chain IDAM indexer — identity, access control, and digital asset events (PS 26125)
+description: Cipherloom IDAM indexer — identity, access control, and digital asset events (PS 26125)
 repository: https://github.com/ruudrasharma/SIH2026
 
 schema:

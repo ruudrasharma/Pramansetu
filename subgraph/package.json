@@ -1,7 +1,7 @@
 {
   "name": "bel-chain-subgraph",
   "version": "1.0.0",
-  "description": "BEL Chain IDAM indexer — identity, access, and digital asset events (PS 26125)",
+  "description": "Cipherloom IDAM indexer — identity, access, and digital asset events (PS 26125)",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",

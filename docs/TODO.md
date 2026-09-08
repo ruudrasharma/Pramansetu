@@ -1,4 +1,4 @@
-# TODO — BEL Chain
+# TODO — Cipherloom
 
 ## 🔴 Blocking (needed before demo)
 - [ ] Wire real wagmi hooks in `lib/wagmi.ts` to deployed Amoy testnet addresses (currently scaffolded

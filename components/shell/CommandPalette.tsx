@@ -255,7 +255,7 @@ export function CommandPalette() {
           {/* Footer */}
           <div className="flex items-center justify-between border-t border-graphite-800 px-4 py-2">
             <span className="text-[11px] text-ink-600">
-              BEL Chain · PS 26125
+              Cipherloom · PS 26125
             </span>
             <div className="flex items-center gap-3 text-[11px] text-ink-600">
               <span><kbd className="mono-value rounded border border-graphite-700 bg-graphite-800 px-1.5 py-0.5">↑↓</kbd> navigate</span>

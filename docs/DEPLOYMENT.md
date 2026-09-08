@@ -1,4 +1,4 @@
-# Deployment — BEL Chain
+# Deployment — Cipherloom
 
 ## 1. Branching Model
 

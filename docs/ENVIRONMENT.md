@@ -1,4 +1,4 @@
-# Environment Configuration — BEL Chain
+# Environment Configuration — Cipherloom
 
 ## .env.example
 

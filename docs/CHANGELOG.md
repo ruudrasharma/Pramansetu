@@ -1,8 +1,11 @@
-# Changelog — BEL Chain
+# Changelog — Cipherloom
 
 All notable work is logged here, newest first. Format loosely follows Keep a Changelog.
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-09-08
+- Rebranded platform name from "BEL-Chain" to "Cipherloom".
 
 ## 2026-09-05
 ### Added

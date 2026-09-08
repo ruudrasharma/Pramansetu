@@ -22,7 +22,7 @@ const geistMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BEL Chain — Identity, Access & Asset Platform",
+  title: "Cipherloom — Identity, Access & Asset Platform",
   description:
     "Blockchain-based secure platform for identity, access control, and digital asset management — PS 26125.",
 };

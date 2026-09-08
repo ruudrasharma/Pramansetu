@@ -1,4 +1,4 @@
-# API Specification — BEL Chain
+# API Specification — Cipherloom
 
 There are two API surfaces: (1) **on-chain write/read calls** made directly against deployed contracts via
 a wallet (this is the actual source of truth and the only place state changes), and (2) an **off-chain

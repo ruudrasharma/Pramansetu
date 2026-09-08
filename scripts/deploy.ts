@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * deploy.ts — Production deployment script for BEL Chain (PS 26125).
+ * deploy.ts — Production deployment script for Cipherloom (PS 26125).
  *
  * Usage:
  *   npx hardhat run scripts/deploy.ts --network amoy
@@ -44,7 +44,7 @@ async function main() {
   const network = await ethers.provider.getNetwork();
   const networkName = network.name === "unknown" ? `chain-${network.chainId}` : network.name;
 
-  console.log(`\n═══ BEL Chain Deploy ═══`);
+  console.log(`\n═══ Cipherloom Deploy ═══`);
   console.log(`Network : ${networkName} (chainId ${network.chainId})`);
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Balance : ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} MATIC\n`);

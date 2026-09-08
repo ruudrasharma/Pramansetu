@@ -1,4 +1,4 @@
-# Testing Strategy — BEL Chain
+# Testing Strategy — Cipherloom
 
 ## 1. Smart Contract Tests (Hardhat + Chai)
 

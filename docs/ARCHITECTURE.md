@@ -1,4 +1,4 @@
-# Architecture — BEL Chain
+# Architecture — Cipherloom
 
 ## 1. Layered System
 

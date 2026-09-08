@@ -1,4 +1,4 @@
-# UI/UX Specification — BEL Chain
+# UI/UX Specification — Cipherloom
 
 ## 0. Design Concept
 

@@ -1,4 +1,4 @@
-# Tech Stack — BEL Chain
+# Tech Stack — Cipherloom
 
 ## Contracts
 | Item | Choice | Version |

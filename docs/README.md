@@ -1,4 +1,4 @@
-# BEL Chain — Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management
+# Cipherloom — Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management
 
 **SIH 2026 · Problem Statement 26125 · Bharat Electronics Limited (BEL) · Theme: Blockchain & Cybersecurity**
 

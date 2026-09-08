@@ -1,6 +1,6 @@
 # AI_DEVELOPMENT_RULES.md
 
-**Project:** BEL-Chain — SIH 2026, Problem Statement 26125
+**Project:** Cipherloom — SIH 2026, Problem Statement 26125
 **Scope:** Governs any AI coding agent (Antigravity, Claude Code, Copilot, Cursor, etc.) operating on this repository.
 **Status:** Mandatory. Do not bypass, shorten, or reinterpret these rules to save time.
 

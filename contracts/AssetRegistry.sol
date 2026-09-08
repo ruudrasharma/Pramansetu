@@ -62,7 +62,7 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
     }
 
     function initialize(address accessControlAddr, address credentialRegistryAddr) public initializer {
-        __ERC721_init("BEL Chain Digital Asset", "BELA");
+        __ERC721_init("Cipherloom Digital Asset", "BELA");
         accessControl = TimeBoundAccessControl(accessControlAddr);
         credentialRegistry = CredentialRegistry(credentialRegistryAddr);
     }

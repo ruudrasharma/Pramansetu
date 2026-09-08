@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to BEL-Chain (SIH 2026, PS 26125) are documented here.
+All notable changes to Cipherloom (SIH 2026, PS 26125) are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
@@ -99,13 +99,10 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 - `GovernanceTimelock.sol`: Dispute struct with `raisedBy/reason/frozen`; `resolveDispute` added
 
 ### Fixed
-- OpenZeppelin v5 migration: `Initializable` import path, `_disableInitializers` guard, UUPSUpgradeable pattern
-- All 86 tests passing post-migration
-- `hardhat.config.ts` uses `tsconfig.hardhat.json` for ts-node
+## [0.2.0] - 2026-09-08
+- Rebranded platform name from "BEL-Chain" to "Cipherloom".
 
----
-
-## [0.1.0] — 2026-09-05 — Phase 1: Contract Environment
+## [0.1.0] - 2026-09-05 - Phase 1: Contract Environment
 
 ### Added
 - Monorepo root at `bel-chain/` (Next.js 14 App Router + Hardhat in same directory)
