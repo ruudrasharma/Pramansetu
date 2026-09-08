@@ -1,5 +1,5 @@
 import { http, createConfig } from "wagmi";
-import { polygonAmoy, sepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 
 /**
@@ -9,7 +9,7 @@ import { injected, walletConnect } from "wagmi/connectors";
  * `useWriteContract` hooks against the ABIs in `lib/abis/`.
  */
 export const wagmiConfig = createConfig({
-  chains: [polygonAmoy, sepolia],
+  chains: [sepolia],
   connectors: [
     injected(),
     walletConnect({
@@ -17,8 +17,7 @@ export const wagmiConfig = createConfig({
     }),
   ],
   transports: {
-    [polygonAmoy.id]: http(process.env.NEXT_PUBLIC_RPC_URL),
-    [sepolia.id]: http(process.env.SEPOLIA_RPC_URL),
+    [sepolia.id]: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL),
   },
 });
 

@@ -13,10 +13,10 @@
 ## Prototype Chain
 | Item | Choice |
 |---|---|
-| Network | Polygon Amoy testnet (fallback: Ethereum Sepolia) |
+| Network | Ethereum Sepolia testnet |
 | RPC | Alchemy / Infura endpoint |
-| Faucet | Polygon Amoy public faucet |
-| Block explorer | PolygonScan (Amoy) |
+| Faucet | Ethereum Sepolia public faucet |
+| Block explorer | Etherscan (Sepolia) |
 
 ## Production Target Chain
 | Item | Choice |

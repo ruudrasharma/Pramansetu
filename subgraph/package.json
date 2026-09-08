@@ -5,7 +5,7 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy:amoy": "graph deploy --product hosted-service bel-chain/idam subgraph.yaml",
+    "deploy:sepolia": "graph deploy --product hosted-service cipherloom/idam subgraph.yaml",
     "deploy:studio": "graph deploy bel-chain subgraph.yaml --version-label v1"
   },
   "dependencies": {

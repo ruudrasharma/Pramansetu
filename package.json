@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "compile:contracts": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat compile",
     "test:contracts": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test",
-    "deploy:testnet": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy.ts --network amoy"
+    "deploy:testnet": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run scripts/deploy.ts --network sepolia"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.2",

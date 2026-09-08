@@ -35,7 +35,7 @@ export function ContextBar() {
               systemHealth.platformPaused ? "text-danger-500" : "text-verified-500"
             )}
           />
-          {systemHealth.platformPaused ? "Platform paused" : "Live · Polygon Amoy"}
+          {systemHealth.platformPaused ? "Platform paused" : "Live · Ethereum Sepolia"}
         </div>
       </div>
 

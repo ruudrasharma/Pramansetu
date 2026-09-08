@@ -53,7 +53,7 @@
           Spring animation (stiffness 300, damping 28) from right edge
           Semi-transparent backdrop; primary content fully visible underneath
           Shows: event type badge, summary, actor DID (copyable), tx hash, timestamp
-          PolygonScan link in footer; keyboard accessible
+          Etherscan link in footer; keyboard accessible
 - [x] 3.5 — Live ledger stream animation — AnimatePresence on Overview page
           Each event: upward slide y=-12 + fade, spring stiffness 300 damping 30
           "Simulate" button demonstrates live event arrival without RPC
@@ -63,7 +63,7 @@
           tsconfig.json: excludes test/, scripts/, typechain-types/
 
 ## Phase 4 — Wire Live Data
-- [ ] 4.1 — Deploy contracts to Polygon Amoy
+- [ ] 4.1 — Deploy contracts to Ethereum Sepolia
 - [ ] 4.2 — Replace mock-data with wagmi hooks
 - [ ] 4.3 — Stand up subgraph, wire into frontend
 

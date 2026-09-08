@@ -1,9 +1,9 @@
 # TODO — Cipherloom
 
 ## 🔴 Blocking (needed before demo)
-- [ ] Wire real wagmi hooks in `lib/wagmi.ts` to deployed Amoy testnet addresses (currently scaffolded
+- [ ] Wire real wagmi hooks in `lib/wagmi.ts` to deployed Sepolia testnet addresses (currently scaffolded
       with placeholders — see ENVIRONMENT.md).
-- [ ] Deploy contracts to Polygon Amoy and populate `NEXT_PUBLIC_*_ADDRESS` env vars.
+- [ ] Deploy contracts to Ethereum Sepolia and populate `NEXT_PUBLIC_*_ADDRESS` env vars.
 - [ ] Stand up the subgraph (hosted service) and point `NEXT_PUBLIC_SUBGRAPH_URL` at it.
 - [ ] Replace `lib/mock-data.ts` reads in each page with live subgraph queries once indexer is live.
 - [ ] Record a rehearsed demo script covering all 5 modules within the judging time limit.

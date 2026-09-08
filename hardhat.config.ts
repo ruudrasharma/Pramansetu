@@ -27,13 +27,8 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {},
-    amoy: {
-      url: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc-amoy.polygon.technology",
-      accounts: [DEPLOYER_PRIVATE_KEY],
-      chainId: 80002,
-    },
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "",
+      url: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
       accounts: [DEPLOYER_PRIVATE_KEY],
       chainId: 11155111,
     },

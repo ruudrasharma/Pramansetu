@@ -4,11 +4,11 @@
 
 ```bash
 # ── Chain / RPC ──────────────────────────────────────────────
-NEXT_PUBLIC_CHAIN_ID=80002                       # Polygon Amoy testnet
-NEXT_PUBLIC_RPC_URL=https://rpc-amoy.polygon.technology
+NEXT_PUBLIC_CHAIN_ID=80002                       # Ethereum Sepolia testnet
+NEXT_PUBLIC_RPC_URL=https://rpc-sepolia.polygon.technology
 DEPLOYER_PRIVATE_KEY=                            # NEVER commit — deployer wallet for Hardhat scripts
 ALCHEMY_API_KEY=
-ETHERSCAN_API_KEY=                               # for contract verification (PolygonScan Amoy)
+ETHERSCAN_API_KEY=                               # for contract verification (Etherscan Sepolia)
 
 # ── Deployed Contract Addresses (filled after deploy:testnet) ─
 NEXT_PUBLIC_DID_REGISTRY_ADDRESS=
@@ -53,7 +53,7 @@ NEXT_PUBLIC_APP_ENV=development                  # development | staging | produ
 | Env | Chain | Frontend Host | Indexer |
 |---|---|---|---|
 | `development` | Hardhat local node (`localhost:8545`) | `next dev` | local Graph node (docker-compose) |
-| `staging` (hackathon demo) | Polygon Amoy testnet | Vercel preview | hosted subgraph |
+| `staging` (hackathon demo) | Ethereum Sepolia testnet | Vercel preview | hosted subgraph |
 | `production` | Permissioned Hyperledger Fabric / Polygon Edge | BEL internal infra | self-hosted Graph node |
 
 ## Secrets Management

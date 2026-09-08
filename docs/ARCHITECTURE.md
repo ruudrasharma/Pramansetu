@@ -25,7 +25,7 @@
         ▲ ▼
 ┌───────────────────────────────────────────────────────────┐
 │ LAYER 1 — Ledger / Consensus                                  │
-│ Prototype: Polygon Amoy / Ethereum Sepolia (public testnet)    │
+│ Prototype: Ethereum Sepolia (public testnet)    │
 │ Production: Hyperledger Fabric or private Polygon Edge          │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -88,7 +88,7 @@ Anomaly service → checks mint velocity against rolling baseline → emits risk
 | Environment | Ledger | Frontend Host | Indexer |
 |---|---|---|---|
 | Local dev | Hardhat local network | `next dev` | Local Graph node (docker) |
-| Hackathon demo | Polygon Amoy testnet | Vercel | Hosted Graph service |
+| Hackathon demo | Ethereum Sepolia testnet | Vercel | Hosted Graph service |
 | Production (BEL) | Hyperledger Fabric / private Polygon Edge | BEL internal infra | Self-hosted Graph node |
 
 Full detail in [DEPLOYMENT.md](./DEPLOYMENT.md).

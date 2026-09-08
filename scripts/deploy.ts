@@ -6,7 +6,7 @@ import * as path from "path";
  * deploy.ts — Production deployment script for Cipherloom (PS 26125).
  *
  * Usage:
- *   npx hardhat run scripts/deploy.ts --network amoy
+ *   npx hardhat run scripts/deploy.ts --network sepolia
  *   npx hardhat run scripts/deploy.ts --network sepolia
  *
  * After deployment, copy the printed addresses into .env.local using the
@@ -142,7 +142,7 @@ async function main() {
 
   // ── 8. Etherscan verification (best-effort; skip on localhost) ─────────────────
   if (networkName !== "hardhat" && networkName !== "localhost") {
-    console.log("\n─── Verifying on Etherscan / Polygonscan ───");
+    console.log("\n─── Verifying on Etherscan ───");
     await verify(didRegistryAddr, []);
     await verify(credRegistryAddr, [deployer.address]);
     await verify(guardianRecoveryAddr, [didRegistryAddr]);

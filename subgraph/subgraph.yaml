@@ -9,7 +9,7 @@ dataSources:
 
   - kind: ethereum/contract
     name: DIDRegistry
-    network: matic-testnet   # Polygon Amoy; change to matic for mainnet
+    network: sepolia   # Polygon Amoy; change to matic for mainnet
     source:
       # Fill in after deploy: deployments/amoy.json → contracts.didRegistry
       address: "0x0000000000000000000000000000000000000000"
@@ -34,7 +34,7 @@ dataSources:
 
   - kind: ethereum/contract
     name: CredentialRegistry
-    network: matic-testnet
+    network: sepolia
     source:
       address: "0x0000000000000000000000000000000000000000"
       abi: CredentialRegistry
@@ -58,7 +58,7 @@ dataSources:
 
   - kind: ethereum/contract
     name: TimeBoundAccessControl
-    network: matic-testnet
+    network: sepolia
     source:
       address: "0x0000000000000000000000000000000000000000"
       abi: TimeBoundAccessControl
@@ -91,7 +91,7 @@ dataSources:
 
   - kind: ethereum/contract
     name: AssetRegistry
-    network: matic-testnet
+    network: sepolia
     source:
       address: "0x0000000000000000000000000000000000000000"
       abi: AssetRegistry
@@ -120,7 +120,7 @@ dataSources:
 
   - kind: ethereum/contract
     name: GovernanceTimelock
-    network: matic-testnet
+    network: sepolia
     source:
       address: "0x0000000000000000000000000000000000000000"
       abi: GovernanceTimelock

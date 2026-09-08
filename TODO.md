@@ -16,15 +16,15 @@ ETHERSCAN_API_KEY=<polygonscan-key>
 ```
 Blocked on: key provisioning by BEL team.
 
-### T-002: Deploy to Polygon Amoy
+### T-002: Deploy to Ethereum Sepolia
 ```bash
-npx hardhat run scripts/deploy.ts --network amoy
+npx hardhat run scripts/deploy.ts --network sepolia
 ```
-Output: `deployments/amoy.json` → copy addresses to `.env.local`.
+Output: `deployments/sepolia.json` → copy addresses to `.env.local`.
 After: run `T-003`.
 
 ### T-003: Fill subgraph addresses + deploy to Graph Studio
-1. Copy contract addresses from `deployments/amoy.json` to `subgraph/subgraph.yaml`
+1. Copy contract addresses from `deployments/sepolia.json` to `subgraph/subgraph.yaml`
 2. `cd subgraph && npm install && npm run codegen && npm run build`
 3. `npm run deploy:studio` (requires `GRAPH_DEPLOY_KEY`)
 
