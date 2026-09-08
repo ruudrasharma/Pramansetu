@@ -4,7 +4,7 @@ WORKSPACE
 - Local working copy: /Users/rudra/Development/SIH2026_Build
 - Canonical remote: https://github.com/ruudrasharma/SIH2026
 - Use the local working copy as the live repo for now. If it's out of sync with the GitHub remote, tell me the diff before doing anything else — do not silently reconcile them.
-- Reference-only material sitting alongside the repo (do not commit, do not modify): Problem_Gap_Analysis.pdf, Complete_Solution_Document.pdf. These are the original problem analysis this codebase is meant to satisfy — read them for intent, not as build targets.
+- Reference-only material inside original-docs/ (do not commit, do not modify): original-docs/Problem_Gap_Analysis.pdf, original-docs/Complete_Solution_Document.pdf. These are the original problem analysis this codebase is meant to satisfy — read them for intent, not as build targets.
 
 MANDATORY: READ AI_DEVELOPMENT_RULES.md FIRST
 Before anything else, open and fully internalize AI_DEVELOPMENT_RULES.md at the repo root. It defines the source-of-truth hierarchy, the read order, planning requirements, security non-negotiables, and testing discipline for this project. Every rule in it is binding for this session. If it doesn't exist yet, stop and tell me — do not proceed without it.

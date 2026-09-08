@@ -2,7 +2,7 @@
 
 This document is the security section of the submission: authentication, authorization, encryption,
 input validation, and the full threat model — stated, unstated, and future-facing (quantum). Source
-analysis: `Problem_Gap_Analysis.pdf` §2 and `Complete_Solution_Document.pdf` §11–13.
+analysis: `original-docs/Problem_Gap_Analysis.pdf` §2 and `original-docs/Complete_Solution_Document.pdf` §11–13.
 
 ## 1. Authentication
 

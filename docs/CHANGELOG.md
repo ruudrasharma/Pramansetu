@@ -18,6 +18,6 @@ All notable work is logged here, newest first. Format loosely follows Keep a Cha
 - Hardhat config targeting Polygon Amoy testnet; `.env.example` covering all required variables.
 
 ### Notes
-- Derived directly from `Problem_Gap_Analysis.pdf` and `Complete_Solution_Document.pdf` — every
+- Derived directly from `original-docs/Problem_Gap_Analysis.pdf` and `original-docs/Complete_Solution_Document.pdf` — every
   stated, unstated, and future-facing problem identified there is traceable to a specific module,
   contract function, or UI feature in this codebase (see PRD.md §7 and SECURITY.md §5).

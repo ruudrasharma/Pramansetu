@@ -106,7 +106,7 @@ These come directly from `docs/SECURITY.md` and the Gap Analysis. An agent must 
 
 - Local working copy: `/Users/rudra/Development/SIH2026_Build`
 - Canonical remote: `https://github.com/ruudrasharma/SIH2026`
-- Reference-only source material (not part of the build, do not commit): `Problem_Gap_Analysis.pdf`, `Complete_Solution_Document.pdf`, kept alongside the repo per `original-docs/NOTE.md`.
+- Reference-only source material (not part of the build, do not commit): `original-docs/Problem_Gap_Analysis.pdf`, `original-docs/Complete_Solution_Document.pdf`, kept inside the repo per `original-docs/NOTE.md`.
 
 ---
 

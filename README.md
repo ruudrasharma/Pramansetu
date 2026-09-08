@@ -17,8 +17,8 @@ PS 26125 names four problems: centralized IAM as a single point of failure, vuln
 unauthorized access, and disconnected/unverifiable asset ownership. Our team went further and mapped every
 architectural flaw those four problems create once you actually build the obvious solution — admin-key
 compromise, key-loss lockout, irreversible contract bugs, oracle trust gaps, legal-enforceability limits of NFTs,
-and the long-horizon risk of quantum computers breaking ECDSA. Full analysis: [`Problem_Gap_Analysis.pdf`](../Problem_Gap_Analysis.pdf).
-Full engineered response: [`Complete_Solution_Document.pdf`](../Complete_Solution_Document.pdf).
+and the long-horizon risk of quantum computers breaking ECDSA. Full analysis: [`Problem_Gap_Analysis.pdf`](./original-docs/Problem_Gap_Analysis.pdf).
+Full engineered response: [`Complete_Solution_Document.pdf`](./original-docs/Complete_Solution_Document.pdf).
 
 ## Module Map
 
@@ -103,20 +103,20 @@ npm run dev
 
 | Doc | Purpose |
 |---|---|
-| [PRD.md](./PRD.md) | Product requirements & feature scope |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System layers, data flow, service boundaries |
-| [UI_UX_SPEC.md](./UI_UX_SPEC.md) | Design system, screens, layout, motion |
-| [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) | On-chain state layout + off-chain indexer schema |
-| [API_SPEC.md](./API_SPEC.md) | Contract ABIs as endpoints, REST indexer API, auth |
-| [SECURITY.md](./SECURITY.md) | Threat model, auth, encryption, mitigations |
-| [TECH_STACK.md](./TECH_STACK.md) | Exact versions and infra |
-| [USER_FLOWS.md](./USER_FLOWS.md) | Step-by-step journeys per role |
-| [FEATURES.md](./FEATURES.md) | Feature-by-feature spec per module |
-| [ENVIRONMENT.md](./ENVIRONMENT.md) | .env variables & deployment config |
-| [TESTING.md](./TESTING.md) | Unit/integration/E2E/security testing plan |
-| [DEPLOYMENT.md](./DEPLOYMENT.md) | Build, Docker, CI/CD, production rollout |
-| [CHANGELOG.md](./CHANGELOG.md) | Dated log of completed work |
-| [TODO.md](./TODO.md) | Open items, bugs, roadmap |
+| [PRD.md](./docs/PRD.md) | Product requirements & feature scope |
+| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System layers, data flow, service boundaries |
+| [UI_UX_SPEC.md](./docs/UI_UX_SPEC.md) | Design system, screens, layout, motion |
+| [DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) | On-chain state layout + off-chain indexer schema |
+| [API_SPEC.md](./docs/API_SPEC.md) | Contract ABIs as endpoints, REST indexer API, auth |
+| [SECURITY.md](./docs/SECURITY.md) | Threat model, auth, encryption, mitigations |
+| [TECH_STACK.md](./docs/TECH_STACK.md) | Exact versions and infra |
+| [USER_FLOWS.md](./docs/USER_FLOWS.md) | Step-by-step journeys per role |
+| [FEATURES.md](./docs/FEATURES.md) | Feature-by-feature spec per module |
+| [ENVIRONMENT.md](./docs/ENVIRONMENT.md) | .env variables & deployment config |
+| [TESTING.md](./docs/TESTING.md) | Unit/integration/E2E/security testing plan |
+| [DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Build, Docker, CI/CD, production rollout |
+| [CHANGELOG.md](./docs/CHANGELOG.md) | Dated log of completed work |
+| [TODO.md](./docs/TODO.md) | Open items, bugs, roadmap |
 
 ## Git Workflow
 

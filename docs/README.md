@@ -17,8 +17,8 @@ PS 26125 names four problems: centralized IAM as a single point of failure, vuln
 unauthorized access, and disconnected/unverifiable asset ownership. Our team went further and mapped every
 architectural flaw those four problems create once you actually build the obvious solution — admin-key
 compromise, key-loss lockout, irreversible contract bugs, oracle trust gaps, legal-enforceability limits of NFTs,
-and the long-horizon risk of quantum computers breaking ECDSA. Full analysis: [`Problem_Gap_Analysis.pdf`](../Problem_Gap_Analysis.pdf).
-Full engineered response: [`Complete_Solution_Document.pdf`](../Complete_Solution_Document.pdf).
+and the long-horizon risk of quantum computers breaking ECDSA. Full analysis: [`Problem_Gap_Analysis.pdf`](../original-docs/Problem_Gap_Analysis.pdf).
+Full engineered response: [`Complete_Solution_Document.pdf`](../original-docs/Complete_Solution_Document.pdf).
 
 ## Module Map
 
