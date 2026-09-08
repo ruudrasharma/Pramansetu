@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { graphQLClient } from "@/lib/graphql";
 import { GET_AUDIT_EVENTS } from "@/lib/queries";
-import { anomalyAlerts } from "@/lib/mock-data";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -25,7 +24,17 @@ export default function AuditPage() {
     refetchInterval: 5000,
   });
 
+  const { data: anomaliesData, isLoading: isAnomaliesLoading } = useQuery({
+    queryKey: ["anomalyAlerts"],
+    queryFn: async () => {
+      const res = await fetch("/api/audit/anomalies");
+      return res.json();
+    },
+    refetchInterval: 10000,
+  });
+
   const events = data?.auditEvents || [];
+  const anomalies = anomaliesData || [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
@@ -74,25 +83,31 @@ export default function AuditPage() {
           <div className="mb-3 flex items-center gap-2">
             <TriangleAlert size={15} className="text-alert-400" />
             <h3 className="text-[14px] font-medium text-ink-50">Anomaly alerts</h3>
+            <span className="ml-auto text-[10px] font-medium tracking-wide text-alert-500 bg-alert-500/10 px-2 py-0.5 rounded uppercase border border-alert-500/20">⚠ NOT from chain</span>
           </div>
           <p className="mb-4 text-[12px] text-ink-600">
-            Rule-based checks on the indexed event stream — each flag names the specific rule that
-            fired, never a bare score.
+            Rule-based checks on the indexed event stream — computed off-chain via heuristics API.
           </p>
           <div className="flex flex-col gap-3">
-            {anomalyAlerts.map((alert) => (
-              <div key={alert.id} className="rounded-xl border border-graphite-800 bg-graphite-900/60 p-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-ink-50">{alert.rule}</p>
-                  <Badge tone={riskTone(alert.riskScore)}>{alert.riskScore}</Badge>
+            {isAnomaliesLoading ? (
+              <div className="flex items-center justify-center py-4 text-[12px] text-ink-500">Scanning for anomalies...</div>
+            ) : anomalies.length === 0 ? (
+              <div className="flex items-center justify-center py-4 text-[12px] text-ink-500">No anomalies detected.</div>
+            ) : (
+              anomalies.map((alert: any) => (
+                <div key={alert.id} className="rounded-xl border border-graphite-800 bg-graphite-900/60 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] font-medium text-ink-50">{alert.rule}</p>
+                    <Badge tone={riskTone(alert.riskScore)}>{alert.riskScore}</Badge>
+                  </div>
+                  <p className="mt-1 text-[12px] text-ink-400">{alert.detail}</p>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-ink-600">
+                    <span>{formatRelativeTime(alert.timestamp)}</span>
+                    <span className="capitalize">{alert.status}</span>
+                  </div>
                 </div>
-                <p className="mt-1 text-[12px] text-ink-400">{alert.detail}</p>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-ink-600">
-                  <span>{formatRelativeTime(alert.timestamp)}</span>
-                  <span className="capitalize">{alert.status}</span>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </Card>
       </div>

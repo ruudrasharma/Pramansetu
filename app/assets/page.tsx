@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { useOwnerOf, useVcIdOf, useTokenURI, useHasRole, ROLE } from "@/lib/hooks";
+import { useProposeMint } from "@/lib/hooks/useAssetRegistry";
+import { uploadMetadataToIPFS } from "@/lib/ipfs";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -72,6 +74,28 @@ function AssetLookup() {
 export default function AssetsPage() {
   const { address } = useAccount();
   const { data: isAdmin } = useHasRole(ROLE.ADMIN_ROLE, address);
+  
+  const [showMintForm, setShowMintForm] = useState(false);
+  const [formData, setFormData] = useState({ name: "", description: "", vcId: "", recipient: "" });
+  const [isUploading, setIsUploading] = useState(false);
+  const { proposeMint, isPending, isSuccess } = useProposeMint();
+
+  const handleMint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.description || !formData.vcId || !formData.recipient) return;
+    try {
+      setIsUploading(true);
+      const cid = await uploadMetadataToIPFS({
+        name: formData.name,
+        description: formData.description,
+      });
+      setIsUploading(false);
+      proposeMint({ cid, vcId: formData.vcId as `0x${string}`, recipient: formData.recipient as `0x${string}` });
+    } catch (err) {
+      console.error(err);
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
@@ -82,14 +106,45 @@ export default function AssetsPage() {
             ERC-721 tokens, content-addressed on IPFS, minted only with dual attestation.
           </p>
         </div>
-        <Button disabled={!isAdmin}>
+        <Button disabled={!isAdmin} onClick={() => setShowMintForm(!showMintForm)}>
           <Boxes size={14} />
-          Propose mint
+          {showMintForm ? "Cancel" : "Propose mint"}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_300px]">
-        <AssetLookup />
+        <div className="flex flex-col gap-5">
+          <AssetLookup />
+          {showMintForm && (
+            <Card className="p-6 border-alert-500/30">
+              <h3 className="mb-4 text-[14px] font-medium text-ink-50 flex items-center gap-2">
+                <Upload size={14} /> Propose Asset Mint
+              </h3>
+              <form onSubmit={handleMint} className="flex flex-col gap-4">
+                <div>
+                  <label className="text-[12px] text-ink-400 mb-1 block">Asset Name</label>
+                  <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50" />
+                </div>
+                <div>
+                  <label className="text-[12px] text-ink-400 mb-1 block">Description</label>
+                  <input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50" />
+                </div>
+                <div>
+                  <label className="text-[12px] text-ink-400 mb-1 block">Legal Ref VC ID (bytes32)</label>
+                  <input required value={formData.vcId} onChange={e => setFormData({...formData, vcId: e.target.value})} placeholder="0x..." className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value" />
+                </div>
+                <div>
+                  <label className="text-[12px] text-ink-400 mb-1 block">Recipient Address</label>
+                  <input required value={formData.recipient} onChange={e => setFormData({...formData, recipient: e.target.value})} placeholder="0x..." className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value" />
+                </div>
+                <Button disabled={isUploading || isPending} className="mt-2" variant="primary">
+                  {isUploading ? "Uploading to IPFS..." : isPending ? "Confirming tx..." : "Submit Proposal"}
+                </Button>
+                {isSuccess && <p className="text-[12px] text-verified-400 mt-2">Proposal submitted to chain!</p>}
+              </form>
+            </Card>
+          )}
+        </div>
 
         <Card>
           <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow — Asset #45</h3>
