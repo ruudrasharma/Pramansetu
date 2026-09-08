@@ -34,32 +34,9 @@ After: run `T-003`.
 3. Deploy `ECDSASignatureVerifier` and call `DIDRegistry.setSignatureVerifier(addr)`
 4. Grant `ISSUER_ROLE` to the CredentialRegistry issuer address
 
----
-
-## 🟡 High Priority — Development
-
-### T-005: Wire `lib/hooks/` into live UI pages
-Replace `mock-data.ts` reads with real `useReadContract` calls now that hooks exist.
-Files to update:
-- `app/page.tsx` → `useHasRole`, `usePlatformPaused`, subgraph `AuditEvent` query
-- `app/identity/page.tsx` → `useResolveDID`, `useDIDOf`
-- `app/access-control/page.tsx` → `useHasRole`, `useRoleExpiry`
-- `app/assets/page.tsx` → `useTokenURI`, `useVcIdOf`, `useOwnerOf`
-- `app/governance/page.tsx` → `useQueuedTx`, `useNextTxId`
-- `app/audit/page.tsx` → subgraph `AuditEvent` query
-
-### T-006: ECDSASignatureVerifier test coverage
-Currently 0% (the contract exists but tests need live ECDSA signatures).
-Add a Hardhat test using `ethers.signMessage` to exercise `verify()`.
-
 ### T-007: WalletConnect modal
 `lib/wagmi.ts` includes the `walletConnect` connector but the modal
 (`@web3modal/wagmi` or `rainbowkit`) is not yet wired into `Web3Providers.tsx`.
-
-### T-008: Subgraph `roleExpiry` value
-`access-control.ts` mapping sets `grant.validUntil = BigInt.fromI32(0)` as a placeholder.
-Fix: call `TimeBoundAccessControl.roleExpiry(role, account)` via eth_call in the mapping
-or read it from the `TimedRoleGranted` event parameters once that event is emitted.
 
 ---
 
@@ -74,23 +51,6 @@ with a clear "⚠ NOT from chain" disclaimer (UI_UX_SPEC §2.6).
 `useProposeMint` takes a `cid` string. Add a `lib/ipfs.ts` helper
 using Pinata (`PINATA_API_KEY` / `PINATA_SECRET_API_KEY`) to upload
 the asset metadata JSON and return the CID before calling `proposeMint`.
-
-### T-011: Role-based UI gates
-Use `useHasRole` to show/hide action buttons per the connected wallet's role.
-Prevents showing "Propose Mint" to users without ADMIN_ROLE.
-
-### T-012: Pagination in ledger stream
-The `app/page.tsx` ledger is currently capped at 30 mock events.
-Once wired to TheGraph, implement cursor-based pagination using
-`AuditEvent(orderBy: timestamp, orderDirection: desc, first: 20, after: $cursor)`.
-
-### T-013: KeyRotation event type in EventType union
-`lib/mock-data.ts` and `EventRow.tsx` don't have a "KeyRotated" event type yet.
-Add it when wiring DIDRegistry real data.
-
-### T-014: docs/DEPLOYMENT.md
-Create a step-by-step deployment runbook documenting T-001 through T-004 for
-the BEL operations team. Reference the post-deploy checklist from `deploy.ts`.
 
 ---
 

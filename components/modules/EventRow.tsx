@@ -43,6 +43,7 @@ const eventMeta: Record<EventType, { icon: typeof Fingerprint; tone: string }> =
   DisputeRaised:      { icon: Flag,            tone: "text-alert-400 bg-alert-500/10" },
   GovernanceExecuted: { icon: CheckCircle2,    tone: "text-verified-400 bg-verified-500/10" },
   GuardianRegistered: { icon: Users,           tone: "text-ink-400 bg-graphite-800" },
+  KeyRotated:         { icon: Fingerprint,     tone: "text-signal-400 bg-signal-500/10" },
   RecoveryInitiated:  { icon: ShieldOff,       tone: "text-alert-400 bg-alert-500/10" },
   RecoveryFinalized:  { icon: CheckCircle2,    tone: "text-verified-400 bg-verified-500/10" },
 };

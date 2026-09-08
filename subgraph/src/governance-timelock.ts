@@ -3,6 +3,7 @@ import {
   TransactionQueued as TransactionQueuedEvent,
   DisputeRaised as DisputeRaisedEvent,
   TransactionExecuted as TransactionExecutedEvent,
+  GovernanceTimelock
 } from "../generated/GovernanceTimelock/GovernanceTimelock";
 import { GovernanceTx, Dispute, AuditEvent } from "../generated/schema";
 
@@ -10,7 +11,9 @@ export function handleTransactionQueued(event: TransactionQueuedEvent): void {
   let tx = new GovernanceTx(event.params.txId.toString());
   tx.txId      = event.params.txId;
   tx.target    = event.params.target;
-  tx.calldata  = event.params.data;
+  let timelock = GovernanceTimelock.bind(event.address);
+  let queueResult = timelock.queue(event.params.txId);
+  tx.calldata  = queueResult.getData();
   tx.eta       = event.params.eta;
   tx.executed  = false;
   tx.queuedAt  = event.block.timestamp;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { useOwnerOf, useVcIdOf, useTokenURI } from "@/lib/hooks";
+import { useOwnerOf, useVcIdOf, useTokenURI, useHasRole, ROLE } from "@/lib/hooks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -70,6 +70,9 @@ function AssetLookup() {
 }
 
 export default function AssetsPage() {
+  const { address } = useAccount();
+  const { data: isAdmin } = useHasRole(ROLE.ADMIN_ROLE, address);
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-5 flex items-center justify-between">
@@ -79,7 +82,7 @@ export default function AssetsPage() {
             ERC-721 tokens, content-addressed on IPFS, minted only with dual attestation.
           </p>
         </div>
-        <Button>
+        <Button disabled={!isAdmin}>
           <Boxes size={14} />
           Propose mint
         </Button>

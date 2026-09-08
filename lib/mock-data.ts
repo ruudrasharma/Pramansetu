@@ -146,6 +146,7 @@ export type EventType =
   | "DisputeRaised"
   | "GovernanceExecuted"
   | "GuardianRegistered"
+  | "KeyRotated"
   | "RecoveryInitiated"
   | "RecoveryFinalized";
 

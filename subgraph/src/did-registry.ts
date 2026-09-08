@@ -11,7 +11,7 @@ export function handleDIDCreated(event: DIDCreatedEvent): void {
   identity.controller   = event.params.controller;
   identity.keyType      = "ES256K"; // default; updated on KeyRotated
   identity.pubKey       = Bytes.empty();
-  identity.metadataURI  = event.params.metadataURI;
+  identity.metadataURI  = event.params.keyType; // the ABI actually named this string param 'keyType'
   identity.createdAt    = event.block.timestamp;
   identity.updatedAt    = event.block.timestamp;
   identity.save();
@@ -33,8 +33,8 @@ export function handleKeyRotated(event: KeyRotatedEvent): void {
   let identity = Identity.load(event.params.did.toHexString());
   if (identity == null) return; // guard: should always exist
 
-  identity.pubKey    = event.params.newPubKey;
-  identity.keyType   = event.params.keyType;
+  identity.controller = event.params.newController;
+  identity.metadataURI = event.params.keyType; // the ABI actually named this string param 'keyType'
   identity.updatedAt = event.block.timestamp;
   identity.save();
 
@@ -43,7 +43,7 @@ export function handleKeyRotated(event: KeyRotatedEvent): void {
   audit.type         = "DIDCreated"; // closest existing type; extend EventType for KeyRotated
   audit.actorAddress = event.transaction.from;
   audit.actorDid     = event.params.did;
-  audit.summary      = "Key rotated for: " + event.params.did.toHexString().slice(0, 14) + "… → " + event.params.keyType;
+  audit.summary      = "Key rotated for: " + event.params.did.toHexString().slice(0, 14) + "…";
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

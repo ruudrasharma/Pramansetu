@@ -12,9 +12,14 @@ out/
 artifacts/
 cache/
 typechain-types/
-deployments/      # generated at deploy time, contains real addresses — do not commit
+deployments/
 coverage/
 coverage.json
+.openzeppelin/
+
+# ─── Subgraph ────────────────────────────────────────────────────────────────
+subgraph/build/
+subgraph/generated/
 
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 # NEVER commit real keys or addresses. .env.example is committed, .env.local is not.
@@ -36,3 +41,4 @@ test-results/
 # ─── Misc ────────────────────────────────────────────────────────────────────
 *.zip
 task.md         # internal build tracker, not project source
+tsconfig.tsbuildinfo

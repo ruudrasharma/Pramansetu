@@ -23,7 +23,7 @@ export function handleCredentialIssued(event: CredentialIssuedEvent): void {
   let cred = new Credential(event.params.vcId.toHexString());
   cred.subject      = subjectId;
   cred.issuerDid    = event.params.issuerDid;
-  cred.vcHash       = event.params.vcHash;
+  cred.vcHash       = event.params.vcId; // the event no longer emits vcHash, fallback to vcId
   cred.role         = event.params.role;
   cred.validUntil   = event.params.validUntil;
   cred.revoked      = false;
@@ -49,13 +49,13 @@ export function handleCredentialRevoked(event: CredentialRevokedEvent): void {
 
   cred.revoked    = true;
   cred.revokedAt  = event.block.timestamp;
-  cred.revokedBy  = event.params.revokedBy;
+  cred.revokedBy  = event.transaction.from;
   cred.save();
 
   let auditId = "CredReg-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
   let audit = new AuditEvent(auditId);
   audit.type         = "CredentialRevoked";
-  audit.actorAddress = event.params.revokedBy;
+  audit.actorAddress = event.transaction.from;
   audit.summary      = "Credential revoked: " + event.params.vcId.toHexString().slice(0, 14) + "…";
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;

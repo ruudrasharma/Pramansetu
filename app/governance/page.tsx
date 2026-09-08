@@ -1,6 +1,8 @@
 "use client";
 
-import { governanceItems } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { graphQLClient } from "@/lib/graphql";
+import { GET_GOVERNANCE } from "@/lib/queries";
 import { useState } from "react";
 import { useQueuedTx, useNextTxId } from "@/lib/hooks";
 import { Card } from "@/components/ui/Card";
@@ -77,8 +79,13 @@ function TimelockLookup() {
 }
 
 export default function GovernancePage() {
-  const multisigItems = governanceItems.filter((g) => g.lane === "multisig");
-  const timelockItems = governanceItems.filter((g) => g.lane === "timelock");
+  const { data, isLoading } = useQuery({
+    queryKey: ["governanceData"],
+    queryFn: async () => graphQLClient.request<any>(GET_GOVERNANCE),
+    refetchInterval: 5000,
+  });
+
+  const queueItems = data?.governanceTxs || [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
@@ -92,20 +99,36 @@ export default function GovernancePage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div>
-          <h3 className="mb-3 text-[13px] font-medium text-ink-400">Multisig queue</h3>
+          <h3 className="mb-3 text-[13px] font-medium text-ink-400">Timelock queue</h3>
           <div className="flex flex-col gap-3">
-            {multisigItems.map((item) => (
-              <Card key={item.id}>
-                <div className="mb-3 flex items-center justify-between">
-                  <Badge tone="neutral">{item.kind}</Badge>
-                  <Badge tone={item.status === "disputed" ? "danger" : "signal"}>{item.status}</Badge>
-                </div>
-                <p className="text-[13px] text-ink-50">{item.title}</p>
-                <div className="mt-4">
-                  <SignerChips signers={item.signers} required={item.requiredSignatures} />
-                </div>
-              </Card>
-            ))}
+            {isLoading ? (
+              <Card className="flex items-center justify-center py-8 text-[13px] text-ink-500">Loading queue...</Card>
+            ) : queueItems.length === 0 ? (
+              <Card className="flex items-center justify-center py-8 text-[13px] text-ink-500">No queued transactions.</Card>
+            ) : queueItems.map((item: any) => {
+              const status = item.executed ? "executed" : item.dispute && !item.dispute.resolved ? "disputed" : "queued";
+              return (
+                <Card key={item.id}>
+                  <div className="mb-3 flex items-center justify-between">
+                    <Badge tone="neutral">Tx #{item.txId}</Badge>
+                    <Badge tone={status === "disputed" ? "danger" : status === "executed" ? "verified" : "signal"}>{status}</Badge>
+                  </div>
+                  <p className="text-[13px] text-ink-50 truncate">Target: {item.target}</p>
+                  {item.dispute && !item.dispute.resolved && (
+                    <div className="mt-3 flex items-start gap-2 rounded-lg bg-danger-500/10 p-2.5 text-[12px] text-danger-400">
+                      <Flag size={13} className="mt-0.5 shrink-0" />
+                      <span>{item.dispute.reason}</span>
+                    </div>
+                  )}
+                  {status === "queued" && (
+                    <div className="mt-3 flex items-center gap-1.5 text-[12px] text-ink-400">
+                      <Clock size={13} />
+                      <span className="mono-value">ETA: {new Date(Number(item.eta) * 1000).toLocaleString()}</span>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         </div>
 

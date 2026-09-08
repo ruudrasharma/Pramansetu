@@ -26,26 +26,53 @@ npm run start                 # next start (production mode, local)
 
 ## 3. Contract Deployment (Testnet)
 
-```bash
-# hardhat.config.ts already targets Ethereum Sepolia — see ENVIRONMENT.md
-npm run deploy:testnet
-# → deploys DIDRegistry, CredentialRegistry, TimeBoundAccessControl (proxy),
-#   AssetRegistry (proxy), GuardianRecovery, GovernanceTimelock
-# → writes addresses to deployments/sepolia.json
-# → copy addresses into .env.local (NEXT_PUBLIC_*_ADDRESS vars)
-npx hardhat verify --network sepolia <address> <constructor args>
-```
+1. **Prerequisites**:
+   Create a `.env.local` file with the following variables:
+   ```env
+   DEPLOYER_PRIVATE_KEY=<hardware-wallet-or-test-key>
+   ALCHEMY_API_KEY=<key>
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=<key>
+   ETHERSCAN_API_KEY=<key>
+   ```
+   Ensure the deployer wallet is funded with Sepolia ETH.
+
+2. **Deploy via Hardhat**:
+   ```bash
+   npx hardhat run scripts/deploy.ts --network sepolia
+   ```
+   This deploys the DIDRegistry, CredentialRegistry, TimeBoundAccessControl (proxy), AssetRegistry (proxy), GuardianRecovery, and GovernanceTimelock.
+   The script outputs the contract addresses to `deployments/sepolia.json`.
+
+3. **Verify Contracts** (Optional but recommended):
+   ```bash
+   npx hardhat verify --network sepolia <address> <constructor args>
+   ```
 
 ## 4. Subgraph Deployment
 
-```bash
-cd subgraph
-graph codegen && graph build
-graph deploy --studio bel-chain-idam   # prototype: hosted service
-# production: graph deploy --node http://<self-hosted-graph-node>:8020 bel-chain-idam
-```
+Once the contracts are deployed, we must deploy the indexer.
 
-## 5. Frontend Deployment
+1. **Update Addresses**: Copy the contract addresses from `deployments/sepolia.json` into `subgraph/subgraph.yaml`.
+2. **Build and Deploy**:
+   ```bash
+   cd subgraph
+   npm install
+   npm run codegen
+   npm run build
+   npx graph auth --studio <GRAPH_DEPLOY_KEY>
+   npx graph deploy --studio cipherloom -l v1
+   ```
+
+## 5. Post-Deploy Security Checklist
+
+Once the system is live, execute the following steps to secure the platform (as detailed in the `deploy.ts` script output):
+
+1. **Enroll second SUPER_ADMIN hardware wallet**: Propose and execute a `PlatformAction` via the `GovernanceTimelock` to add a second admin for redundancy.
+2. **Revoke deployer SUPER_ADMIN**: For maximum security, use a co-signed platform action to revoke the original deployer's `SUPER_ADMIN_ROLE`.
+3. **Set Signature Verifier**: Deploy the `ECDSASignatureVerifier` and call `DIDRegistry.setSignatureVerifier(verifier_address)` to enable cryptographic proof verification on Key Rotations.
+4. **Grant ISSUER_ROLE**: Grant the `ISSUER_ROLE` in the `TimeBoundAccessControl` contract to the `CredentialRegistry` contract to enable automated verification pathways.
+
+## 6. Frontend Deployment
 
 **Prototype (Vercel):**
 ```bash

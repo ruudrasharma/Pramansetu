@@ -11,8 +11,8 @@ export function handleMintProposed(event: MintProposedEvent): void {
   let req = new MintRequest(event.params.requestId.toString());
   req.requestId   = event.params.requestId;
   req.cid         = event.params.cid;
-  req.vcId        = event.params.vcId;
-  req.recipient   = event.params.recipient;
+  req.vcId        = Bytes.empty(); // vcId no longer emitted
+  req.recipient   = event.params.recipientDid;
   req.proposer    = event.transaction.from;
   req.executed    = false;
   req.proposedAt  = event.block.timestamp;
@@ -39,15 +39,23 @@ export function handleAssetMinted(event: AssetMintedEvent): void {
   let asset = new Asset(event.params.tokenId.toString());
   asset.tokenId       = event.params.tokenId;
   asset.cid           = event.params.cid;
-  asset.ownerAddress  = event.params.recipient;
-  asset.vcId          = event.params.vcId;
-  asset.proposedBy    = req != null ? req.proposer : event.transaction.from;
-  asset.coSignedBy    = req != null && req.coSigner != null ? req.coSigner! : event.transaction.from;
+  asset.ownerAddress  = event.params.recipientDid; // storing DID hash in ownerAddress field for now
+  asset.vcId          = Bytes.empty();
+  let proposedBy: Bytes = event.transaction.from;
+  let coSignedBy: Bytes = event.transaction.from;
+  if (req != null) {
+    proposedBy = req.proposer;
+    if (req.coSigner !== null) {
+      coSignedBy = changetype<Bytes>(req.coSigner);
+    }
+  }
+  asset.proposedBy = proposedBy;
+  asset.coSignedBy = coSignedBy;
   asset.mintedAt      = event.block.timestamp;
   asset.txHash        = event.transaction.hash;
 
   // Link to Identity if one exists for the recipient
-  let ownerDid = Identity.load(event.params.recipient.toHexString());
+  let ownerDid = Identity.load(event.params.recipientDid.toHexString());
   if (ownerDid != null) asset.owner = ownerDid.id;
 
   asset.save();
@@ -56,7 +64,7 @@ export function handleAssetMinted(event: AssetMintedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "AssetMinted";
   audit.actorAddress = event.transaction.from;
-  audit.summary      = "Asset minted: token #" + event.params.tokenId.toString() + " → " + event.params.recipient.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Asset minted: token #" + event.params.tokenId.toString() + " → " + event.params.recipientDid.toHexString().slice(0, 10) + "…";
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

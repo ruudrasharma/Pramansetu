@@ -1,17 +1,32 @@
 "use client";
 
-import { auditEvents, anomalyAlerts } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { graphQLClient } from "@/lib/graphql";
+import { GET_AUDIT_EVENTS } from "@/lib/queries";
+import { anomalyAlerts } from "@/lib/mock-data";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EventRow } from "@/components/modules/EventRow";
 import { formatRelativeTime } from "@/lib/utils";
-import { Download, TriangleAlert } from "lucide-react";
+import { Download, TriangleAlert, ChevronDown } from "lucide-react";
+import { useState } from "react";
 
 const riskTone = (score: number): "danger" | "alert" | "neutral" =>
   score >= 65 ? "danger" : score >= 40 ? "alert" : "neutral";
 
 export default function AuditPage() {
+  const [page, setPage] = useState(0);
+  const itemsPerPage = 20;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["auditEvents", page],
+    queryFn: async () => graphQLClient.request<any>(GET_AUDIT_EVENTS, { first: itemsPerPage, skip: page * itemsPerPage }),
+    refetchInterval: 5000,
+  });
+
+  const events = data?.auditEvents || [];
+
   return (
     <div className="mx-auto max-w-7xl px-6 py-6">
       <div className="mb-5 flex items-center justify-between">
@@ -31,12 +46,27 @@ export default function AuditPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         <Card>
           <div>
-            {auditEvents
-              .slice()
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .map((event) => (
-                <EventRow key={event.id} event={event} />
-              ))}
+            {isLoading && page === 0 ? (
+              <div className="flex items-center justify-center py-8 text-[13px] text-ink-500">Loading audit trail...</div>
+            ) : events.length === 0 ? (
+              <div className="flex items-center justify-center py-8 text-[13px] text-ink-500">No events found.</div>
+            ) : (
+              <>
+                {events.map((event: any) => {
+                  const formattedEvent = {
+                    ...event,
+                    timestamp: Number(event.timestamp) * 1000
+                  };
+                  return <EventRow key={event.id} event={formattedEvent} />;
+                })}
+                <div className="p-4 flex justify-center">
+                  <Button variant="secondary" onClick={() => setPage(p => p + 1)} disabled={events.length < itemsPerPage}>
+                    <ChevronDown size={14} />
+                    Load older events
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </Card>
 

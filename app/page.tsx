@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { auditEvents, systemHealth, identities, governanceItems, type EventType, type AuditEvent } from "@/lib/mock-data";
+import { useQuery } from "@tanstack/react-query";
+import { graphQLClient } from "@/lib/graphql";
+import { GET_DASHBOARD_DATA } from "@/lib/queries";
+import type { EventType, AuditEvent } from "@/lib/mock-data";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EventRow } from "@/components/modules/EventRow";
@@ -20,22 +23,35 @@ import { usePlatformPaused } from "@/lib/hooks";
 export default function OverviewPage() {
   const { data: isPaused } = usePlatformPaused();
 
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ["dashboardData"],
+    queryFn: async () => graphQLClient.request<any>(GET_DASHBOARD_DATA),
+    refetchInterval: 5000,
+  });
+
+  const activeIdentities = dashboardData?.identities?.filter((i: any) => i.credentials.some((c: any) => !c.revoked))?.length || 0;
+  const expiringIn24h = dashboardData?.identities?.filter((i: any) => i.credentials.some((c: any) => {
+    const diff = c.validUntil * 1000 - Date.now();
+    return diff > 0 && diff < 48 * 3600000;
+  }))?.length || 0;
+  const pendingGovernance = dashboardData?.governanceTxs?.filter((g: any) => !g.executed)?.length || 0;
+
   const healthCards = [
     {
       label: "Active identities",
-      value: systemHealth.activeIdentities,
+      value: isLoading ? "-" : activeIdentities,
       icon: Fingerprint,
       tone: "text-signal-400 bg-signal-500/10",
     },
     {
       label: "Roles expiring < 24h",
-      value: systemHealth.expiringIn24h,
+      value: isLoading ? "-" : expiringIn24h,
       icon: Hourglass,
       tone: "text-alert-400 bg-alert-500/10",
     },
     {
       label: "Pending governance",
-      value: systemHealth.pendingGovernance,
+      value: isLoading ? "-" : pendingGovernance,
       icon: Landmark,
       tone: "text-verified-400 bg-verified-500/10",
     },
@@ -49,10 +65,7 @@ export default function OverviewPage() {
     },
   ];
 
-  // Simulate live stream: prepend a synthetic event on "Refresh"
-  const [events, setEvents] = useState(
-    [...auditEvents].sort((a, b) => b.timestamp - a.timestamp)
-  );
+  const [liveEvents, setLiveEvents] = useState<any[]>([]);
 
   function simulateLiveEvent() {
     const syntheticTypes: EventType[] = ["DIDCreated", "RoleGranted", "AssetMinted", "CredentialIssued"];
@@ -60,13 +73,15 @@ export default function OverviewPage() {
     const newEvent: AuditEvent = {
       id: `evt-live-${Date.now()}`,
       type,
-      actorDid: identities[0]?.did ?? "did:ethr:0x0000",
+      actorDid: "did:ethr:0x0000",
       summary: `[LIVE] ${type} event arrived from chain`,
-      timestamp: Date.now(),
+      timestamp: Date.now() / 1000,
       txHash: `0x${Math.random().toString(16).slice(2, 6)}…${Math.random().toString(16).slice(2, 6)}`,
     };
-    setEvents((prev) => [newEvent, ...prev].slice(0, 30));
+    setLiveEvents((prev) => [newEvent, ...prev].slice(0, 5));
   }
+
+  const events = [...liveEvents, ...(dashboardData?.auditEvents || [])];
 
   return (
     <DetailPanelProvider>
@@ -124,14 +139,18 @@ export default function OverviewPage() {
             <Card>
               <h2 className="mb-3 text-[14px] font-medium text-ink-50">Roles expiring soon</h2>
               <div className="flex flex-col gap-3">
-                {identities
-                  .filter((i) => i.roleExpiresAt > Date.now())
-                  .sort((a, b) => a.roleExpiresAt - b.roleExpiresAt)
+                {dashboardData?.identities
+                  ?.filter((i: any) => i.credentials.some((c: any) => c.validUntil * 1000 > Date.now()))
+                  ?.map((identity: any) => {
+                    const activeCred = identity.credentials.find((c: any) => c.validUntil * 1000 > Date.now());
+                    return { ...identity, roleExpiresAt: activeCred?.validUntil * 1000, role: activeCred?.role };
+                  })
+                  .sort((a: any, b: any) => a.roleExpiresAt - b.roleExpiresAt)
                   .slice(0, 3)
-                  .map((identity) => (
-                    <div key={identity.did} className="flex items-center justify-between text-[13px]">
+                  .map((identity: any) => (
+                    <div key={identity.id} className="flex items-center justify-between text-[13px]">
                       <span className="mono-value truncate text-ink-200">
-                        {identity.did.slice(0, 14)}…
+                        {identity.id.slice(0, 14)}…
                       </span>
                       <Badge tone="alert">{identity.role}</Badge>
                     </div>
@@ -142,11 +161,11 @@ export default function OverviewPage() {
             <Card>
               <h2 className="mb-3 text-[14px] font-medium text-ink-50">Governance queue</h2>
               <div className="flex flex-col gap-3">
-                {governanceItems.map((item) => (
+                {dashboardData?.governanceTxs?.map((item: any) => (
                   <div key={item.id} className="text-[13px]">
-                    <p className="truncate text-ink-200">{item.title}</p>
-                    <Badge tone={item.status === "disputed" ? "danger" : "signal"} className="mt-1">
-                      {item.status}
+                    <p className="truncate text-ink-200">Governance tx #{item.txId} to {item.target.slice(0, 8)}...</p>
+                    <Badge tone={!item.executed ? "signal" : "verified"} className="mt-1">
+                      {!item.executed ? "queued" : "executed"}
                     </Badge>
                   </div>
                 ))}

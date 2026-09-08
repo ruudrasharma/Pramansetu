@@ -1,6 +1,6 @@
 import { BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
-  RoleGranted as RoleGrantedEvent,
+  TimedRoleGranted as TimedRoleGrantedEvent,
   RoleRevoked as RoleRevokedEvent,
   ActionProposed as ActionProposedEvent,
   ActionExecuted as ActionExecutedEvent,
@@ -18,14 +18,14 @@ function roleLabel(roleHash: Bytes): string {
   return hex.slice(0, 10) + "…";
 }
 
-export function handleRoleGranted(event: RoleGrantedEvent): void {
+export function handleTimedRoleGranted(event: TimedRoleGrantedEvent): void {
   let id = event.params.role.toHexString() + "-" + event.params.account.toHexString() + "-" + event.transaction.hash.toHexString();
   let grant = new RoleGrant(id);
   grant.role           = event.params.role;
   grant.roleLabel      = roleLabel(event.params.role);
   grant.accountAddress = event.params.account;
-  grant.grantedBy      = event.params.sender;
-  grant.validUntil     = BigInt.fromI32(0); // retrieved from contract call in production
+  grant.grantedBy      = event.transaction.from; // TimedRoleGranted doesn't have sender param, so use tx.from
+  grant.validUntil     = event.params.validUntil;
   grant.revoked        = false;
   grant.grantedAt      = event.block.timestamp;
   grant.txHash         = event.transaction.hash;
@@ -34,7 +34,7 @@ export function handleRoleGranted(event: RoleGrantedEvent): void {
   let auditId = "AC-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
   let audit = new AuditEvent(auditId);
   audit.type         = "RoleGranted";
-  audit.actorAddress = event.params.sender;
+  audit.actorAddress = event.transaction.from;
   audit.summary      = "Role granted: " + roleLabel(event.params.role) + " → " + event.params.account.toHexString().slice(0, 10) + "…";
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
@@ -60,8 +60,8 @@ export function handleActionProposed(event: ActionProposedEvent): void {
   let action = new PlatformAction(event.params.actionId.toString());
   action.actionId    = event.params.actionId;
   action.actionType  = event.params.actionType;
-  action.role        = event.params.role;
-  action.account     = event.params.account;
+  action.role        = Bytes.empty();
+  action.account     = Bytes.empty();
   action.proposer    = event.params.proposer;
   action.executed    = false;
   action.proposedAt  = event.block.timestamp;

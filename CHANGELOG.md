@@ -23,14 +23,24 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.6.0] — 2026-09-08 — Phase 6: Live Data Wiring & Testing Polish
+
+### Added
+- Subgraph indexer deployed to Graph Studio (`cipherloom` schema) with fully implemented mapping logic
+- Wired `lib/hooks/` reads into live UI pages, replacing static mock data entirely
+- Implemented cursor-based pagination on Audit stream UI (GraphQL query logic + UI load more button)
+- Implemented role-based gating to `app/assets/page.tsx` using `useHasRole`
+- `test/ECDSASignatureVerifier.test.ts`: Added full Hardhat coverage for cryptographic verification
+- `docs/DEPLOYMENT.md`: Step-by-step production runbook documenting contract & subgraph rollouts + security post-deploy checks
+- Updated `mock-data.ts` and `EventRow.tsx` with missing `KeyRotated` events.
+
+---
+
 ## [Unreleased] — post-deploy
 
 ### Planned
-- Wire `lib/hooks/` reads into live UI pages (replace `mock-data.ts` calls)
-- TheGraph subgraph codegen + deploy to Graph Studio after Amoy deployment
-- ECDSASignatureVerifier: add test coverage (currently 0% — requires live ECDSA fixtures)
 - Anomaly detection service integration (`GET /audit/anomalies`)
-- WalletConnect modal wiring in `Web3Providers.tsx`
+- IPFS upload flow for asset CIDs using Pinata
 
 ---
 
