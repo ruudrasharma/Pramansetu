@@ -63,7 +63,7 @@
           tsconfig.json: excludes test/, scripts/, typechain-types/
 
 ## Phase 4 — Wire Live Data
-- [ ] 4.1 — Deploy contracts to Ethereum Sepolia
+- [x] 4.1 — Deploy contracts to Ethereum Sepolia
 - [ ] 4.2 — Replace mock-data with wagmi hooks
 - [ ] 4.3 — Stand up subgraph, wire into frontend
 
