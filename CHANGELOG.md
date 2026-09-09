@@ -12,8 +12,19 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 - **Merged `feat/sepolia-migration-ui`**: Integrated a massive ~5,000 line structural rewrite of the frontend.
 - Adopted Next.js App Router route groups (`app/(app)/*`) to cleanly separate authenticated pages from public landing pages.
 - Introduced brand new global layout components: `Sidebar`, `TopBar`, `ThemeToggle`, and `AlertCard` for a more robust and navigable dashboard shell.
-- Re-wired the Phase 3 backend logic (Pinata IPFS uploads, Subgraph TanStack queries, Anomaly API) into the new `app/(app)` structure and `lib/services/*` data mode abstractions.
-- Adopted `onchain` data mode globally as the new default to enforce reading live contracts over static fixtures.
+- Re-wired the Phase 3 backend logic (Pinata IPFS uploads, Subgraph TanStack queries, Anomaly API) into the new `app/(app)` structure and a new `lib/services/*` mock/onchain data-mode abstraction (`dataMode.ts`). Of the five services built on it, only `auditService.ts` is genuinely wired to live data through this abstraction — see "Corrected" below for the rest.
+- Added a client-side "Prove role without revealing identity" ZK demo button on the Identity page. **Not backed by any real implementation** — see "Corrected" below; resolution tracked separately (Phase C of the 2026-09-09 audit, not yet decided).
+
+### Corrected (2026-09-09, same-day audit — this entry originally overclaimed)
+This entry originally stated: *"Adopted `onchain` data mode globally as the new default to enforce reading live contracts over static fixtures."* **That was false and has been removed above.** `.env.example`'s `NEXT_PUBLIC_DATA_MODE` default is, and remains, `mock`. What the onchain branch actually does today, service by service:
+- `auditService.ts` — genuinely real: live subgraph event query + `/api/audit/anomalies` polling.
+- `didService.ts` — `resolveDID`/`listCredentials`/`getGuardians` are stubs returning `undefined`/`[]`. `createDID` and `initiateRecovery` are worse than stubs: they submit **real transactions with hardcoded fake arguments** (`pubKey: "0x00"`; zero `newController`/`newPubKey`).
+- `rbacService.ts` — `grantTimedRole`/`revokeRole` target a hardcoded zero address; `getRoleExpiry` always returns `undefined`; `requestRole` is a no-op.
+- `assetService.ts` — `proposeMint` submits a zero recipient/vcId when unresolved; `transferAsset` is a no-op; `listAssets`/`getAsset`/`getProvenance` return mock fixtures.
+- `governanceService.ts` — `getProposals`/`getDisputes` return mock fixtures; `proposeAction` hardcodes zero role/account and mismaps action kinds onto invalid enum values; `approveProposal` calls `BigInt()` on a mock-shaped string id (throws at runtime); `resolveDispute` ignores its own `proceed` argument and always executes.
+- The Identity page's "Generate proof" button fabricates a ZK verification result via `setTimeout`; no Semaphore/snarkjs code exists anywhere in the repo, despite `docs/FEATURES.md`/`docs/SECURITY.md` describing it as a stated mitigation.
+
+Every item above is now tracked individually in `TODO.md` (T-021–T-037) and will be closed service-by-service, or explicitly gated to fail loudly rather than silently fake success, before onchain mode ships as the default.
 
 ---
 
