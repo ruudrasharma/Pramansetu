@@ -17,6 +17,9 @@ import {
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole, ROLE_LABEL, type Role } from "@/lib/mock/fixtures";
 import { useAuditService } from "@/lib/services/auditService";
+import { useDidService } from "@/lib/services/didService";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
+import { dataMode } from "@/lib/services/dataMode";
 
 const titles: Record<string, string> = {
   "/": "Welcome",
@@ -37,6 +40,9 @@ export function TopBar() {
   const activeRole = useAppStore((s) => s.activeRole);
   const setActiveRole = useAppStore((s) => s.setActiveRole);
   const { getAnomalies } = useAuditService();
+  const { did: myDid, address: myAddress, isResolving: isResolvingMe } = useCurrentIdentity();
+  const didService = useDidService(myDid);
+  const me = dataMode === "onchain" ? didService.resolveDID() : undefined;
 
   const openAlertCount = getAnomalies().filter((a) => a.status === "open").length;
   const activeIdentity = identityByRole[activeRole];
@@ -70,33 +76,48 @@ export function TopBar() {
           </kbd>
         </button>
 
-        {/* Role switcher — demo mode, independent of the connected wallet */}
-        <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1.5 text-[13px] text-ink-200 transition-colors hover:border-graphite-600">
+        {/* Role switcher — mock-mode-only demo feature (lib/store/appStore.ts). In onchain
+            mode "who am I" comes from the real connected wallet, not a persona picker — see
+            lib/hooks/useCurrentIdentity.ts — so switching roles here would be dishonest. */}
+        {dataMode === "onchain" ? (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1.5 text-[13px] text-ink-200"
+            title="Role switching is a mock-mode demo feature. Connect the wallet holding the role you want to demonstrate."
+          >
             <Fingerprint size={14} className="text-signal-400" />
-            <span className="hidden sm:inline">{activeIdentity.name}</span>
-            <Badge tone="signal" className="hidden md:inline-flex">{ROLE_LABEL[activeRole]}</Badge>
-            <ChevronDown size={13} className="text-ink-600" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>View app as</DropdownMenuLabel>
-            {roles.map((role) => (
-              <DropdownMenuItem key={role} onSelect={() => setActiveRole(role)} className={cn(role === activeRole && "bg-graphite-700/60")}>
-                <div className="flex flex-1 items-center justify-between">
-                  <div>
-                    <p className="text-ink-50">{identityByRole[role].name}</p>
-                    <p className="text-[11px] text-ink-500">{identityByRole[role].department}</p>
+            <span className="hidden sm:inline">
+              {isResolvingMe ? "Resolving…" : myAddress ? truncateMiddle(myAddress, 6, 4) : "Not connected"}
+            </span>
+            {me && <Badge tone="signal" className="hidden md:inline-flex">{ROLE_LABEL[me.role]}</Badge>}
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1.5 text-[13px] text-ink-200 transition-colors hover:border-graphite-600">
+              <Fingerprint size={14} className="text-signal-400" />
+              <span className="hidden sm:inline">{activeIdentity.name}</span>
+              <Badge tone="signal" className="hidden md:inline-flex">{ROLE_LABEL[activeRole]}</Badge>
+              <ChevronDown size={13} className="text-ink-600" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>View app as</DropdownMenuLabel>
+              {roles.map((role) => (
+                <DropdownMenuItem key={role} onSelect={() => setActiveRole(role)} className={cn(role === activeRole && "bg-graphite-700/60")}>
+                  <div className="flex flex-1 items-center justify-between">
+                    <div>
+                      <p className="text-ink-50">{identityByRole[role].name}</p>
+                      <p className="text-[11px] text-ink-500">{identityByRole[role].department}</p>
+                    </div>
+                    <Badge tone={role === activeRole ? "signal" : "neutral"}>{ROLE_LABEL[role]}</Badge>
                   </div>
-                  <Badge tone={role === activeRole ? "signal" : "neutral"}>{ROLE_LABEL[role]}</Badge>
-                </div>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <p className="px-2.5 pb-1 text-[11px] text-ink-600">
-              DID: <span className="mono-value">{truncateMiddle(activeIdentity.did, 10, 4)}</span>
-            </p>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <p className="px-2.5 pb-1 text-[11px] text-ink-600">
+                DID: <span className="mono-value">{truncateMiddle(activeIdentity.did, 10, 4)}</span>
+              </p>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <ThemeToggle />
 

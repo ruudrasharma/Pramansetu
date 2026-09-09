@@ -98,8 +98,10 @@ substitutes placeholder/sample alerts to keep the panel populated. Returns `500`
 message if `NEXT_PUBLIC_SUBGRAPH_URL` isn't configured, rather than falling back to a hardcoded endpoint.
 
 ### `POST /api/ipfs/upload`
-Server-side-only IPFS pin via Pinata. Body: asset metadata JSON (`{ name, description, image?,
-clearanceLevel?, properties? }`). Returns `{ cid: "ipfs://<hash>" }` on success. Reads
+Server-side-only IPFS pin via Pinata — generic JSON metadata upload, not asset-specific. Body:
+any JSON object with at least `name` (asset-mint callers additionally send `description`,
+`image?`, `clearanceLevel?`, `properties?`; `didService.createDID` sends `{ name, department }`
+for onboarding metadata). Returns `{ cid: "ipfs://<hash>" }` on success. Reads
 `PINATA_API_KEY`/`PINATA_SECRET_API_KEY` from the server environment only (never `NEXT_PUBLIC_`-
 prefixed, never bundled into client JS); returns `500` with an explicit error if those aren't
 configured, or `502` if the Pinata call itself fails. Never returns a mocked/placeholder CID.

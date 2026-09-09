@@ -6,6 +6,48 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.1] — 2026-09-09 — Phase B.1: didService wired to real onchain data
+
+Closes T-021/T-022/T-024 from TODO.md, partially closes T-023, in full per Rule Zero — no stub
+was left silently returning fake success; anything not finished throws a clear "not implemented
+yet" error naming its TODO item instead.
+
+### Added
+- `lib/hooks/useCurrentIdentity.ts`: mode-aware "who am I" — resolves the real connected wallet's
+  DID via `DIDRegistry.didOf(address)` in onchain mode, since none of the 5 mock-mode role-switcher
+  personas correspond to a real registered identity on the deployed contract.
+- `lib/hooks/useGuardianRecovery.ts`: `useGuardiansList(did)` — real guardian-list read, probing
+  `guardiansOf(did, 0..4)` (`GuardianRecovery.MAX_GUARDIANS` is a real contract constant) since the
+  contract has no direct "guardian count" view.
+- `lib/queries.ts`: `GET_CREDENTIALS_BY_SUBJECT` subgraph query.
+
+### Changed
+- `lib/services/didService.ts` (onchain branch): `resolveDID`/`listCredentials`/`getGuardians` now
+  read real chain/subgraph data instead of returning `undefined`/`[]` unconditionally; `createDID`
+  generates a real client-side keypair and uploads real IPFS metadata instead of submitting
+  `pubKey: "0x00"` to a real transaction. `initiateRecovery`/`signRecovery`/`finalizeRecovery` now
+  throw a clear "not implemented yet — see TODO.md T-025/T-039" error instead of submitting a real
+  transaction with hardcoded zero arguments — see TODO.md T-039 for why this needs a product
+  decision (a guardian-acting-for-someone-else UI) before it can be wired for real.
+- `app/api/ipfs/upload/route.ts`: loosened to accept any JSON metadata with a `name` field, not
+  just asset metadata (`description` no longer required) — `didService.createDID` reuses this
+  route for `{name, department}` onboarding metadata. Updated `docs/API_SPEC.md` to match.
+- `app/(app)/identity/page.tsx`, `app/(app)/identity/recovery/page.tsx`: now resolve "me" via
+  `useCurrentIdentity()` instead of the mock-mode role switcher; identity page gains a real
+  "create identity" onboarding card for a connected wallet with no DID yet, shown instead of a
+  silent blank/not-found state.
+- `components/shell/TopBar.tsx`: role switcher is now mock-mode-only — onchain mode shows the real
+  connected wallet's truncated address and real derived role instead, with no dropdown to switch it.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-039**: guardian recovery's actor model is backwards for onchain mode — needs a real
+  "act as a guardian for someone else's recovery" UI, not present anywhere yet.
+- **T-040**: `app/auth/page.tsx`'s "Simulate (demo)" button fakes wallet-signature authentication
+  via `setTimeout` — a second, independent instance of the fabricated-success pattern this session
+  exists to close. Out of `lib/services/*` scope for this pass; flagged so it isn't missed.
+
+---
+
 ## [0.10.0] — 2026-09-09 — Phase 10: UI Architecture Refactor
 
 ### Changed

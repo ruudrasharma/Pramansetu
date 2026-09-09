@@ -99,6 +99,23 @@ export const GET_GOVERNANCE = gql`
   }
 `;
 
+export const GET_CREDENTIALS_BY_SUBJECT = gql`
+  query GetCredentialsBySubject($subject: String!) {
+    credentials(where: { subject: $subject }, orderBy: issuedAt, orderDirection: desc) {
+      id
+      issuerDid
+      vcHash
+      role
+      validUntil
+      revoked
+      revokedAt
+      revokedBy
+      issuedAt
+      txHash
+    }
+  }
+`;
+
 export const GET_AUDIT_EVENTS = gql`
   query GetAuditEvents($first: Int = 20, $skip: Int = 0) {
     auditEvents(first: $first, skip: $skip, orderBy: timestamp, orderDirection: desc) {

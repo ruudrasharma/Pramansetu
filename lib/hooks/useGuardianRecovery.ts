@@ -5,10 +5,51 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { readContract } from "wagmi/actions";
+import { useQuery } from "@tanstack/react-query";
 import { GuardianRecoveryAbi } from "@/lib/abis";
-import { contractAddresses } from "@/lib/wagmi";
+import { contractAddresses, wagmiConfig } from "@/lib/wagmi";
 
 const address = contractAddresses.guardianRecovery;
+
+// GuardianRecovery.sol's own MAX_GUARDIANS constant — registerGuardians reverts above 5, so
+// probing indices 0..4 can never miss a real guardian. Not a guess: read directly from the
+// contract source (contracts/GuardianRecovery.sol:15).
+const MAX_GUARDIANS = 5;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+/**
+ * Full guardian list for a DID, read for real. GuardianRecovery has no "guardian count" view
+ * (guardiansOf(did, index) is per-index only, and Solidity's auto-getter for a struct
+ * containing a dynamic array omits that array entirely — confirmed against the compiled ABI,
+ * not guessed), so this probes indices 0..MAX_GUARDIANS-1 and stops at the first revert or
+ * zero-address result.
+ */
+export function useGuardiansList(did: `0x${string}` | undefined) {
+  return useQuery({
+    queryKey: ["guardiansList", did],
+    queryFn: async () => {
+      if (!address || !did) return [];
+      const guardians: `0x${string}`[] = [];
+      for (let i = 0; i < MAX_GUARDIANS; i++) {
+        try {
+          const guardian = (await readContract(wagmiConfig, {
+            address,
+            abi: GuardianRecoveryAbi,
+            functionName: "guardiansOf",
+            args: [did, BigInt(i)],
+          })) as `0x${string}`;
+          if (!guardian || guardian.toLowerCase() === ZERO_ADDRESS) break;
+          guardians.push(guardian);
+        } catch {
+          break; // index out of bounds — no more guardians registered
+        }
+      }
+      return guardians;
+    },
+    enabled: !!address && !!did,
+  });
+}
 
 // ── Read hooks ──────────────────────────────────────────────────────────────
 

@@ -1,26 +1,55 @@
 "use client";
 
-import { Users, ShieldAlert, Clock, Check } from "lucide-react";
+import { Users, ShieldAlert, Clock, Check, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/Card";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
 import { truncateMiddle } from "@/lib/utils";
-import { useAppStore } from "@/lib/store/appStore";
-import { identityByRole, findIdentity } from "@/lib/mock/fixtures";
+import { findIdentity } from "@/lib/mock/fixtures";
 import { useDidService } from "@/lib/services/didService";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
+import { dataMode } from "@/lib/services/dataMode";
 
 export default function GuardianRecoveryPage() {
-  const activeRole = useAppStore((s) => s.activeRole);
-  const me = identityByRole[activeRole];
-  const didService = useDidService();
-  const guardianSet = didService.getGuardians(me.did);
+  const { did: myDid, isResolving: isResolvingMe, hasNoDid } = useCurrentIdentity();
+  const didService = useDidService(myDid);
+  const me = didService.resolveDID();
+  const guardianSet = didService.getGuardians();
 
   const recovery = guardianSet?.activeRecovery;
   const signedCount = recovery?.signatures.length ?? 0;
   const threshold = guardianSet?.threshold ?? 0;
   const timelockMet = recovery ? Date.now() >= recovery.timelockEndsAt : false;
+
+  if (dataMode === "onchain" && (!myDid || !me)) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <Card className="flex items-center gap-2 text-[13px] text-ink-400">
+          {isResolvingMe ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> Resolving your identity from the connected wallet…
+            </>
+          ) : hasNoDid ? (
+            "No DID registered for this wallet yet — create one from the Identity page first."
+          ) : (
+            "Connect a wallet to view guardian recovery status."
+          )}
+        </Card>
+      </div>
+    );
+  }
+
+  if (!me) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <Card className="flex items-center gap-2 text-[13px] text-ink-400">
+          <Loader2 size={14} className="animate-spin" /> Resolving identity…
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
@@ -35,7 +64,7 @@ export default function GuardianRecoveryPage() {
       {!guardianSet ? (
         <EmptyState
           title="No guardians configured"
-          description={`${me.name} hasn't registered a guardian set yet. This happens once, during onboarding.`}
+          description={`${me.name || truncateMiddle(me.did)} hasn't registered a guardian set yet. This happens once, during onboarding.`}
         />
       ) : (
         <>
@@ -109,13 +138,19 @@ export default function GuardianRecoveryPage() {
                   sign and 24h elapse, your key rotates and all roles/assets stay intact.
                 </p>
               </div>
-              <Button
-                variant="secondary"
-                className="shrink-0"
-                onClick={() => didService.initiateRecovery(me.did, guardianSet.guardians[0]!)}
-              >
-                Simulate recovery
-              </Button>
+              {dataMode === "onchain" ? (
+                <Badge tone="alert" className="shrink-0">
+                  Not available yet — see TODO.md T-039
+                </Badge>
+              ) : (
+                <Button
+                  variant="secondary"
+                  className="shrink-0"
+                  onClick={() => didService.initiateRecovery(me.did, guardianSet.guardians[0]!)}
+                >
+                  Simulate recovery
+                </Button>
+              )}
             </Card>
           )}
         </>

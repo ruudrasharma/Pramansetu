@@ -12,22 +12,50 @@ Phase 10). `NEXT_PUBLIC_DATA_MODE` defaults to `mock` precisely because these ar
 `AI_DEVELOPMENT_RULES.md` Rule Zero, the default does not flip to `onchain` until every item below
 is either genuinely wired or explicitly gated to fail loudly instead of silently faking success.
 
-### `lib/services/didService.ts`
-- **T-021** `resolveDID` — always returns `undefined` in onchain mode. Needs `useDIDOf(controllerAddress)`
-  → bytes32 did → `useResolveDID(did)`, then adapt the on-chain `DIDDocument` shape to the UI's
-  `Identity` type (`docs/API_SPEC.md` §1).
-- **T-022** `listCredentials` — always returns `[]`. `CredentialRegistry` has no list-by-subject view;
-  needs a subgraph query over `Credential` entities filtered by `subject`.
-- **T-023** `getGuardians` — always returns `undefined`. No `Guardian`/`GuardianSet` entity exists in
-  `subgraph/schema.graphql` (checked directly against the current schema) — needs
-  `recoveryThreshold(did)` + iterated `guardiansOf(did, index)` contract reads, not a subgraph query.
-- **T-024** `createDID` — **higher severity than a stub**: submits a real `createDID` transaction with a
-  hardcoded fake `pubKey: "0x00"`. Every DID created in onchain mode today is permanently registered
-  with garbage key material. Needs a real client-side-generated keypair as part of the onboarding flow
-  before this ships.
-- **T-025** `initiateRecovery` — same severity as T-024: submits a real `initiateRecovery` transaction
-  with hardcoded `newController: 0x0…0` / `newPubKey: "0x00"`, regardless of what the caller intended.
-  Needs the real recovery-target arguments wired from the UI form.
+### `lib/services/didService.ts` — B.1, closed 2026-09-09 (T-021/T-022/T-024), partial (T-023), open (T-025)
+- **T-021** ✅ `resolveDID` — real `useResolveDID(did)` read, adapted to `Identity`. `name`/`department`
+  are left as `""` (would need fetching `metadataURI`'s ipfs:// content — no current caller reads
+  these two fields off `resolveDID`'s result, so this wasn't built; revisit if that changes).
+  `role` is genuinely derived from 5 real `useHasRole` checks against the resolved controller.
+- **T-022** ✅ `listCredentials` — real subgraph query (`GET_CREDENTIALS_BY_SUBJECT`) filtered by subject.
+- **T-023** 🟡 `getGuardians` — `guardians`/`threshold` are real (`recoveryThreshold` +
+  `lib/hooks/useGuardianRecovery.ts`'s new `useGuardiansList`, which probes `guardiansOf(did, 0..4)`
+  since `GuardianRecovery.MAX_GUARDIANS` is a real contract constant). `activeRecovery` is always
+  `undefined` in onchain mode, not a stub oversight: confirmed against the compiled ABI that
+  `activeRecovery(did)`'s auto-generated getter omits the `signers` array entirely (Solidity drops
+  dynamic-array struct members from public-mapping getters), and `initiatedBy` is only ever emitted
+  in the `RecoveryInitiated` event, never stored. Signer count / initiator need an event or subgraph
+  source that doesn't exist yet — building it is pointless until T-039 exists anyway.
+- **T-024** ✅ `createDID` — generates a real keypair client-side (`viem/accounts`), uploads real
+  `{name, department}` metadata to IPFS via `/api/ipfs/upload` (loosened to accept any metadata
+  shape with a `name`, not just asset metadata — see that route + `docs/API_SPEC.md`), and submits
+  the real public key + real `ipfs://` metadataURI. The generated private key is stored in
+  `localStorage` (prototype-grade only, per `docs/SECURITY.md` — not real custody).
+- **T-025** `initiateRecovery` — still throws in onchain mode. Blocked on **T-039** below, not a
+  simple wiring gap: fixing the hardcoded zero args isn't enough on its own.
+
+### T-039 — Guardian recovery needs a guardian-actor UI, not just service fixes
+Found while implementing T-023/T-025 (2026-09-09). `GuardianRecovery.initiateRecovery`/`signRecovery`
+can only be called by a **registered guardian of the target DID** — never by the person who lost
+their device. The current `/identity/recovery` page is framed backwards for onchain mode: it renders
+*my own* recovery status and shows a "Simulate recovery" button as if a guardian clicked it on my
+behalf, but with the real connected-wallet model (see `lib/hooks/useCurrentIdentity.ts`), whoever's
+wallet is connected while viewing that button would need to *be* one of my guardians for the real
+transaction to succeed — which is never true when I'm looking at my own page. `initiateRecovery` also
+needs a real new-controller-address / new-pubkey input that no UI currently collects (the mock model
+only ever tracked a signature-count list). Needs a product decision on a genuine "act as a guardian
+for someone else's recovery" flow (a different page, or a lookup-by-did console) before `initiateRecovery`/
+`signRecovery`/`finalizeRecovery` can be wired for real — not something to guess at unilaterally.
+
+### T-040 — `app/auth/page.tsx`'s "Simulate (demo)" button fakes wallet-signature authentication
+Found while auditing the connect/identity flow for B.1 (2026-09-09), not yet fixed — out of this
+session's `lib/services/*` scope, flagging so it doesn't get missed. `handleSimulateResolve` flips
+the UI through "resolving" → "done" via two `setTimeout`s and redirects to `/dashboard`, without
+ever calling `signMessage` or resolving anything real — a second, independent instance of the same
+fabricated-success pattern Rule Zero exists to catch. The real `handleSign` path (wallet-signed
+challenge) sits right next to it and is genuinely wired. Needs either removal of the simulate button
+or a clearly-labeled "demo shortcut, mock mode only" gate (`dataMode === "mock"`), same pattern as
+the role switcher above.
 
 ### `lib/services/rbacService.ts`
 - **T-026** `grantTimedRole` / `revokeRole` — both target a hardcoded zero address. Needs the target
@@ -69,6 +97,18 @@ is either genuinely wired or explicitly gated to fail loudly instead of silently
   (a minimal server-side dismissed-ids store is sufficient).
 - **T-037** `subscribeToEvents` — no-op in both the mock and onchain branches. Needs `wagmi`'s
   `useWatchContractEvent` wired per relevant contract in the onchain branch.
+
+### Audit event labeling
+- **T-038** `KeyRotated` is missing from the `EventType` union in `lib/mock/fixtures/auditEvents.ts`
+  — found while fixing `components/modules/EventRow.tsx`'s `eventMeta` record, which had a
+  `KeyRotated` entry that no longer type-checks against the current union. This undoes real work:
+  Phase 6 added `KeyRotated` as its own tracked event type, and Phase 8 fixed
+  `subgraph/src/did-registry.ts` specifically so `KeyRotated` events get their own label instead of
+  being lumped into `DIDCreated`. Somewhere in the Phase 10 refactor (fixtures split into
+  `lib/mock/fixtures/*`) the union lost that member, so a real `KeyRotated` audit event from the
+  subgraph now has no matching frontend type/icon/tone. Needs `KeyRotated` added back to `EventType`
+  and `eventMeta`, and the real subgraph `AuditEvent.type` values cross-checked against the union
+  to make sure nothing else silently dropped out the same way.
 
 ---
 
