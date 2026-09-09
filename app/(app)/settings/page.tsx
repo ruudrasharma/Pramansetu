@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Sun, Bell, Wallet, ShieldCheck, KeyRound, ArrowRight, Layers } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { IconBadge } from "@/components/ui/IconBadge";
 import { Switch } from "@/components/ui/Switch";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
 import { useAppStore } from "@/lib/store/appStore";
@@ -26,12 +27,10 @@ export default function SettingsPage() {
 
       <Card className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-            <Sun size={16} strokeWidth={1.75} />
-          </div>
+          <IconBadge icon={Sun} tone="signal" />
           <div>
             <p className="text-[13px] font-medium text-ink-50">Theme</p>
-            <p className="text-[12px] text-ink-500">Light, dark, or follow system preference.</p>
+            <p className="text-[12px] text-ink-500">Light by default — switch to dark anytime.</p>
           </div>
         </div>
         <ThemeToggle />
@@ -39,9 +38,7 @@ export default function SettingsPage() {
 
       <Card className="mb-4 flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-            <Bell size={16} strokeWidth={1.75} />
-          </div>
+          <IconBadge icon={Bell} tone="alert" />
           <p className="text-[13px] font-medium text-ink-50">Notifications</p>
         </div>
         <div className="flex items-center justify-between pl-12">
@@ -56,9 +53,7 @@ export default function SettingsPage() {
 
       <Card className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-            <Wallet size={16} strokeWidth={1.75} />
-          </div>
+          <IconBadge icon={Wallet} tone="sage" />
           <div>
             <p className="text-[13px] font-medium text-ink-50">Connected wallet</p>
             <p className="mono-value text-[12px] text-ink-500">{truncateMiddle(me.controller, 10, 6)}</p>
@@ -69,9 +64,7 @@ export default function SettingsPage() {
 
       <Card className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-            <ShieldCheck size={16} strokeWidth={1.75} />
-          </div>
+          <IconBadge icon={ShieldCheck} tone="charcoal" />
           <div>
             <p className="text-[13px] font-medium text-ink-50">Security</p>
             <p className="text-[12px] text-ink-500">Guardian recovery configuration.</p>
@@ -84,9 +77,7 @@ export default function SettingsPage() {
 
       <Card className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-            <Layers size={16} strokeWidth={1.75} />
-          </div>
+          <IconBadge icon={Layers} tone="signal" />
           <div>
             <p className="text-[13px] font-medium text-ink-50">Compliance & architecture</p>
             <p className="text-[12px] text-ink-500">Prototype vs. production deployment status.</p>
@@ -99,22 +90,20 @@ export default function SettingsPage() {
 
       <Card>
         <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-            <KeyRound size={16} strokeWidth={1.75} />
-          </div>
+          <IconBadge icon={KeyRound} tone="sage" />
           <div>
             <p className="text-[13px] font-medium text-ink-50">Crypto-agility</p>
             <p className="text-[12px] text-ink-500">Signature verification is a swappable contract module.</p>
           </div>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2.5">
+        <div className="flex items-center justify-between rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2.5">
           <div className="flex items-center gap-2">
             <Badge tone="verified">Active</Badge>
             <span className="mono-value text-[13px] text-ink-200">ES256K</span>
           </div>
           <span className="text-[12px] text-ink-600">ECDSASignatureVerifier</span>
         </div>
-        <div className="mt-2 flex items-center justify-between rounded-lg border border-graphite-800 bg-graphite-900/40 px-3 py-2.5">
+        <div className="mt-2 flex items-center justify-between rounded-xl border border-graphite-800 bg-graphite-900/40 px-3 py-2.5">
           <div className="flex items-center gap-2">
             <Badge tone="alert">Roadmap</Badge>
             <span className="mono-value text-[13px] text-ink-400">CRYSTALS-Dilithium</span>

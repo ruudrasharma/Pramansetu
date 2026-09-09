@@ -106,7 +106,7 @@ export default function TransferAssetPage() {
 
         {recipient && (
           <div
-            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] ${
+            className={`flex items-center gap-2 rounded-2xl border px-3 py-2 text-[12px] ${
               credentialValid ? "border-verified-500/25 bg-verified-500/10 text-verified-400" : "border-danger-500/25 bg-danger-500/10 text-danger-400"
             }`}
           >

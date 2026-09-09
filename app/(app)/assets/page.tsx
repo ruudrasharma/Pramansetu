@@ -5,6 +5,7 @@ import { Boxes, FileCheck } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { IconBadge } from "@/components/ui/IconBadge";
 import { truncateMiddle } from "@/lib/utils";
 import { useAssetService } from "@/lib/services/assetService";
 import type { AssetStatus } from "@/lib/mock/fixtures";
@@ -48,11 +49,9 @@ export default function AssetsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {assets.map((asset) => (
             <Link key={asset.tokenId} href={`/assets/${asset.tokenId}`}>
-              <Card className="flex h-full flex-col gap-3 transition-colors hover:border-graphite-600">
+              <Card interactive className="flex h-full flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-                    <Boxes size={16} strokeWidth={1.75} />
-                  </div>
+                  <IconBadge icon={Boxes} tone="signal" />
                   <Badge tone={statusTone[asset.status]}>{statusLabel[asset.status]}</Badge>
                 </div>
                 <div>

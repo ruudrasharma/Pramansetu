@@ -48,7 +48,7 @@ export default function RoleRequestPage() {
         </div>
 
         {dataMode === "onchain" ? (
-          <p className="rounded-lg border border-alert-500/25 bg-alert-500/[0.04] px-3 py-2 text-[12px] text-alert-400">
+          <p className="rounded-2xl border border-alert-500/25 bg-alert-500/[0.04] px-3 py-2 text-[12px] text-alert-400">
             No on-chain self-service role request path exists yet (see TODO.md T-028) —
             <span className="mono-value"> TimeBoundAccessControl</span> only allows an Admin or Super Admin to
             initiate a grant directly. Contact an Admin to request a role.

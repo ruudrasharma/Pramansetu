@@ -234,7 +234,7 @@ export function CommandPalette() {
                       onSelect={action}
                       className="mx-2 flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] text-ink-200 transition-colors aria-selected:bg-graphite-800 aria-selected:text-ink-50"
                     >
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-graphite-800 text-ink-400 aria-selected:text-signal-400">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-graphite-800 text-ink-400 aria-selected:text-signal-600">
                         <Icon size={14} strokeWidth={1.75} />
                       </div>
                       <div className="min-w-0 flex-1">

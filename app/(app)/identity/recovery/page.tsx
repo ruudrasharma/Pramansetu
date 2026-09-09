@@ -4,13 +4,17 @@ import { Users, ShieldAlert, Clock, Check, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { IconBadge } from "@/components/ui/IconBadge";
 import { EmptyState } from "@/components/ui/Card";
+import { DateStrip } from "@/components/ui/DateStrip";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
 import { truncateMiddle } from "@/lib/utils";
 import { findIdentity } from "@/lib/mock/fixtures";
 import { useDidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { dataMode } from "@/lib/services/dataMode";
+
+const DAY_MS = 24 * 3_600_000;
 
 export default function GuardianRecoveryPage() {
   const { did: myDid, isResolving: isResolvingMe, hasNoDid } = useCurrentIdentity();
@@ -79,7 +83,7 @@ export default function GuardianRecoveryPage() {
                 const g = findIdentity(did);
                 const hasSigned = recovery?.signatures.includes(did);
                 return (
-                  <div key={did} className="flex items-center justify-between rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[12px]">
+                  <div key={did} className="flex items-center justify-between rounded-2xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[12px]">
                     <div className="min-w-0">
                       <p className="truncate text-ink-200">{g?.name ?? truncateMiddle(did)}</p>
                       <p className="mono-value truncate text-[11px] text-ink-600">{truncateMiddle(did, 10, 4)}</p>
@@ -94,9 +98,7 @@ export default function GuardianRecoveryPage() {
           {recovery ? (
             <Card className="border-alert-500/25 bg-alert-500/[0.04]">
               <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-alert-500/10 text-alert-400">
-                  <ShieldAlert size={17} strokeWidth={1.75} />
-                </div>
+                <IconBadge icon={ShieldAlert} tone="alert" />
                 <div>
                   <h3 className="text-[14px] font-medium text-ink-50">Recovery in progress</h3>
                   <p className="mt-1 text-[13px] text-ink-400">
@@ -105,7 +107,16 @@ export default function GuardianRecoveryPage() {
                 </div>
               </div>
 
-              <div className="mb-4 flex items-center justify-between rounded-lg border border-graphite-800 bg-graphite-900 px-4 py-3">
+              <DateStrip
+                className="mb-4"
+                items={Array.from({ length: Math.max(1, Math.ceil((recovery.timelockEndsAt - recovery.initiatedAt) / DAY_MS) + 1) }, (_, i) => ({
+                  date: new Date(recovery.initiatedAt + i * DAY_MS),
+                  tone: recovery.initiatedAt + i * DAY_MS >= recovery.timelockEndsAt ? ("verified" as const) : undefined,
+                }))}
+                selected={new Date(timelockMet ? recovery.timelockEndsAt : Date.now())}
+              />
+
+              <div className="mb-4 flex items-center justify-between rounded-2xl border border-graphite-800 bg-graphite-900 px-4 py-3">
                 <div>
                   <p className="text-[11px] uppercase tracking-wide text-ink-600">Guardian approval</p>
                   <p className={`mono-value mt-0.5 text-[15px] font-medium ${signedCount >= threshold ? "text-verified-400" : "text-ink-50"}`}>

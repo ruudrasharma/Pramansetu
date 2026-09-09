@@ -6,6 +6,7 @@ import { Copy, ExternalLink, ShieldCheck, Lock, Loader2, CheckCircle2 } from "lu
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { IconBadge } from "@/components/ui/IconBadge";
 import { CredentialCard } from "@/components/modules/CredentialCard";
 import { truncateMiddle } from "@/lib/utils";
 import { useAppStore } from "@/lib/store/appStore";
@@ -45,13 +46,13 @@ function CreateIdentityCard({ onCreate }: { onCreate: (input: { name: string; de
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name"
-          className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
+          className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
         />
         <input
           value={department}
           onChange={(e) => setDepartment(e.target.value)}
           placeholder="Department"
-          className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
+          className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
         />
       </div>
       {error && <p className="mb-3 text-[12px] text-danger-400">{error}</p>}
@@ -178,9 +179,7 @@ export default function IdentityPage() {
       <Card>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-              <ShieldCheck size={17} strokeWidth={1.75} />
-            </div>
+            <IconBadge icon={ShieldCheck} tone="signal" className="mt-0.5" />
             <div>
               <h3 className="text-[14px] font-medium text-ink-50">Prove role without revealing identity</h3>
               <p className="mt-1 max-w-md text-[13px] text-ink-400">
@@ -197,7 +196,7 @@ export default function IdentityPage() {
           </Button>
         </div>
         {zkState === "proved" && (
-          <div className="mt-3 rounded-lg border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
+          <div className="mt-3 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
             Proof verified against the current Merkle root — role membership confirmed, identity not
             disclosed.
           </div>

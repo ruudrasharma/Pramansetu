@@ -31,7 +31,7 @@ export function AlertCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
-          <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg", iconTone)}>
+          <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", iconTone)}>
             <Icon size={14} strokeWidth={1.75} />
           </div>
           <div>

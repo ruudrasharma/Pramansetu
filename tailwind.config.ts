@@ -25,6 +25,14 @@ const config: Config = {
           500: "var(--signal-500)",
           600: "var(--signal-600)",
         },
+        sage: {
+          400: "var(--sage-400)",
+          500: "var(--sage-500)",
+          600: "var(--sage-600)",
+        },
+        charcoal: {
+          500: "var(--charcoal-500)",
+        },
         verified: {
           400: "var(--verified-400)",
           500: "var(--verified-500)",

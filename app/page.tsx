@@ -3,34 +3,40 @@ import { Fingerprint, ShieldCheck, Boxes, ScrollText, Landmark, ArrowRight, KeyR
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { IconBadge } from "@/components/ui/IconBadge";
 
 const modules = [
   {
     icon: Fingerprint,
+    tone: "signal" as const,
     title: "Decentralized Identity",
     description:
       "Soulbound, guardian-recoverable DIDs replace the centralized IAM database — no single point of compromise, no password to phish.",
   },
   {
     icon: ShieldCheck,
+    tone: "charcoal" as const,
     title: "Time-Bound RBAC",
     description:
       "Roles carry a validity window and expire on-chain automatically. No manual revocation path to forget, no standing access to abuse.",
   },
   {
     icon: Boxes,
+    tone: "sage" as const,
     title: "Dual-Attestation Assets",
     description:
       "Every digital asset is minted only after two independent roles co-sign — provenance is enforced by the contract, not a spreadsheet.",
   },
   {
     icon: ScrollText,
+    tone: "signal" as const,
     title: "Immutable Audit + Anomaly Detection",
     description:
       "Every state change emits a typed, tamper-proof event. Rule-based detection flags what's unusual — and always names the rule that fired.",
   },
   {
     icon: Landmark,
+    tone: "sage" as const,
     title: "Multi-Sig Governance",
     description:
       "No Admin key acts alone. High-value transfers cool off before finalizing, and any Auditor can freeze one mid-window.",
@@ -42,8 +48,8 @@ export default function LandingPage() {
     <div className="min-h-screen bg-graphite-950">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2">
-          <div className="mono-value flex h-8 w-8 items-center justify-center rounded-lg bg-signal-500/15 text-[12px] font-semibold text-signal-400">
-            BC
+          <div className="mono-value flex h-8 w-8 items-center justify-center rounded-full bg-signal-500 text-[12px] font-semibold text-white">
+            PS
           </div>
           <span className="text-[14px] font-medium text-ink-50">Praman Setu</span>
         </div>
@@ -80,11 +86,9 @@ export default function LandingPage() {
         </div>
 
         <div className="mt-20 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {modules.map(({ icon: Icon, title, description }) => (
+          {modules.map(({ icon, tone, title, description }) => (
             <Card key={title} className="flex flex-col gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-signal-500/10 text-signal-400">
-                <Icon size={17} strokeWidth={1.75} />
-              </div>
+              <IconBadge icon={icon} tone={tone} />
               <h3 className="text-[14px] font-medium text-ink-50">{title}</h3>
               <p className="text-[13px] leading-relaxed text-ink-400">{description}</p>
             </Card>

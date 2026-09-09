@@ -3,45 +3,74 @@
 ## 0. Design Concept
 
 **Subject:** a defense-sector cryptographic control system, not a consumer Web3 app. The audience is
-security leadership, IT admins, and auditors who need to trust the interface the way they trust a
-signal-ops console — precise, quiet, legible under pressure. We deliberately avoid the generic Web3
-"gradient-on-black + neon cyan" look and the generic SaaS "rounded card grid" look. The visual language
-is closer to an instrument panel: a persistent rail of module glyphs, a live event ledger as the spine of
-the home screen (because the actual product truth is "everything is an immutable event"), and monospace
-treatment for anything that is a hash, address, or DID — because in this system, exact characters matter.
+security leadership, IT admins, and auditors who need to trust the interface. As of the 2026-09 visual
+system revision (superseding the original dark-first "signal-ops console" concept below the token/layout
+level), the language is a warm, rounded ed-tech-admin aesthetic — cream surfaces, soft shadows instead of
+hairline borders as the primary card separator, pill-shaped buttons/badges/nav, and three decorative
+accent colors (terracotta, sage, near-black charcoal) — deliberately chosen for approachability over the
+former "instrument panel" austerity. What did **not** change: the shell IA (icon+label sidebar, top bar
+with a search/⌘K trigger, right-hand slide-in detail panel), the live event ledger as the spine of the
+home screen, and monospace treatment for anything that is a hash, address, or DID — those remain because
+the product truth ("everything is an immutable event," "exact characters matter") is independent of the
+skin on top of it.
 
 ## 1. Design Tokens
 
-### Color (dark-first; light mode is a mirrored token set, not a redesign)
+### Color (light-first; dark is a deliberately re-tuned mirror, not a CSS invert)
 
-| Token | Hex | Use |
+| Token | Light hex | Use |
 |---|---|---|
-| `graphite-950` | `#0A0C10` | App background |
-| `graphite-900` | `#12151A` | Panel background |
-| `graphite-850` | `#161A21` | Elevated panel / modal |
-| `graphite-800` | `#1B1F26` | Card surface, hairline borders |
-| `graphite-700` | `#242933` | Hover surface |
-| `ink-50` | `#F4F5F7` | Primary text |
-| `ink-400` | `#8B93A1` | Secondary text |
-| `ink-600` | `#5B6371` | Disabled / tertiary text |
-| `signal-500` | `#5B8DEF` | Primary interactive accent (links, active nav, primary buttons) |
-| `verified-500` | `#34B37A` | Verified / active / success states |
-| `alert-500` | `#E0A63E` | Pending / expiring / warning states |
-| `danger-500` | `#E5484D` | Revoked / paused / critical states |
+| `graphite-950` | `#F7F5F1` | App background — warm cream, never pure white/cold gray |
+| `graphite-900` / `graphite-850` | `#FFFFFF` | Panel / card surface |
+| `graphite-800` | `#ECE8E1` | Hairline border — secondary to the card's soft drop shadow, not the primary divider |
+| `graphite-700` | `#F1EDE6` | Hover surface |
+| `ink-50` | `#1C1F1B` | Primary text — near-black charcoal |
+| `ink-400` | `#746F64` | Secondary text |
+| `ink-600` | `#A39D8F` | Disabled / tertiary text |
+| `signal-500` | `#E0785A` | **Primary accent — terracotta/coral.** Active nav pill, primary stat-card icon badges, primary chart series, CTAs |
+| `sage-500` | `#4F7A5D` | **Secondary accent — sage green.** Secondary icon badges, second chart series, secondary progress bars |
+| `charcoal-500` | `#1C1F1B` (constant — not redefined in dark mode) | **Tertiary accent.** Third data category, primary filled CTA buttons |
+| `verified-500` | `#16A34A` | Verified / active / success — **status-semantic only**, kept a distinct green from `sage` so decoration and status never get confused on the same screen |
+| `alert-500` | `#D97706` | Pending / expiring / warning states |
+| `danger-500` | `#DC2626` | Revoked / paused / critical states |
 
-Never more than one accent color (`signal-500`) used for pure decoration; `verified`/`alert`/`danger` are
-**status-semantic only** — they never appear as decoration, only as state indicators (role status, tx
-status, dispute status).
+Unlike the prior single-accent rule, `signal`/`sage`/`charcoal` are now freely decorative (icon badges,
+chart series, progress bars) — but `verified`/`alert`/`danger` remain status-semantic only, never used for
+decoration, so a status badge is never misread as a styling choice.
 
 ### Typography
 
-- **UI/Display:** Geist (fallback: Inter) — used for all headings, nav labels, buttons, body copy.
-- **Data/mono:** Geist Mono (fallback: IBM Plex Mono) — used exclusively for DIDs, wallet addresses,
-  transaction hashes, CIDs, timestamps, and role-expiry countdowns. This is a structural choice: in an
-  identity/ledger product, the monospace block is how a user visually distinguishes "an exact machine
-  value I could verify myself" from "prose the UI is telling me."
+- **UI/Display:** Plus Jakarta Sans (rounded geometric sans, weights 400–800) — used for all headings, nav
+  labels, buttons, body copy. Chosen for the warm/approachable read the reference design calls for.
+- **Data/mono:** IBM Plex Mono — used exclusively for DIDs, wallet addresses, transaction hashes, CIDs,
+  timestamps, and role-expiry countdowns. Unchanged by the visual revision: the monospace block is how a
+  user visually distinguishes "an exact machine value I could verify myself" from "prose the UI is
+  telling me."
 - **Scale:** 12 / 13 / 15 / 17 / 21 / 28 / 40 px, weights 400/500/650. Hierarchy comes from weight + size
   + the ink-50/ink-400 split, never from color alone.
+
+### Shape & Elevation
+
+- **Cards:** `rounded-3xl` (24px), white/near-black surface, a soft diffused shadow (`--shadow-panel`) as
+  the primary visual separator in light mode; dark mode swaps the shadow for a 1px border + faint inner
+  highlight (shadows read poorly on dark surfaces).
+- **Buttons & badges:** fully pill-shaped (`rounded-full`), never a rounded rectangle.
+- **Icon badges:** small solid-fill circles (32–48px) in `signal`/`sage`/`charcoal`, white icon centered —
+  the recurring context-icon pattern on every stat card, list row, and settings row.
+
+### Motion (additive to the original list below)
+
+- Stat-card numeric values count up on mount/route entry (`components/ui/StatCard.tsx`).
+- Chart lines/areas draw in left-to-right on mount (recharts `isAnimationActive`); the peak-value badge is
+  a custom dark pill rendered via a `ReferenceDot` label, connected to the axis with a dotted
+  `ReferenceLine` (`components/ui/AreaChartCard.tsx`).
+- Sidebar's active-nav pill slides/morphs between items via a shared `layoutId` (Framer Motion), not a
+  hard cut (`components/shell/Sidebar.tsx`).
+- Cards passed `interactive` lift slightly (`translateY` + shadow) on hover.
+- Progress bars (`components/ui/ProgressList.tsx`) animate their fill width in on mount.
+- Theme toggle is a circular icon button with a ~200ms sun/moon cross-fade, not the prior track/thumb
+  switch (`components/shell/ThemeToggle.tsx`). Default theme is **light**, regardless of system
+  preference, persisted via `next-themes`/`localStorage`.
 
 ### Layout Shape
 
@@ -58,12 +87,13 @@ No sidebar-with-labels + topbar-with-search combo. Instead:
 └──┴────────────────────────────────────────────────┴──────────┘
 ```
 
-- **Rail (left, 64px):** icon-only module switcher (Overview / Identity / Access / Assets / Governance /
-  Audit). No text labels — the icon + a 2px `signal-500` left-edge indicator on the active item is enough
-  once a user has used it twice; first-run adds a one-time tooltip sweep.
-- **Context bar:** shows current module name, the connected wallet's active role badge (color = role
-  status), and the ⌘K command palette trigger — the primary way to *act* (grant role, propose mint, raise
-  dispute) rather than hunting through menus.
+- **Sidebar (left, collapsible 216px ↔ 64px icon-only):** module switcher with icon + label per row
+  (`components/shell/Sidebar.tsx`) — this corrects an earlier version of this doc that specified a fixed
+  64px icon-only rail; the shipped shell has always been the labeled, user-collapsible version. The active
+  row gets a soft filled pill in `signal-500` at ~15% opacity (was: a 2px left-edge indicator).
+- **Top bar:** shows current page title + a live-status subtitle, a pill-shaped search/⌘K trigger — still
+  the primary way to *act* (grant role, propose mint, raise dispute) rather than hunting through menus —
+  circular icon-buttons (theme toggle, notifications), and a role/identity chip.
 - **Detail panel:** a right-hand slide-in (not a modal overlay) for inspecting a single DID, asset, or
   transaction — keeps the primary list/stream visible underneath for context, reinforcing "nothing here
   is ever the only copy of the truth."

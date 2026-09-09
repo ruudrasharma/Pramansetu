@@ -67,7 +67,7 @@ export function EventRow({ event, index = 0 }: { event: AuditEvent; index?: numb
       aria-label={`View details for ${event.type} event`}
       onKeyDown={(e) => e.key === "Enter" && openPanel(event)}
     >
-      <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${tone}`}>
+      <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${tone}`}>
         <Icon size={14} strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">

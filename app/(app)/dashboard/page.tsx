@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Fingerprint, Hourglass, Landmark, Octagon, RefreshCw, Boxes, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { StatCard } from "@/components/ui/StatCard";
+import { AreaChartCard } from "@/components/ui/AreaChartCard";
+import { DateStrip, type DateStripItem } from "@/components/ui/DateStrip";
 import { EventRow } from "@/components/modules/EventRow";
 import { RoleBadge } from "@/components/modules/RoleBadge";
 import { AlertCard } from "@/components/modules/AlertCard";
@@ -14,6 +17,14 @@ import { useAuditService } from "@/lib/services/auditService";
 import { useAssetService } from "@/lib/services/assetService";
 import { useRbacService } from "@/lib/services/rbacService";
 import { useGovernanceService } from "@/lib/services/governanceService";
+
+const DAY_MS = 24 * 3_600_000;
+
+function startOfDay(ts: number) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 
 /**
  * DashboardPage — the live command center, role-aware via the demo role switcher.
@@ -37,19 +48,46 @@ export default function DashboardPage() {
     .getProposals()
     .filter((p) => p.status === "queued" && !p.signers.some((s) => s.did === me.did && s.signed));
 
-  const healthCards = [
-    { label: "My identity", value: me.credentialStatus, icon: Fingerprint, tone: "text-signal-400 bg-signal-500/10" },
-    { label: "Roles expiring < 48h", value: expiringSoon.length, icon: Hourglass, tone: "text-alert-400 bg-alert-500/10" },
-    { label: "Assets I own", value: myAssets.length, icon: Boxes, tone: "text-verified-400 bg-verified-500/10" },
+  const healthCards: Array<{
+    label: string;
+    value: string | number;
+    icon: typeof Fingerprint;
+    tone: "signal" | "sage" | "charcoal" | "alert";
+  }> = [
+    { label: "My identity", value: me.credentialStatus, icon: Fingerprint, tone: "signal" },
+    { label: "Roles expiring < 48h", value: expiringSoon.length, icon: Hourglass, tone: "alert" },
+    { label: "Assets I own", value: myAssets.length, icon: Boxes, tone: "sage" },
     {
       label: "Platform status",
       value: governanceService.isPlatformPaused || rbacService.isPlatformPaused ? "Paused" : "Operational",
       icon: Octagon,
-      tone: "text-verified-400 bg-verified-500/10",
+      tone: "charcoal",
     },
   ];
 
   const [events, setEvents] = useState<AuditEvent[]>(() => [...auditService.getEvents()].sort((a, b) => b.timestamp - a.timestamp));
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+
+  const last7Days = useMemo(() => {
+    const days: DateStripItem[] = [];
+    for (let i = 6; i >= 0; i--) {
+      days.push({ date: new Date(startOfDay(Date.now() - i * DAY_MS)) });
+    }
+    return days;
+  }, []);
+
+  const volumeData = useMemo(() => {
+    return last7Days.map(({ date }) => {
+      const dayStart = date.getTime();
+      const dayEnd = dayStart + DAY_MS;
+      const count = events.filter((e) => e.timestamp >= dayStart && e.timestamp < dayEnd).length;
+      return { label: date.toLocaleDateString(undefined, { weekday: "short" }), events: count };
+    });
+  }, [events, last7Days]);
+
+  const visibleEvents = selectedDay
+    ? events.filter((e) => startOfDay(e.timestamp) === startOfDay(selectedDay.getTime()))
+    : events;
 
   function simulateLiveEvent() {
     const syntheticTypes: EventType[] = ["DIDCreated", "RoleGranted", "AssetMinted", "CredentialIssued"];
@@ -89,19 +127,18 @@ export default function DashboardPage() {
 
       {/* Health strip */}
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {healthCards.map(({ label, value, icon: Icon, tone }) => (
-          <motion.div key={label} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 280, damping: 26 }}>
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <p className="text-[12px] text-ink-400">{label}</p>
-                <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${tone}`}>
-                  <Icon size={14} strokeWidth={1.75} />
-                </div>
-              </div>
-              <p className="mt-2 truncate text-[26px] font-medium capitalize leading-none text-ink-50">{value}</p>
-            </Card>
-          </motion.div>
+        {healthCards.map((card, i) => (
+          <StatCard key={card.label} {...card} index={i} />
         ))}
+      </div>
+
+      <div className="mb-6">
+        <AreaChartCard
+          title="Event volume"
+          subtitle="Last 7 days · on-chain events"
+          data={volumeData}
+          series={[{ key: "events", color: "signal", label: "Events" }]}
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
@@ -114,18 +151,27 @@ export default function DashboardPage() {
               <button
                 onClick={simulateLiveEvent}
                 title="Simulate incoming chain event"
-                className="flex items-center gap-1.5 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1 text-[12px] text-ink-400 transition-colors hover:border-graphite-600 hover:text-ink-200"
+                className="flex items-center gap-1.5 rounded-full bg-graphite-700/50 px-2.5 py-1 text-[12px] text-ink-400 transition-colors hover:bg-graphite-700 hover:text-ink-200"
               >
                 <RefreshCw size={11} strokeWidth={1.75} />
                 Simulate
               </button>
             </div>
           </div>
+          <DateStrip
+            items={last7Days}
+            selected={selectedDay ?? undefined}
+            onSelect={(d) => setSelectedDay((prev) => (prev?.toDateString() === d.toDateString() ? null : d))}
+            className="mb-3 mt-2"
+          />
           <AnimatePresence initial={false}>
-            {events.map((event, i) => (
+            {visibleEvents.map((event, i) => (
               <EventRow key={event.id} event={event} index={i} />
             ))}
           </AnimatePresence>
+          {visibleEvents.length === 0 && (
+            <p className="py-6 text-center text-[12px] text-ink-500">No events on this day.</p>
+          )}
         </Card>
 
         {/* Right column */}

@@ -18,7 +18,6 @@
 - [ ] Docker Compose for local Graph node so `npm run dev` doesn't require the hosted subgraph.
 
 ## 🟡 Nice to Have
-- [ ] Light mode token pass (dark-first tokens exist; light mirror not yet built).
 - [ ] Command palette (⌘K) fuzzy search across DIDs/assets/tx hashes.
 - [ ] Exportable PDF audit reports from the `/audit` screen.
 - [ ] `did:web` method support for the future cross-PSU interoperability roadmap item.
@@ -30,4 +29,12 @@
 - Quantum resistance is crypto-agility, not a shipped post-quantum signature scheme, in the MVP.
 
 ## Bugs
-_(none logged yet — file issues here as they're found during integration)_
+- [ ] `components/shell/TopBar.tsx` role/identity chip: hydration mismatch between server ("Not
+      connected") and client ("Resolving…") render of `useCurrentIdentity()`'s wallet-resolving state —
+      forces a full client-side re-render on every load in onchain mode. Found during the 2026-09 visual
+      pass; not fixed there (logic bug, out of that pass's visual-only scope).
+- [ ] `lib/services/auditService.ts` onchain path: the `["auditEvents"]` react-query resolves to
+      `undefined` rather than `[]` when the subgraph/indexer isn't reachable (see `NEXT_PUBLIC_DATA_MODE`
+      in `.env.local` — currently `onchain` with no local indexer running), which both throws a
+      react-query console error and leaves the Dashboard/Audit ledger silently empty instead of showing
+      an error or empty state. Same root cause as the "Stand up the subgraph" blocking item above.

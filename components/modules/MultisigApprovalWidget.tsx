@@ -3,6 +3,7 @@
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { ProgressList } from "@/components/ui/ProgressList";
 import { SignerChips } from "@/components/modules/SignerChips";
 import { formatRelativeTime } from "@/lib/utils";
 import type { GovernanceProposal } from "@/lib/mock/fixtures";
@@ -32,7 +33,18 @@ export function MultisigApprovalWidget({
       <p className="mt-1 text-[12px] text-ink-400">{proposal.description}</p>
       <p className="mt-1 text-[11px] text-ink-600">Proposed {formatRelativeTime(proposal.proposedAt)}</p>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <ProgressList
+        className="mt-3"
+        items={[
+          {
+            label: "Signatures collected",
+            value: (signedCount / proposal.requiredSignatures) * 100,
+            tone: signedCount >= proposal.requiredSignatures ? "verified" : "signal",
+          },
+        ]}
+      />
+
+      <div className="mt-3 flex items-center justify-between gap-3">
         <SignerChips signers={proposal.signers} required={proposal.requiredSignatures} />
         {onApprove && (
           <Button

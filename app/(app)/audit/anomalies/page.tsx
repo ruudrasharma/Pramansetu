@@ -48,10 +48,12 @@ export default function AnomalyDashboardPage() {
             <XAxis type="number" allowDecimals={false} stroke="var(--ink-600)" fontSize={11} />
             <YAxis type="category" dataKey="severity" stroke="var(--ink-600)" fontSize={12} width={70} />
             <Tooltip
-              contentStyle={{ background: "var(--graphite-850)", border: "1px solid var(--graphite-800)", borderRadius: 8, fontSize: 12 }}
-              labelStyle={{ color: "var(--ink-50)" }}
+              contentStyle={{ background: "var(--charcoal-500)", border: "none", borderRadius: 12, fontSize: 12, color: "#fff" }}
+              labelStyle={{ color: "#fff" }}
+              itemStyle={{ color: "#fff" }}
+              cursor={{ fill: "var(--graphite-700)" }}
             />
-            <Bar dataKey="count" radius={[0, 4, 4, 0]} barSize={28} />
+            <Bar dataKey="count" radius={[0, 10, 10, 0]} barSize={22} />
           </BarChart>
         </ResponsiveContainer>
       </Card>
@@ -105,7 +107,7 @@ export default function AnomalyDashboardPage() {
                   <span className="text-ink-200">{formatRelativeTime(selected.timestamp)}</span>
                 </div>
                 {selected.dismissReason && (
-                  <div className="rounded-lg bg-graphite-900 p-2.5 text-ink-400">{selected.dismissReason}</div>
+                  <div className="rounded-2xl bg-graphite-900 p-2.5 text-ink-400">{selected.dismissReason}</div>
                 )}
               </div>
             </>

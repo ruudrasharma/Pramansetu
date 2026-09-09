@@ -6,6 +6,7 @@ import { Octagon, AlertTriangle, PlayCircle } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { IconBadge } from "@/components/ui/IconBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { MultisigApprovalWidget } from "@/components/modules/MultisigApprovalWidget";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
@@ -54,9 +55,7 @@ export default function GovernancePage() {
         <Card className={`mb-5 ${isPaused ? "border-danger-500/25 bg-danger-500/[0.04]" : "border-danger-500/15"}`}>
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
             <div className="flex gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger-500/10 text-danger-400">
-                <Octagon size={17} strokeWidth={1.75} />
-              </div>
+              <IconBadge icon={Octagon} tone="danger" />
               <div>
                 <h3 className="text-[14px] font-medium text-ink-50">
                   Platform status: {isPaused ? <span className="text-danger-400">Paused</span> : <span className="text-verified-400">Operational</span>}
@@ -133,7 +132,7 @@ export default function GovernancePage() {
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={confirmAction?.toUpperCase()}
-            className="mono-value w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-700 focus:border-danger-500 focus:outline-none"
+            className="mono-value w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-700 focus:border-danger-500 focus:outline-none"
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmAction(null)}>

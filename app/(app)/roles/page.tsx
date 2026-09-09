@@ -6,11 +6,13 @@ import { ShieldOff } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Avatar } from "@/components/ui/Avatar";
+import { ProgressList } from "@/components/ui/ProgressList";
 import { Table, TableHead, TableBody, TableRow, TableHeadCell, TableCell } from "@/components/ui/Table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { RoleBadge } from "@/components/modules/RoleBadge";
 import { useAppStore } from "@/lib/store/appStore";
-import { identityByRole, ROLE_LABEL, type Identity } from "@/lib/mock/fixtures";
+import { identityByRole, ROLE_LABEL, type Identity, type Role } from "@/lib/mock/fixtures";
 import { useRbacService } from "@/lib/services/rbacService";
 import { useDidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
@@ -25,6 +27,14 @@ export default function RolesPage() {
   const myRealIdentity = dataMode === "onchain" ? didService.resolveDID() : undefined;
   const rbacService = useRbacService();
   const identities = rbacService.listIdentities();
+
+  const roleDistribution = (["SUPER_ADMIN", "ADMIN", "MANAGER", "AUDITOR", "USER"] as Role[])
+    .map((role) => ({
+      label: ROLE_LABEL[role],
+      value: identities.length ? (identities.filter((i) => i.role === role).length / identities.length) * 100 : 0,
+      tone: role === "SUPER_ADMIN" || role === "ADMIN" ? ("signal" as const) : role === "AUDITOR" ? ("sage" as const) : ("charcoal" as const),
+    }))
+    .filter((r) => r.value > 0);
 
   const canManage = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" || myRealIdentity?.role === "ADMIN" : activeRole === "SUPER_ADMIN" || activeRole === "ADMIN";
 
@@ -72,6 +82,13 @@ export default function RolesPage() {
         <Card className="mb-4 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
       )}
 
+      {roleDistribution.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="mb-3 text-[13px] font-semibold text-ink-50">Role distribution</h3>
+          <ProgressList items={roleDistribution} />
+        </Card>
+      )}
+
       <Card className="overflow-hidden p-0">
         <Table>
           <TableHead>
@@ -95,8 +112,13 @@ export default function RolesPage() {
             {identities.map((identity) => (
               <TableRow key={identity.did}>
                 <TableCell>
-                  <p className="text-ink-100">{identity.name}</p>
-                  <p className="mono-value text-[11px] text-ink-600">{identity.did.slice(0, 20)}…</p>
+                  <div className="flex items-center gap-2.5">
+                    <Avatar name={identity.name} />
+                    <div>
+                      <p className="text-ink-100">{identity.name}</p>
+                      <p className="mono-value text-[11px] text-ink-600">{identity.did.slice(0, 20)}…</p>
+                    </div>
+                  </div>
                 </TableCell>
                 <TableCell className="text-ink-400">{identity.department}</TableCell>
                 <TableCell>

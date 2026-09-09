@@ -52,26 +52,25 @@ export function TopBar() {
     "Dashboard";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-graphite-800 bg-graphite-950/80 px-4 backdrop-blur md:px-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-[15px] font-medium text-ink-50">{title}</h1>
-        <span className="hidden h-1 w-1 rounded-full bg-graphite-700 sm:inline-block" aria-hidden />
-        <div className="hidden items-center gap-1.5 text-[13px] text-ink-400 sm:flex">
-          <Circle size={7} className="fill-current text-verified-500" />
+    <header className="flex h-16 shrink-0 items-center justify-between bg-graphite-950/80 px-4 backdrop-blur md:px-6">
+      <div>
+        <h1 className="text-[17px] font-semibold text-ink-50">{title}</h1>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink-400">
+          <Circle size={6} className="fill-current text-verified-500" />
           Live · Ethereum Sepolia
         </div>
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
-        {/* ⌘K button */}
+        {/* ⌘K / search pill */}
         <button
           onClick={() => commandPaletteSignal.open()}
-          className="hidden items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-3 py-1.5 text-[13px] text-ink-400 transition-colors hover:border-graphite-600 hover:text-ink-200 lg:flex"
+          className="hidden items-center gap-2 rounded-full bg-graphite-900 px-4 py-2 text-[13px] text-ink-400 shadow-panel transition-colors hover:text-ink-200 lg:flex"
           aria-label="Open command palette"
         >
           <Search size={14} strokeWidth={1.75} />
           <span>Search or run a command</span>
-          <kbd className="mono-value ml-2 rounded border border-graphite-700 bg-graphite-800 px-1.5 py-0.5 text-[11px] text-ink-400">
+          <kbd className="mono-value ml-2 rounded-full bg-graphite-700 px-2 py-0.5 text-[11px] text-ink-400">
             ⌘K
           </kbd>
         </button>
@@ -81,10 +80,10 @@ export function TopBar() {
             lib/hooks/useCurrentIdentity.ts — so switching roles here would be dishonest. */}
         {dataMode === "onchain" ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1.5 text-[13px] text-ink-200"
+            className="flex items-center gap-2 rounded-full bg-graphite-900 px-3 py-1.5 text-[13px] text-ink-200 shadow-panel"
             title="Role switching is a mock-mode demo feature. Connect the wallet holding the role you want to demonstrate."
           >
-            <Fingerprint size={14} className="text-signal-400" />
+            <Fingerprint size={14} className="text-signal-500" />
             <span className="hidden sm:inline">
               {isResolvingMe ? "Resolving…" : myAddress ? truncateMiddle(myAddress, 6, 4) : "Not connected"}
             </span>
@@ -92,8 +91,8 @@ export function TopBar() {
           </div>
         ) : (
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg border border-graphite-700 bg-graphite-900 px-2.5 py-1.5 text-[13px] text-ink-200 transition-colors hover:border-graphite-600">
-              <Fingerprint size={14} className="text-signal-400" />
+            <DropdownMenuTrigger className="flex items-center gap-2 rounded-full bg-graphite-900 px-3 py-1.5 text-[13px] text-ink-200 shadow-panel transition-colors hover:text-ink-50">
+              <Fingerprint size={14} className="text-signal-500" />
               <span className="hidden sm:inline">{activeIdentity.name}</span>
               <Badge tone="signal" className="hidden md:inline-flex">{ROLE_LABEL[activeRole]}</Badge>
               <ChevronDown size={13} className="text-ink-600" />
@@ -124,7 +123,7 @@ export function TopBar() {
         {/* Notification bell — unread count = open anomaly alerts */}
         <button
           aria-label={`${openAlertCount} open anomaly alerts`}
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-graphite-800 hover:text-ink-200"
+          className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-400 transition-colors hover:bg-graphite-700/60 hover:text-ink-200"
         >
           <Bell size={15} strokeWidth={1.75} />
           {openAlertCount > 0 && (

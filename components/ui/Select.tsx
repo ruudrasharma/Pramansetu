@@ -11,7 +11,7 @@ export function SelectTrigger({ className, children, ...props }: SelectPrimitive
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex w-full items-center justify-between gap-2 rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50",
+        "flex w-full items-center justify-between gap-2 rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50",
         "focus:outline-none focus-visible:border-signal-500 data-[placeholder]:text-ink-600",
         className
       )}

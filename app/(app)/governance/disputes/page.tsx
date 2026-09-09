@@ -6,8 +6,11 @@ import { ArrowLeft, Flag, CheckCircle2, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { DateStrip } from "@/components/ui/DateStrip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
+
+const DAY_MS = 24 * 3_600_000;
 import { truncateMiddle, formatRelativeTime } from "@/lib/utils";
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole, findIdentity } from "@/lib/mock/fixtures";
@@ -61,18 +64,28 @@ export default function DisputesPage() {
             <p className="mono-value mt-1 text-[11px] text-ink-600">{truncateMiddle(tx.target, 14, 6)}</p>
 
             {tx.status === "queued" && (
-              <div className="mt-3 flex items-center justify-between">
-                <TimelockCountdown eta={tx.eta} size="sm" />
-                {canRaise && (
-                  <Button variant="danger" className="px-2.5 py-1 text-[12px]" onClick={() => setDisputeTarget(tx)}>
-                    <Flag size={12} /> Raise dispute
-                  </Button>
-                )}
-              </div>
+              <>
+                <DateStrip
+                  className="mb-3 mt-3"
+                  items={Array.from({ length: Math.max(1, Math.ceil((tx.eta - tx.queuedAt) / DAY_MS) + 1) }, (_, i) => ({
+                    date: new Date(tx.queuedAt + i * DAY_MS),
+                    tone: tx.queuedAt + i * DAY_MS >= tx.eta ? ("alert" as const) : undefined,
+                  }))}
+                  selected={new Date(Date.now())}
+                />
+                <div className="flex items-center justify-between">
+                  <TimelockCountdown eta={tx.eta} size="sm" />
+                  {canRaise && (
+                    <Button variant="danger" className="px-2.5 py-1 text-[12px]" onClick={() => setDisputeTarget(tx)}>
+                      <Flag size={12} /> Raise dispute
+                    </Button>
+                  )}
+                </div>
+              </>
             )}
 
             {tx.status === "disputed" && (
-              <div className="mt-3 rounded-lg bg-danger-500/10 p-2.5 text-[12px] text-danger-400">
+              <div className="mt-3 rounded-2xl bg-danger-500/10 p-2.5 text-[12px] text-danger-400">
                 <span className="font-medium">{findIdentity(tx.raisedBy ?? "")?.name ?? "An Auditor"}:</span> {tx.disputeReason}
                 {canResolve && (
                   <div className="mt-2 flex gap-2">
@@ -116,7 +129,7 @@ export default function DisputesPage() {
             onChange={(e) => setReason(e.target.value)}
             placeholder="Reason for dispute…"
             rows={3}
-            className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-700 focus:border-danger-500 focus:outline-none"
+            className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-700 focus:border-danger-500 focus:outline-none"
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setDisputeTarget(null)}>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
 import {
   LayoutGrid,
   Fingerprint,
@@ -44,22 +45,21 @@ function NavItem({
       href={href}
       title={collapsed ? label : undefined}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] transition-colors duration-150",
+        "group relative flex items-center gap-3 rounded-full px-3 py-2 text-[13px] transition-colors duration-150",
         collapsed && "justify-center px-0 py-2.5",
-        active ? "bg-signal-500/10 text-signal-400" : "text-ink-400 hover:bg-graphite-700/60 hover:text-ink-200"
+        active ? "text-signal-600" : "text-ink-400 hover:bg-graphite-700/60 hover:text-ink-200"
       )}
     >
       {active && (
-        <span
-          className={cn(
-            "absolute rounded-r bg-signal-500",
-            collapsed ? "left-0 top-1/2 h-5 w-[2px] -translate-y-1/2" : "left-0 top-1/2 h-5 w-[2px] -translate-y-1/2"
-          )}
+        <motion.span
+          layoutId="sidebar-active-pill"
+          className="absolute inset-0 rounded-full bg-signal-500/15"
+          transition={{ type: "spring", stiffness: 500, damping: 40 }}
           aria-hidden
         />
       )}
-      <Icon size={16} strokeWidth={1.75} className="shrink-0" />
-      {!collapsed && <span className="truncate font-medium">{label}</span>}
+      <Icon size={16} strokeWidth={1.75} className={cn("relative shrink-0", active && "text-signal-600")} />
+      {!collapsed && <span className="relative truncate font-medium">{label}</span>}
     </Link>
   );
 }
@@ -74,15 +74,15 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "hidden shrink-0 flex-col border-r border-graphite-800 bg-graphite-900 py-4 transition-[width] duration-200 md:flex",
+        "hidden shrink-0 flex-col bg-graphite-900 py-4 transition-[width] duration-200 md:flex",
         collapsed ? "w-16 px-2" : "w-[216px] px-3"
       )}
     >
       <div className={cn("mb-4 flex items-center gap-2 px-1", collapsed && "justify-center px-0")}>
-        <div className="mono-value flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-500/15 text-[11px] font-semibold text-signal-400">
-          BC
+        <div className="mono-value flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-signal-500 text-[11px] font-semibold text-white">
+          PS
         </div>
-        {!collapsed && <span className="truncate text-[13px] font-medium text-ink-50">Praman Setu</span>}
+        {!collapsed && <span className="truncate text-[14px] font-semibold text-ink-50">Praman Setu</span>}
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">
@@ -96,7 +96,7 @@ export function Sidebar() {
         onClick={toggleSidebar}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         className={cn(
-          "mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] text-ink-600 transition-colors hover:bg-graphite-700/60 hover:text-ink-300",
+          "mt-2 flex items-center gap-2 rounded-full px-3 py-2 text-[12px] text-ink-600 transition-colors hover:bg-graphite-700/60 hover:text-ink-300",
           collapsed && "justify-center px-0"
         )}
       >
@@ -119,8 +119,8 @@ export function MobileNav() {
           href={href}
           aria-label={label}
           className={cn(
-            "flex flex-col items-center gap-0.5 rounded-lg px-2.5 py-1.5 text-[10px]",
-            isActive(href) ? "text-signal-400" : "text-ink-500"
+            "flex flex-col items-center gap-0.5 rounded-full px-2.5 py-1.5 text-[10px]",
+            isActive(href) ? "text-signal-600" : "text-ink-500"
           )}
         >
           <Icon size={18} strokeWidth={1.75} />

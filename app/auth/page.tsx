@@ -99,7 +99,7 @@ export default function AuthPage() {
               <span className="mono-value text-ink-200">{address ? truncateMiddle(address, 8, 4) : "your wallet"}</span>{" "}
               to prove ownership — it costs no gas and authorizes nothing on its own.
             </p>
-            <pre className="mono-value w-full whitespace-pre-wrap rounded-lg border border-graphite-800 bg-graphite-900 p-3 text-[11px] text-ink-500">
+            <pre className="mono-value w-full whitespace-pre-wrap rounded-xl border border-graphite-800 bg-graphite-900 p-3 text-[11px] text-ink-500">
               {CHALLENGE}
             </pre>
             <div className="flex gap-2">

@@ -98,7 +98,7 @@ export default function AssetDetailPage() {
             href={`https://sepolia.etherscan.io/token/${asset.tokenId}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-graphite-800 bg-graphite-900 px-3.5 py-2 text-[13px] text-ink-400 hover:border-graphite-600 hover:text-ink-200"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-graphite-800 bg-graphite-900 px-3.5 py-2 text-[13px] text-ink-400 hover:border-graphite-600 hover:text-ink-200"
           >
             View on-chain <ExternalLink size={12} />
           </a>

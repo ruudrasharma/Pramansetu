@@ -4,37 +4,45 @@
 
 /*
  * Design tokens — light (default) and dark (`.dark` class, toggled by next-themes).
- * Every color a component references (graphite/ink/signal/verified/alert/danger, via
+ * Every color a component references (graphite/ink/signal/sage/verified/alert/danger, via
  * tailwind.config.ts) resolves to one of these custom properties, so no component needs
  * a `dark:` variant for color alone — only for structural differences (e.g. shadow vs
  * border emphasis), which the --shadow-* tokens below already encode per theme.
+ *
+ * `signal` is the warm terracotta primary accent, `sage` the secondary accent — both
+ * decorative and reused freely (icon badges, chart series, CTAs). `verified/alert/danger`
+ * stay status-semantic only (role/tx state), deliberately close to but distinct from the
+ * `sage`/`signal`/`danger` decorative hues so a status badge never gets misread as decoration.
  */
 @layer base {
   :root {
     color-scheme: light;
 
-    /* surfaces */
-    --graphite-950: #F5F6F8; /* app/page background */
+    /* surfaces — warm cream, not cold gray */
+    --graphite-950: #F7F5F1; /* app/page background */
     --graphite-900: #FFFFFF; /* panel bg — rail, top bar */
     --graphite-850: #FFFFFF; /* card / elevated surface bg */
-    --graphite-800: #E4E6EA; /* hairline border */
-    --graphite-700: #EEF0F3; /* hover bg */
-    --graphite-600: #E0E3E8; /* stronger hover / scrollbar thumb */
+    --graphite-800: #ECE8E1; /* hairline border — secondary to shadow, not the primary divider */
+    --graphite-700: #F1EDE6; /* hover bg */
+    --graphite-600: #E4DFD6; /* stronger hover / scrollbar thumb */
 
     /* text */
-    --ink-50: #14171C;  /* primary text */
-    --ink-200: #40454E; /* emphasized secondary */
-    --ink-400: #6B7280; /* secondary text */
-    --ink-600: #9AA1AC; /* disabled */
+    --ink-50: #1C1F1B;  /* primary text — near-black charcoal */
+    --ink-200: #47443D; /* emphasized secondary */
+    --ink-400: #746F64; /* secondary text */
+    --ink-600: #A39D8F; /* disabled */
 
-    /* brand accent — darkened vs. the dark-mode value so text/button-fill pairs clear
-       WCAG AA (4.5:1) against a white surface; still reads as the same confident blue */
-    --signal-400: #7196F2;
-    --signal-500: #4472D6;
-    --signal-600: #345BBE;
+    /* primary accent — terracotta/coral */
+    --signal-400: #EC9271;
+    --signal-500: #E0785A;
+    --signal-600: #C6613F;
 
-    /* status — darkened from the dark-mode set for the same AA-on-white reason, since
-       these render as badge text over a near-white tinted background */
+    /* secondary accent — sage/forest green (decorative; kept distinct from `verified`) */
+    --sage-400: #71997E;
+    --sage-500: #4F7A5D;
+    --sage-600: #3E6249;
+
+    /* status — semantic only, never decorative */
     --verified-400: #15803D;
     --verified-500: #16A34A;
     --alert-400: #B45309;
@@ -42,29 +50,38 @@
     --danger-400: #B91C1C;
     --danger-500: #DC2626;
 
-    --selection-bg: rgba(68, 114, 214, 0.16);
-    --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.14);
-    --shadow-glow: 0 0 0 1px rgba(68, 114, 214, 0.22), 0 0 20px rgba(68, 114, 214, 0.10);
+    /* tertiary accent — near-black charcoal, deliberately NOT redefined in .dark: it's a
+       constant "ink" fill for CTAs/icon badges/chart series 3, independent of theme */
+    --charcoal-500: #1C1F1B;
+
+    --selection-bg: rgba(224, 120, 90, 0.16);
+    --shadow-panel: 0 1px 2px rgba(60, 45, 30, 0.03), 0 16px 32px -12px rgba(60, 45, 30, 0.12);
+    --shadow-glow: 0 0 0 1px rgba(224, 120, 90, 0.22), 0 0 20px rgba(224, 120, 90, 0.10);
   }
 
   .dark {
     color-scheme: dark;
 
-    --graphite-950: #0A0C10;
-    --graphite-900: #12151A;
-    --graphite-850: #161A21;
-    --graphite-800: #1B1F26;
-    --graphite-700: #242933;
-    --graphite-600: #323847;
+    /* surfaces — warm near-black charcoal, not blue-black */
+    --graphite-950: #1A1917;
+    --graphite-900: #201F1C;
+    --graphite-850: #242320;
+    --graphite-800: #322F29;
+    --graphite-700: #3A3731;
+    --graphite-600: #46423A;
 
-    --ink-50: #F4F5F7;
-    --ink-200: #C7CCD6;
-    --ink-400: #8B93A1;
-    --ink-600: #5B6371;
+    --ink-50: #F3F1EC;
+    --ink-200: #D8D3C8;
+    --ink-400: #A79F8F;
+    --ink-600: #6E695D;
 
-    --signal-400: #7196F2;
-    --signal-500: #5B8DEF;
-    --signal-600: #4472D6;
+    --signal-400: #F2A583;
+    --signal-500: #E88A64;
+    --signal-600: #D0714C;
+
+    --sage-400: #86AC91;
+    --sage-500: #669274;
+    --sage-600: #52785E;
 
     --verified-400: #4FCB94;
     --verified-500: #34B37A;
@@ -73,9 +90,9 @@
     --danger-400: #EC6E72;
     --danger-500: #E5484D;
 
-    --selection-bg: rgba(91, 141, 239, 0.28);
-    --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 20px 40px -20px rgba(0, 0, 0, 0.6);
-    --shadow-glow: 0 0 0 1px rgba(91, 141, 239, 0.25), 0 0 24px rgba(91, 141, 239, 0.12);
+    --selection-bg: rgba(232, 138, 100, 0.24);
+    --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset;
+    --shadow-glow: 0 0 0 1px rgba(232, 138, 100, 0.25), 0 0 24px rgba(232, 138, 100, 0.12);
   }
 
   html {
@@ -142,6 +159,7 @@
   .card-surface {
     background-color: var(--graphite-850);
     border: 1px solid var(--graphite-800);
+    box-shadow: var(--shadow-panel);
   }
 
   .grid-motif {

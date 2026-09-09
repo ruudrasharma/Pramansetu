@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
 
-type BadgeTone = "verified" | "alert" | "danger" | "neutral" | "signal";
+type BadgeTone = "verified" | "alert" | "danger" | "neutral" | "signal" | "sage";
 
 const toneStyles: Record<BadgeTone, string> = {
   verified: "bg-verified-500/12 text-verified-400 border-verified-500/25",
   alert: "bg-alert-500/12 text-alert-400 border-alert-500/25",
   danger: "bg-danger-500/12 text-danger-400 border-danger-500/25",
   neutral: "bg-graphite-800 text-ink-400 border-graphite-700",
-  signal: "bg-signal-500/12 text-signal-400 border-signal-500/25",
+  signal: "bg-signal-500/12 text-signal-600 border-signal-500/25",
+  sage: "bg-sage-500/12 text-sage-600 border-sage-500/25",
 };
 
 export function Badge({

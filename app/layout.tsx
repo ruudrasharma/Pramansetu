@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, IBM_Plex_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import "./globals.css";
 import { Web3Providers } from "@/components/shell/Web3Providers";
@@ -7,13 +7,12 @@ import { CommandPalette } from "@/components/shell/CommandPalette";
 import { DetailPanelProvider } from "@/components/shell/DetailPanelContext";
 import { DetailPanel } from "@/components/shell/DetailPanel";
 
-// UI_UX_SPEC.md specifies Geist / Geist Mono as the target typefaces. Using Inter + IBM Plex Mono
-// here (same CSS variable names) so the project runs with zero extra font-file setup; swap to
-// `geist`/`geist/font/mono` npm packages for the exact spec typefaces with no other code changes.
-const geistSans = Inter({
+// UI_UX_SPEC.md specifies Plus Jakarta Sans / IBM Plex Mono as the target typefaces (warm,
+// rounded geometric sans for display; mono reserved for hashes/DIDs/addresses/CIDs).
+const geistSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-geist",
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const geistMono = IBM_Plex_Mono({
@@ -32,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-graphite-950 font-sans text-ink-50 antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <Web3Providers>
             <DetailPanelProvider>
               {children}

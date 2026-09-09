@@ -101,7 +101,7 @@ export function DetailPanel() {
               </div>
               <button
                 onClick={closePanel}
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-ink-400 transition-colors hover:bg-graphite-800 hover:text-ink-200"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-ink-400 transition-colors hover:bg-graphite-700/60 hover:text-ink-200"
                 aria-label="Close panel"
               >
                 <X size={16} strokeWidth={1.75} />

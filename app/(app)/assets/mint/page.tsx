@@ -122,7 +122,7 @@ export default function MintAssetPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Sonar Array Component Provenance"
-              className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-700 focus:border-signal-500 focus:outline-none"
+              className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-700 focus:border-signal-500 focus:outline-none"
             />
           </div>
           <div>
@@ -130,7 +130,7 @@ export default function MintAssetPage() {
             <input
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
+              className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
             />
           </div>
 
@@ -140,7 +140,7 @@ export default function MintAssetPage() {
               <select
                 value={ownerDid}
                 onChange={(e) => setOwnerDid(e.target.value)}
-                className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
+                className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
               >
                 {identities.map((i) => (
                   <option key={i.did} value={i.did}>
@@ -161,7 +161,7 @@ export default function MintAssetPage() {
                   value={vcId}
                   onChange={(e) => setVcId(e.target.value)}
                   placeholder="0x..."
-                  className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
+                  className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
                 />
               </div>
               <div>
@@ -170,7 +170,7 @@ export default function MintAssetPage() {
                   value={recipient}
                   onChange={(e) => setRecipient(e.target.value)}
                   placeholder="0x..."
-                  className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
+                  className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
                 />
               </div>
             </>
@@ -184,7 +184,7 @@ export default function MintAssetPage() {
               {uploadError && <p className="text-[12px] text-danger-400">{uploadError}</p>}
             </div>
           ) : (
-            <div className="flex items-center gap-2 rounded-lg border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
+            <div className="flex items-center gap-2 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
               <FileCheck size={13} /> <span className="mono-value truncate">{cid}</span>
             </div>
           )}

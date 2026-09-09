@@ -6,6 +6,57 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.9.0] — 2026-09-09 — Phase 9: Warm visual system (light-first), rename cleanup
+
+Full visual-design-system pass across all 20 pages, per an updated brief that supersedes the
+dark-first "signal-ops console" concept in `docs/UI_UX_SPEC.md` §0/§1 (kept: shell IA, ledger-as-spine,
+mono-for-exact-values — see the doc's revision note). No architecture, contract, service-layer, or IA
+changes.
+
+### Added
+- `components/ui/IconBadge.tsx`, `StatCard.tsx`, `AreaChartCard.tsx`, `ProgressList.tsx`,
+  `DateStrip.tsx`, `GradientBanner.tsx`, `Avatar.tsx` — new shared primitives implementing the
+  reference design's recurring patterns (solid-fill icon circles, count-up stat cards, gradient area
+  charts with a peak-value badge, stacked progress bars, calendar day-strip, gradient promo banners,
+  initials avatars), reused across Dashboard, Roles, Audit/Anomalies, Governance, Identity/Recovery,
+  Disputes, and Onboarding rather than one-off per page.
+- `sage` and `charcoal` color tokens (`app/globals.css`, `tailwind.config.ts`) alongside the existing
+  `signal`/`verified`/`alert`/`danger` — `charcoal-500` is deliberately theme-constant (not redefined
+  under `.dark`) since it's a fixed near-black accent, not a surface color.
+- Dashboard and Audit pages: a 7-day event-volume area chart and a date-strip filter on the ledger
+  stream. Roles page: a role-distribution progress panel. Guardian recovery and Disputes pages: a
+  date-strip visualizing the cooling-off window alongside the existing live countdown.
+
+### Changed
+- `app/globals.css`: full light/dark token repaint — warm cream (`#F7F5F1`) light background, terracotta
+  primary accent, soft card shadow as the primary separator in light mode (border + inner highlight in
+  dark, since shadows read poorly there).
+- `app/layout.tsx`: display font Inter → Plus Jakarta Sans; `ThemeProvider` default light regardless of
+  system preference (`defaultTheme="light"`, `enableSystem={false}`), persisted via `next-themes`.
+- `components/ui/{Card,Button,Badge}.tsx`: `rounded-3xl` cards, fully pill-shaped (`rounded-full`)
+  buttons/badges, `Card` gained an `interactive` prop for the hover-lift micro-interaction.
+- `components/shell/Sidebar.tsx`: active-nav indicator changed from a 2px left-edge bar to a
+  Framer-Motion `layoutId`-animated filled pill; corrected the doc's stale "64px icon-only rail"
+  description to match the shell's actual always-labeled, collapsible sidebar.
+- `components/shell/TopBar.tsx`, `ThemeToggle.tsx`: pill-shaped search/⌘K trigger and role chip,
+  circular icon-buttons, theme toggle rebuilt as a circular sun/moon cross-fade (was a track/thumb
+  switch).
+- Repo-wide: squarish tinted icon containers → solid-fill circular `IconBadge`s; miscellaneous
+  `rounded-lg` status/alert boxes → `rounded-2xl`/`rounded-xl` for the softer shape language.
+- `docs/UI_UX_SPEC.md`: rewrote §0 Design Concept and §1 Design Tokens/Typography/Shape/Motion to
+  describe the shipped light-first system; corrected the Layout Shape rail description (see above).
+
+### Fixed
+- Two leftover "BC" (bel-chain) logo-badge initials in `components/shell/Sidebar.tsx` and `app/page.tsx`
+  — the product-name rename to "Praman Setu" was otherwise already complete.
+
+### Known gaps found, not fixed (out of this pass's visual-only scope — logged in `docs/TODO.md`)
+- `TopBar` role chip hydration mismatch (server/client text differs) in onchain mode.
+- `auditService`'s onchain `auditEvents` query resolves `undefined` instead of `[]` without a reachable
+  subgraph, silently emptying the Dashboard/Audit ledger rather than showing an error/empty state.
+
+---
+
 ## [0.8.0] — 2026-09-09 — Phase 8: Fake-data removal, real fixes, doc reconciliation
 
 A prior pass had left fabricated/mocked data disguised as real functionality in three places, plus
