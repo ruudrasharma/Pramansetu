@@ -2,22 +2,98 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — light (default) and dark (`.dark` class, toggled by next-themes).
+ * Every color a component references (graphite/ink/signal/verified/alert/danger, via
+ * tailwind.config.ts) resolves to one of these custom properties, so no component needs
+ * a `dark:` variant for color alone — only for structural differences (e.g. shadow vs
+ * border emphasis), which the --shadow-* tokens below already encode per theme.
+ */
 @layer base {
   :root {
+    color-scheme: light;
+
+    /* surfaces */
+    --graphite-950: #F5F6F8; /* app/page background */
+    --graphite-900: #FFFFFF; /* panel bg — rail, top bar */
+    --graphite-850: #FFFFFF; /* card / elevated surface bg */
+    --graphite-800: #E4E6EA; /* hairline border */
+    --graphite-700: #EEF0F3; /* hover bg */
+    --graphite-600: #E0E3E8; /* stronger hover / scrollbar thumb */
+
+    /* text */
+    --ink-50: #14171C;  /* primary text */
+    --ink-200: #40454E; /* emphasized secondary */
+    --ink-400: #6B7280; /* secondary text */
+    --ink-600: #9AA1AC; /* disabled */
+
+    /* brand accent — darkened vs. the dark-mode value so text/button-fill pairs clear
+       WCAG AA (4.5:1) against a white surface; still reads as the same confident blue */
+    --signal-400: #7196F2;
+    --signal-500: #4472D6;
+    --signal-600: #345BBE;
+
+    /* status — darkened from the dark-mode set for the same AA-on-white reason, since
+       these render as badge text over a near-white tinted background */
+    --verified-400: #15803D;
+    --verified-500: #16A34A;
+    --alert-400: #B45309;
+    --alert-500: #D97706;
+    --danger-400: #B91C1C;
+    --danger-500: #DC2626;
+
+    --selection-bg: rgba(68, 114, 214, 0.16);
+    --shadow-panel: 0 1px 2px rgba(16, 24, 40, 0.04), 0 12px 28px -12px rgba(16, 24, 40, 0.14);
+    --shadow-glow: 0 0 0 1px rgba(68, 114, 214, 0.22), 0 0 20px rgba(68, 114, 214, 0.10);
+  }
+
+  .dark {
     color-scheme: dark;
+
+    --graphite-950: #0A0C10;
+    --graphite-900: #12151A;
+    --graphite-850: #161A21;
+    --graphite-800: #1B1F26;
+    --graphite-700: #242933;
+    --graphite-600: #323847;
+
+    --ink-50: #F4F5F7;
+    --ink-200: #C7CCD6;
+    --ink-400: #8B93A1;
+    --ink-600: #5B6371;
+
+    --signal-400: #7196F2;
+    --signal-500: #5B8DEF;
+    --signal-600: #4472D6;
+
+    --verified-400: #4FCB94;
+    --verified-500: #34B37A;
+    --alert-400: #EFC066;
+    --alert-500: #E0A63E;
+    --danger-400: #EC6E72;
+    --danger-500: #E5484D;
+
+    --selection-bg: rgba(91, 141, 239, 0.28);
+    --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+    --shadow-glow: 0 0 0 1px rgba(91, 141, 239, 0.25), 0 0 24px rgba(91, 141, 239, 0.12);
+  }
+
+  html {
+    transition: background-color 200ms ease;
   }
 
   html, body {
-    background-color: #0A0C10;
-    color: #F4F5F7;
+    background-color: var(--graphite-950);
+    color: var(--ink-50);
+    transition: background-color 200ms ease, color 200ms ease;
   }
 
   * {
-    border-color: #1B1F26;
+    border-color: var(--graphite-800);
   }
 
   ::selection {
-    background-color: rgba(91, 141, 239, 0.28);
+    background-color: var(--selection-bg);
   }
 
   /* thin, quiet scrollbars — this is a data-dense app, chrome should stay out of the way */
@@ -29,15 +105,15 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #242933;
+    background: var(--graphite-800);
     border-radius: 8px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #323847;
+    background: var(--graphite-600);
   }
 
   :focus-visible {
-    outline: 2px solid #5B8DEF;
+    outline: 2px solid var(--signal-500);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -59,19 +135,19 @@
   }
 
   .panel-surface {
-    background-color: #12151A;
-    border: 1px solid #1B1F26;
+    background-color: var(--graphite-900);
+    border: 1px solid var(--graphite-800);
   }
 
   .card-surface {
-    background-color: #161A21;
-    border: 1px solid #1B1F26;
+    background-color: var(--graphite-850);
+    border: 1px solid var(--graphite-800);
   }
 
   .grid-motif {
     background-image:
-      linear-gradient(to right, rgba(255,255,255,0.028) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255,255,255,0.028) 1px, transparent 1px);
+      linear-gradient(to right, rgba(128, 128, 128, 0.09) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(128, 128, 128, 0.09) 1px, transparent 1px);
     background-size: 28px 28px;
   }
 }

@@ -1,11 +1,12 @@
 {
   "name": "bel-chain-subgraph",
   "version": "1.0.0",
-  "description": "Cipherloom IDAM indexer — identity, access, and digital asset events (PS 26125)",
+  "description": "BEL Chain IDAM indexer — identity, access, and digital asset events (PS 26125)",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy:studio": "graph deploy cipherloom subgraph.yaml --version-label v1"
+    "deploy:sepolia": "graph deploy --product hosted-service bel-chain/idam subgraph.yaml",
+    "deploy:studio": "graph deploy bel-chain subgraph.yaml --version-label v1"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "^0.81.0",

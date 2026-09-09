@@ -12,20 +12,19 @@ import { contractAddresses } from "@/lib/wagmi";
 
 const address = contractAddresses.accessControl;
 
-// ── Constants (role hashes — MUST match contracts/TimeBoundAccessControl.sol's
-//    `keccak256("ROLE_NAME")` constants exactly). Solidity's keccak256(string) hashes the
-//    UTF-8 bytes of the literal with no length prefix — keccak256(toBytes(name)) here does the
-//    same, so these are always in sync with the deployed contract by construction. Previously
-//    this used a hex-encode-and-pad of the raw name instead of a real hash, which meant every
-//    `useHasRole(ROLE.ADMIN_ROLE, ...)` check silently checked a role nobody had ever been
-//    granted and always returned false. ─────────────────────────────────────────────────────
+// ── Constants (role hashes — match contracts/TimeBoundAccessControl.sol) ────
+// Every non-default role there is declared as `keccak256("<NAME>_ROLE")` (Solidity's
+// standard OZ AccessControl pattern) — these must be computed the same way, not derived
+// from the ASCII bytes of the name itself, or every hasRole()/roleExpiry() call against
+// the real contract silently checks the wrong role.
 export const ROLE = {
-  SUPER_ADMIN: "0x" + "0".repeat(64) as `0x${string}`, // DEFAULT_ADMIN_ROLE (OZ convention: bytes32(0), not a hash)
+  SUPER_ADMIN: "0x" + "0".repeat(64) as `0x${string}`, // DEFAULT_ADMIN_ROLE
   SUPER_ADMIN_ROLE: keccak256(toBytes("SUPER_ADMIN_ROLE")),
-  ADMIN_ROLE:       keccak256(toBytes("ADMIN_ROLE")),
-  MANAGER_ROLE:     keccak256(toBytes("MANAGER_ROLE")),
-  ISSUER_ROLE:      keccak256(toBytes("ISSUER_ROLE")),
-  AUDITOR_ROLE:     keccak256(toBytes("AUDITOR_ROLE")),
+  ADMIN_ROLE: keccak256(toBytes("ADMIN_ROLE")),
+  MANAGER_ROLE: keccak256(toBytes("MANAGER_ROLE")),
+  ISSUER_ROLE: keccak256(toBytes("ISSUER_ROLE")),
+  AUDITOR_ROLE: keccak256(toBytes("AUDITOR_ROLE")),
+  USER_ROLE: keccak256(toBytes("USER_ROLE")),
 } as const;
 
 // ── Read hooks ──────────────────────────────────────────────────────────────

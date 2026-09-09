@@ -3,10 +3,10 @@
 import { expiryLevel, formatCountdown } from "@/lib/utils";
 
 const levelColor: Record<string, string> = {
-  safe: "#34B37A",
-  warning: "#E0A63E",
-  critical: "#E5484D",
-  expired: "#5B6371",
+  safe: "var(--verified-500)",
+  warning: "var(--alert-500)",
+  critical: "var(--danger-500)",
+  expired: "var(--ink-600)",
 };
 
 /**
@@ -30,7 +30,7 @@ export function ExpiryRing({ expiresAt, size = 40 }: { expiresAt: number; size?:
           cy={size / 2}
           r={(size - 6) / 2}
           fill="none"
-          stroke="#242933"
+          stroke="var(--graphite-700)"
           strokeWidth={3}
         />
         <circle

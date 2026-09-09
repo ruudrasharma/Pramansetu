@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { Inter, IBM_Plex_Mono } from "next/font/google";
+import { ThemeProvider } from "next-themes";
 import "./globals.css";
-import { CommandRail } from "@/components/shell/CommandRail";
-import { ContextBar } from "@/components/shell/ContextBar";
 import { Web3Providers } from "@/components/shell/Web3Providers";
 import { CommandPalette } from "@/components/shell/CommandPalette";
+import { DetailPanelProvider } from "@/components/shell/DetailPanelContext";
+import { DetailPanel } from "@/components/shell/DetailPanel";
 
 // UI_UX_SPEC.md specifies Geist / Geist Mono as the target typefaces. Using Inter + IBM Plex Mono
 // here (same CSS variable names) so the project runs with zero extra font-file setup; swap to
@@ -29,19 +30,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-graphite-950 font-sans text-ink-50 antialiased">
-        <Web3Providers>
-          <div className="flex h-screen overflow-hidden">
-            <CommandRail />
-            <div className="flex min-w-0 flex-1 flex-col">
-              <ContextBar />
-              <main className="flex-1 overflow-y-auto">{children}</main>
-            </div>
-          </div>
-          {/* ⌘K command palette — global, rendered outside the flex layout so it overlays everything */}
-          <CommandPalette />
-        </Web3Providers>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Web3Providers>
+            <DetailPanelProvider>
+              {children}
+              {/* right-hand slide-in, global so any page's event/asset click can open it */}
+              <DetailPanel />
+              {/* ⌘K command palette — global, rendered outside the flex layout so it overlays everything */}
+              <CommandPalette />
+            </DetailPanelProvider>
+          </Web3Providers>
+        </ThemeProvider>
       </body>
     </html>
   );

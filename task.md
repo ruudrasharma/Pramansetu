@@ -1,4 +1,4 @@
-# Cipherloom Task Tracker
+# BEL-Chain Task Tracker
 
 ## Phase 0 — Repo Hygiene & Infrastructure
 - [x] 0.1 — git init at bel-chain/, .gitignore, initial commit
@@ -63,7 +63,7 @@
           tsconfig.json: excludes test/, scripts/, typechain-types/
 
 ## Phase 4 — Wire Live Data
-- [ ] 4.1 — Deploy contracts to Ethereum Sepolia
+- [x] 4.1 — Deploy contracts to Ethereum Sepolia
 - [ ] 4.2 — Replace mock-data with wagmi hooks
 - [ ] 4.3 — Stand up subgraph, wire into frontend
 

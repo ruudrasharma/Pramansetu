@@ -6,6 +6,17 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.0] — 2026-09-09 — Phase 10: UI Architecture Refactor
+
+### Changed
+- **Merged `feat/sepolia-migration-ui`**: Integrated a massive ~5,000 line structural rewrite of the frontend.
+- Adopted Next.js App Router route groups (`app/(app)/*`) to cleanly separate authenticated pages from public landing pages.
+- Introduced brand new global layout components: `Sidebar`, `TopBar`, `ThemeToggle`, and `AlertCard` for a more robust and navigable dashboard shell.
+- Re-wired the Phase 3 backend logic (Pinata IPFS uploads, Subgraph TanStack queries, Anomaly API) into the new `app/(app)` structure and `lib/services/*` data mode abstractions.
+- Adopted `onchain` data mode globally as the new default to enforce reading live contracts over static fixtures.
+
+---
+
 ## [0.8.0] — 2026-09-09 — Phase 8: Fake-data removal, real fixes, doc reconciliation
 
 A prior pass had left fabricated/mocked data disguised as real functionality in three places, plus
@@ -140,6 +151,7 @@ another one. See `TODO.md`'s "Resolved — T-017/T-018" entry for the full incid
 ---
 
 ## [Unreleased] — post-deploy
+- **Migration:** Changed public testnet target from Polygon Amoy to Ethereum Sepolia.
 
 ### Planned
 - Anomaly detection service integration (`GET /audit/anomalies`)
