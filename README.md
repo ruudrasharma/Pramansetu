@@ -1,82 +1,82 @@
 # Praman Setu — Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management
 
-**SIH 2026 · Problem Statement 26125 · Bharat Electronics Limited (BEL) · Theme: Blockchain & Cybersecurity**
+**Made by Team Crypto Nova**
 
-A five-module platform that replaces centralized IAM with on-chain Decentralized Identity (DID), enforces
-Role-Based Access Control inside smart contracts (not application code), tracks organizational digital assets as
-NFTs with dual-attestation minting, maintains an immutable AI-monitored audit trail, and governs itself through
-multi-signature approval and a time-locked dispute-resolution process.
+**Smart India Hackathon 2026 · Problem Statement 26125 · Bharat Electronics Limited (BEL) · Theme: Blockchain & Cybersecurity**
 
-This repo is a hackathon prototype deployed on a public EVM testnet, engineered with an explicit, documented
-migration path to a permissioned consortium chain (Hyperledger Fabric / Polygon Edge) for BEL's actual
-defense-sector production environment.
+Praman Setu is a comprehensive five-module blockchain platform designed to replace centralized IAM with on-chain Decentralized Identity (DID). It enforces Role-Based Access Control inside smart contracts, tracks organizational digital assets as NFTs with dual-attestation minting, maintains an immutable AI-monitored audit trail, and governs itself through multi-signature approval and a time-locked dispute-resolution process.
 
-## Why this exists
+---
 
-PS 26125 names four problems: centralized IAM as a single point of failure, vulnerability to identity theft,
-unauthorized access, and disconnected/unverifiable asset ownership. Our team went further and mapped every
-architectural flaw those four problems create once you actually build the obvious solution — admin-key
-compromise, key-loss lockout, irreversible contract bugs, oracle trust gaps, legal-enforceability limits of NFTs,
-and the long-horizon risk of quantum computers breaking ECDSA. Full analysis: [`Problem_Gap_Analysis.pdf`](./original-docs/Problem_Gap_Analysis.pdf).
-Full engineered response: [`Complete_Solution_Document.pdf`](./original-docs/Complete_Solution_Document.pdf).
+## 1. The Problem
 
-## Module Map
+The traditional Identity and Access Management (IAM) infrastructure in large defense organizations faces significant challenges:
 
-| Module | Solves |
-|---|---|
-| **M1 — Decentralized Identity & Credentials** | Centralized IAM risk, identity theft, key loss, Sybil attacks, privacy leakage |
-| **M2 — Smart-Contract RBAC Engine** | Unauthorized access, admin key compromise, instant revocation, contract bugs |
-| **M3 — NFT Asset Registry** | Disconnected ownership records, authenticity, metadata rot, legal enforceability |
-| **M4 — Immutable Audit Trail + Anomaly Detection** | Transparency, tamper-proof history, real-time misuse detection |
-| **M5 — Multi-Sig Governance & Dispute Resolution** | "Who watches the admin," irreversible fraud, single point of trust |
+### Explicitly Stated Problems (PS 26125)
+- **Centralized Single Point of Failure:** Traditional databases are highly vulnerable; if the central server goes down, the entire organization's verification is halted.
+- **Identity Theft & Cyberattacks:** Centralized credential stores (like password databases) are high-value targets.
+- **Unauthorized Access:** Manual permissions are often bypassed or misconfigured.
+- **Disconnected Asset Ownership:** Ownership history lives in silos (spreadsheets, disjointed DBs).
+- **Verification Difficulty:** Authenticity cannot be cryptographically proven across systems.
 
-Deep detail on each module lives in [`FEATURES.md`](./FEATURES.md) and [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+### Deeper Architectural Flaws (Our Gap Analysis)
+Beyond the stated problems, our gap analysis identified critical vulnerabilities inherent in standard IAM and naive blockchain implementations:
+- **Private Key Loss = Permanent Lockout:** In typical web3 architectures, losing a key means losing identity forever.
+- **Sybil Attacks:** Users could generate multiple DIDs to manipulate access.
+- **Admin Key Compromise:** If an Admin's key is compromised, it results in a full system takeover with no lockout mechanism.
+- **Lack of Dispute Resolution:** Fraudulent but validly-signed transactions are immutable on standard blockchains.
+- **Future Threats:** Standard ECDSA cryptography is provably breakable by upcoming quantum computers (Shor's algorithm).
 
-## Tech Stack (short version — full detail in [`TECH_STACK.md`](./TECH_STACK.md))
+---
+
+## 2. The Complete Solution
+
+To address every single vulnerability, Team Crypto Nova built **Praman Setu** around five fully engineered modules:
+
+### **Module 1 — Decentralized Identity (DID) & Credentials**
+Replaces centralized user databases entirely. Every user is a DID, and real-world trust is established through Verifiable Credentials (VCs).
+- **Guardian-Based Social Recovery:** Mitigates key loss. 3-of-5 trusted guardians can rotate a user's compromised key without compromising the user's DID.
+- **Sybil Resistance:** DIDs are useless without an organization-issued Verifiable Credential confirming real-world HR onboarding.
+
+### **Module 2 — Smart-Contract-Governed RBAC Engine**
+Access control is enforced mathematically inside the smart contract, not by application logic.
+- **Time-bound Expiries:** Roles carry exact expiry timestamps, enabling instant revocation instead of waiting for block latencies.
+- **Emergency Pause:** Super Admins can freeze the entire contract immediately if an exploit or compromise is detected.
+
+### **Module 3 — NFT-Based Digital Asset Registry**
+Every digital asset, license, and credential is an ERC-721 NFT directly linked to the owning DID.
+- **Dual-Attestation Minting:** Prevents unauthorized minting of physical assets. Two independent roles (e.g. Admin + Auditor) must co-sign before an asset is minted.
+- **IPFS Metadata:** Asset metadata is content-addressed, guaranteeing immunity to metadata rot.
+
+### **Module 4 — Immutable Audit Trail & Anomaly Detection**
+Every state-changing function emits structured events. 
+- **Graph Indexing:** All transactions are indexed by The Graph for a fully decentralized, queryable dashboard.
+- **AI Anomaly Detection:** Real-time AI monitoring flags suspicious patterns (mass transfers, rapid role escalation) as risk-scored alerts.
+
+### **Module 5 — Multi-Signature Governance & Dispute Resolution**
+Solves the "Who watches the Admin?" problem.
+- **Multi-sig Timelocks:** High-value actions require M-of-N multisig approvals and pass through a time-locked cooling-off period. During this window, an Auditor can dispute and reverse fraudulent transactions before they finalize.
+
+---
+
+## 3. Technology Stack & Architecture
+
+Built with a crypto-agile, layered architecture ensuring future-proof scalability and compliance.
 
 - **Contracts:** Solidity 0.8.x, OpenZeppelin (AccessControl, Pausable, UUPS Proxy, ERC-721), Hardhat
-- **Chain (prototype):** Ethereum Sepolia testnet
-- **Chain (production target):** Hyperledger Fabric or permissioned Polygon Edge
-- **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS + Framer Motion + shadcn/ui (customized)
-- **Web3 layer:** wagmi + viem + ethers.js
-- **Identity standard:** W3C DID Core + Verifiable Credentials (`did:ethr` / `did:key`)
-- **Off-chain storage:** IPFS via Pinata/Web3.Storage
+- **Chain (Prototype):** Ethereum Sepolia testnet
+- **Chain (Production Target):** Hyperledger Fabric / Permissioned Polygon Edge (for strict defense-sector data localization)
+- **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS + Framer Motion
+- **Web3 Layer:** wagmi + viem + ethers.js
+- **Identity Standard:** W3C DID Core + Verifiable Credentials (`did:ethr` / `did:key`)
+- **Off-chain Storage:** IPFS via Pinata/Web3.Storage
 - **Indexing:** The Graph subgraph
-- **ZK layer:** Semaphore (proof-of-role without identity reveal)
+- **ZK Layer:** Semaphore (proof-of-role without identity reveal)
+- **Quantum Resistance (Roadmap):** Pluggable ISignatureVerifier interface designed to seamlessly swap ECDSA for NIST-standardized post-quantum schemes (Dilithium) in the future.
 
-## Repository Structure
+---
 
-```
-Praman Setu/
-├── docs/                     # this documentation set
-├── contracts/                # Solidity source (DID, RBAC, NFT, Governance, Recovery)
-│   ├── DIDRegistry.sol
-│   ├── CredentialRegistry.sol
-│   ├── TimeBoundAccessControl.sol
-│   ├── AssetRegistry.sol
-│   ├── GuardianRecovery.sol
-│   ├── GovernanceTimelock.sol
-│   └── interfaces/ISignatureVerifier.sol
-├── app/                       # Next.js App Router pages
-│   ├── layout.tsx
-│   ├── page.tsx               # Overview / Ledger stream
-│   ├── identity/page.tsx
-│   ├── access-control/page.tsx
-│   ├── assets/page.tsx
-│   ├── governance/page.tsx
-│   └── audit/page.tsx
-├── components/
-│   ├── shell/                 # CommandRail, TopBar, CommandPalette
-│   ├── ui/                    # customized design-system primitives
-│   └── modules/                # per-module widgets (RoleExpiryRing, MintFlow, etc.)
-├── lib/                        # utils, mock data, wagmi config, contract ABIs
-├── scripts/deploy.ts
-├── hardhat.config.ts
-├── package.json
-└── tailwind.config.ts
-```
-
-## Getting Started
+## 4. Getting Started
 
 ```bash
 # 1. Install dependencies
@@ -99,34 +99,20 @@ npm run dev
 # → http://localhost:3000
 ```
 
-## Documentation Index
+## 5. Documentation Index
+
+For exhaustive implementation details, workflows, and specifications, refer to our detailed documentation:
 
 | Doc | Purpose |
 |---|---|
+| [Problem Gap Analysis](./Problem_Gap_Analysis.pdf) | In-depth breakdown of stated, unstated, and future-facing threats |
+| [Complete Solution Document](./Complete_Solution_Document.pdf) | Full system architecture and solution mapping |
 | [PRD.md](./docs/PRD.md) | Product requirements & feature scope |
 | [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System layers, data flow, service boundaries |
 | [UI_UX_SPEC.md](./docs/UI_UX_SPEC.md) | Design system, screens, layout, motion |
 | [DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) | On-chain state layout + off-chain indexer schema |
 | [API_SPEC.md](./docs/API_SPEC.md) | Contract ABIs as endpoints, REST indexer API, auth |
 | [SECURITY.md](./docs/SECURITY.md) | Threat model, auth, encryption, mitigations |
-| [TECH_STACK.md](./docs/TECH_STACK.md) | Exact versions and infra |
-| [USER_FLOWS.md](./docs/USER_FLOWS.md) | Step-by-step journeys per role |
-| [FEATURES.md](./docs/FEATURES.md) | Feature-by-feature spec per module |
-| [ENVIRONMENT.md](./docs/ENVIRONMENT.md) | .env variables & deployment config |
-| [TESTING.md](./docs/TESTING.md) | Unit/integration/E2E/security testing plan |
-| [DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Build, Docker, CI/CD, production rollout |
-| [CHANGELOG.md](./docs/CHANGELOG.md) | Dated log of completed work |
-| [TODO.md](./docs/TODO.md) | Open items, bugs, roadmap |
 
-## Git Workflow
-
-This repo is committed after every meaningful change so the SIH team has a restorable history through the
-build and demo phases:
-
-```bash
-git add -A
-git commit -m "fix: <what was fixed> / feat: <what was added>"
-git push origin main
-```
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for the branching model and CI pipeline.
+## 6. License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

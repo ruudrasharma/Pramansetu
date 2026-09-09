@@ -40,5 +40,6 @@ test-results/
 
 # ─── Misc ────────────────────────────────────────────────────────────────────
 *.zip
+*.jpg
 task.md         # internal build tracker, not project source
 tsconfig.tsbuildinfo
