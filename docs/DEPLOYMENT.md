@@ -26,51 +26,58 @@ npm run start                 # next start (production mode, local)
 
 ## 3. Contract Deployment (Testnet)
 
-1. **Prerequisites**:
-   Create a `.env.local` file with the following variables:
+This is the exact runbook actually followed for the live deployment currently in `deployments/sepolia.json` (2026-09-09) — not a generic template.
+
+1. **Prerequisites** — `.env.local` populated with:
    ```env
-   DEPLOYER_PRIVATE_KEY=<hardware-wallet-or-test-key>
+   DEPLOYER_PRIVATE_KEY=<funded Sepolia test key>
+   NEXT_PUBLIC_SEPOLIA_RPC_URL=<Alchemy/Infura Sepolia URL>
    ALCHEMY_API_KEY=<key>
    NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=<key>
-   ETHERSCAN_API_KEY=<key>
+   GRAPH_DEPLOY_KEY=<key>
    ```
-   Ensure the deployer wallet is funded with Sepolia ETH.
+   Deployer wallet funded with Sepolia ETH (a full 6-contract deploy + post-deploy setup costs well under 0.1 ETH on Sepolia).
 
 2. **Deploy via Hardhat**:
    ```bash
-   npx hardhat run scripts/deploy.ts --network sepolia
+   TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat run scripts/deploy.ts --network sepolia
    ```
-   This deploys the DIDRegistry, CredentialRegistry, TimeBoundAccessControl (proxy), AssetRegistry (proxy), GuardianRecovery, and GovernanceTimelock.
-   The script outputs the contract addresses to `deployments/sepolia.json`.
+   Deploys DIDRegistry, CredentialRegistry, TimeBoundAccessControl (UUPS proxy), AssetRegistry (UUPS proxy), GuardianRecovery, GovernanceTimelock, and writes addresses to `deployments/sepolia.json`.
+   Etherscan verification is attempted automatically but is non-fatal if `ETHERSCAN_API_KEY` isn't set (it currently isn't — contracts are deployed and functional, just not source-verified on Etherscan yet).
 
-3. **Verify Contracts** (Optional but recommended):
+3. **Post-deploy setup** — run immediately after, same session:
    ```bash
-   npx hardhat verify --network sepolia <address> <constructor args>
+   TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat run scripts/postDeploySetup.ts --network sepolia
    ```
+   This single script does the entire post-deploy checklist below — do **not** perform any of these steps manually/separately in between. Doing so (a one-off manual `grantTimedRole` call before running this script) is exactly what caused the incident documented in `TODO.md`'s "Resolved — T-017/T-018" entry: an untracked address ended up holding `SUPER_ADMIN_ROLE`, and the eventual fix for that left the contract in a state where no new Super Admin could ever be added. Run `deploy.ts` then `postDeploySetup.ts` back-to-back with nothing manual in between.
 
-## 4. Subgraph Deployment
+## 4. Post-Deploy Checklist (performed by `postDeploySetup.ts`)
 
-Once the contracts are deployed, we must deploy the indexer.
+1. Generates a second Super Admin wallet, funds it with 0.005 ETH, and grants it `SUPER_ADMIN_ROLE` directly via `grantTimedRole` (single deployer signature — this step runs *before* the deployer's own `SUPER_ADMIN_ROLE` is revoked in step 2, which is what makes step 2's 2-of-N co-signature possible in the first place).
+2. Revokes the deployer's `SUPER_ADMIN_ROLE` via a co-signed `proposePlatformAction`/`coSignPlatformAction` (actionType 1), co-signed by the new second admin.
+3. Deploys `ECDSASignatureVerifier` and calls `DIDRegistry.setSignatureVerifier(verifier_address)`.
+4. Generates an issuer wallet and grants it `ISSUER_ROLE` on `CredentialRegistry`.
 
-1. **Update Addresses**: Copy the contract addresses from `deployments/sepolia.json` into `subgraph/subgraph.yaml`.
-2. **Build and Deploy**:
+**The deployer intentionally still holds `DEFAULT_ADMIN_ROLE` after this** (see `TODO.md` T-020) — it is the only path to enroll a third Super Admin or recover from a lost key while there are only two. Do not renounce it until a third Super Admin exists or a proper upgrade-based recovery path is shipped; renouncing it with only one other Super Admin locks the contract out of ever granting `SUPER_ADMIN_ROLE` again (2-of-N can never be reached with a single remaining signer, and there's no other bypass once `DEFAULT_ADMIN_ROLE` is gone).
+
+## 5. Subgraph Deployment
+
+1. **Update addresses**: copy the contract addresses from `deployments/sepolia.json` into each `source.address` in `subgraph/subgraph.yaml`.
+2. **Set `startBlock`** on every data source to the block the contracts were actually deployed at (check `deployments/sepolia.json`'s `deployedAt` against a block explorer, or just use the current block number at deploy time minus a small buffer). Leaving this at `0` makes the indexer attempt a full scan from Sepolia genesis and can take a very long time to finish syncing — this is exactly what happened on the first attempt at the 2026-09-09 redeploy.
+3. **Build and deploy**:
    ```bash
    cd subgraph
-   npm install
    npm run codegen
    npm run build
    npx graph auth --studio <GRAPH_DEPLOY_KEY>
-   npx graph deploy --studio cipherloom -l v1
+   npx graph deploy cipherloom subgraph.yaml --version-label v<N>
    ```
-
-## 5. Post-Deploy Security Checklist
-
-Once the system is live, execute the following steps to secure the platform (as detailed in the `deploy.ts` script output):
-
-1. **Enroll second SUPER_ADMIN hardware wallet**: Propose and execute a `PlatformAction` via the `GovernanceTimelock` to add a second admin for redundancy.
-2. **Revoke deployer SUPER_ADMIN**: For maximum security, use a co-signed platform action to revoke the original deployer's `SUPER_ADMIN_ROLE`.
-3. **Set Signature Verifier**: Deploy the `ECDSASignatureVerifier` and call `DIDRegistry.setSignatureVerifier(verifier_address)` to enable cryptographic proof verification on Key Rotations.
-4. **Grant ISSUER_ROLE**: Grant the `ISSUER_ROLE` in the `TimeBoundAccessControl` contract to the `CredentialRegistry` contract to enable automated verification pathways.
+   Bump `<N>` on every redeploy — Graph Studio's query URL includes the version label (`.../cipherloom/v3`, currently), so `NEXT_PUBLIC_SUBGRAPH_URL` in `.env.local` needs updating to match after each deploy.
+4. **Confirm it's actually indexing** before moving on:
+   ```bash
+   curl -s -X POST "$NEXT_PUBLIC_SUBGRAPH_URL" -H "Content-Type: application/json" -d '{"query":"{ _meta { block { number } hasIndexingErrors } }"}'
+   ```
+   A `"Subgraph ... has not started syncing yet"` error after more than ~30 seconds usually means `startBlock` is too low (see step 2).
 
 ## 6. Frontend Deployment
 
@@ -107,7 +114,7 @@ docker build -t bel-chain-frontend .
 docker run -p 3000:3000 --env-file .env.production bel-chain-frontend
 ```
 
-## 6. CI/CD Pipeline (GitHub Actions)
+## 7. CI/CD Pipeline (GitHub Actions)
 
 ```yaml
 name: ci
@@ -134,7 +141,7 @@ jobs:
       - run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
 ```
 
-## 7. Phased Rollout
+## 8. Phased Rollout
 
 | Phase | Scope |
 |---|---|
@@ -143,7 +150,7 @@ jobs:
 | **Phase 3 — Production Migration** | Permissioned chain deployment, L2 scaling, self-hosted indexing, full AI anomaly-detection service, ZK privacy layer |
 | **Phase 4 — Forward-Looking** | Post-quantum signature migration activated, legal-tech bridge integration, cross-organization DID interoperability |
 
-## 8. Rollback Plan
+## 9. Rollback Plan
 
 - Contracts: UUPS proxies allow logic rollback to the previous implementation via the same governed
   upgrade path — no state loss.

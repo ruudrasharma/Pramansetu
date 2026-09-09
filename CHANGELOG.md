@@ -84,6 +84,31 @@ removed all of it and replaced each with either real on-chain reads or an honest
 
 ---
 
+## [0.9.0] — 2026-09-09 — Phase 9: Redeploy to close T-017/T-018, subgraph v3
+
+### Context
+A same-day earlier fix for T-017 (untracked address holding `SUPER_ADMIN_ROLE`) and T-018
+(deployer retaining `DEFAULT_ADMIN_ROLE`) worked but had a side effect discovered immediately
+after: it left the contract with exactly one `SUPER_ADMIN_ROLE` holder and no way to ever add
+another one. See `TODO.md`'s "Resolved — T-017/T-018" entry for the full incident note.
+
+### Changed
+- Redeployed all 6 core contracts to Sepolia via an unmodified `deploy.ts` + `postDeploySetup.ts`
+  run, with no manual role grants outside the two scripts this time. New addresses recorded in
+  `deployments/sepolia.json` and `.env.local`; old addresses abandoned.
+- `subgraph/subgraph.yaml`: updated to the new contract addresses; `startBlock` set to the actual
+  deploy block (`11665400`) on all 5 data sources instead of `0` — the previous `startBlock: 0`
+  made the indexer attempt a full scan from Sepolia genesis, which is why the first deploy attempt
+  never finished syncing in a reasonable time.
+- Subgraph redeployed to Graph Studio as `cipherloom/v3` (`.env.local`'s `NEXT_PUBLIC_SUBGRAPH_URL`
+  updated to match), confirmed live and indexing with zero errors, and confirmed to correctly show
+  the deployer's role revocation as `"RoleRevoked"` (not `"EmergencyPaused"`) — validating the
+  Phase 8 subgraph mapping fix against real fresh data.
+- Deployer intentionally retains `DEFAULT_ADMIN_ROLE` on this deployment (see `TODO.md` T-020) —
+  not renounced this time, to avoid repeating the lockout.
+
+---
+
 ## [0.5.0] — 2026-09-06 — Phase 5: Verification & Polish
 
 ### Added

@@ -5,26 +5,37 @@ Completed items are moved to CHANGELOG.md.
 
 ---
 
-## 🔴 Blocker — Needs Your Decision
+## ✅ Resolved — T-017 / T-018 (redeploy, 2026-09-09)
 
-### T-017: Unidentified address holds live SUPER_ADMIN_ROLE on the deployed contract
-`0x40e020ea754620900bd72c3dac61ef35030497e7` currently holds `SUPER_ADMIN_ROLE` on the real
-deployed `TimeBoundAccessControl` (verified on-chain — see `deployments/sepolia.json`'s two real
-tracked admins for comparison, neither of which is this address). It's not in `deployments/sepolia.json`,
-not in any `.env` file, and not referenced anywhere else in the repo. If this isn't a wallet you
-control, it needs to be revoked before Phase 2 (team onboarding) — an untracked Super Admin
-breaks the "2-of-N, no single actor" guarantee the whole governance model depends on. This is an
-access-control change (`AI_DEVELOPMENT_RULES.md` §9) and needs explicit sign-off before anyone
-acts on it.
+**T-017** (untracked address holding `SUPER_ADMIN_ROLE`) and **T-018** (deployer retaining
+`DEFAULT_ADMIN_ROLE`) were both closed, but not by patching the old deployment — see the incident
+note below for why. The platform is now on a **fresh deployment** (new addresses in
+`deployments/sepolia.json` / `.env.local`, new subgraph at `.../cipherloom/v3`) produced by a
+clean, unmodified `deploy.ts` + `postDeploySetup.ts` run with no manual grants in between. On this
+deployment: exactly one tracked address holds `SUPER_ADMIN_ROLE` (`deployments/sepolia.json`'s
+`mockWallets.secondSuperAdmin`), and the deployer **still holds `DEFAULT_ADMIN_ROLE`** —
+deliberately, this time, as a documented decision (see T-020) rather than an oversight.
 
-### T-018: Deployer wallet still holds DEFAULT_ADMIN_ROLE
-`scripts/postDeploySetup.ts` revokes the deployer's `SUPER_ADMIN_ROLE` via a co-signed platform
-action, but not `DEFAULT_ADMIN_ROLE` (OpenZeppelin's base role, which can grant/revoke any role —
-including re-granting itself `SUPER_ADMIN_ROLE` unilaterally). Verified on-chain: deployer
-currently has `DEFAULT_ADMIN_ROLE: true`. The "deployer's privileged access was revoked" checklist
-item is therefore not actually true yet. Needs a decision on how to close this (e.g. have the two
-real Super Admins propose+co-sign revoking it now that both exist) — access-control change,
-needs sign-off.
+### Incident note: the first T-017/T-018 fix caused a lockout
+Revoking the unknown address's `SUPER_ADMIN_ROLE` and then renouncing the deployer's
+`DEFAULT_ADMIN_ROLE` (in that order, on the *original* deployment) left the contract with exactly
+one `SUPER_ADMIN_ROLE` holder and no `DEFAULT_ADMIN_ROLE` holder at all. Since adding a new Super
+Admin requires either `DEFAULT_ADMIN_ROLE` or 2-of-3 co-signatures, and only one legitimate signer
+remained, **the contract could never grant `SUPER_ADMIN_ROLE` to anyone again** — a genuine
+self-lockout, verified by reading `grantTimedRole`'s `onlyRole(getRoleAdmin(role))` gate. This is
+why the fix here is a redeploy rather than a further patch to that instance: with essentially zero
+real state on it (no DIDs, no assets, no team onboarded yet), redeploying was cheaper and safer
+than an upgrade-based recovery. The old contract addresses are abandoned; nothing on them should
+be referenced going forward.
+
+### T-020: `DEFAULT_ADMIN_ROLE` is intentionally still held by the deployer
+Unlike the first attempt, this deployment does **not** renounce the deployer's `DEFAULT_ADMIN_ROLE`
+— it's the only path to add a third Super Admin (or recover from a lost key) as long as there are
+only two. Before renouncing it for real: either enroll a third Super Admin first (restoring 2-of-N
+headroom), or ship a UUPS upgrade to `TimeBoundAccessControl` adding a proper recovery path that
+doesn't depend on `DEFAULT_ADMIN_ROLE`. Until one of those happens, treat this as a deliberate,
+tracked trade-off, not a forgotten checklist item — don't "fix" it again without doing one of those
+first.
 
 ### T-019 (contract-level, not fixed): `AssetRegistry.vcIdOf[tokenId]` stores a DID, not a VC id
 `proposeMint`'s second parameter is named `recipientDid` in the contract (not `vcId` as
@@ -50,9 +61,9 @@ Sepolia and the live Graph Studio subgraph in this session — not from a doc, f
   on-chain at every recorded address.
 - Subgraph deployed to Graph Studio and indexing with zero errors.
 - Post-deploy checklist: second Super Admin enrolled and confirmed live, `ECDSASignatureVerifier`
-  deployed and wired into `DIDRegistry`, `ISSUER_ROLE` granted — all confirmed via live `hasRole`/
-  `signatureVerifier()` calls. (Deployer's `SUPER_ADMIN_ROLE` revocation is real and confirmed; see
-  T-018 above for what's still incomplete about that step.)
+  deployed and wired into `DIDRegistry`, `ISSUER_ROLE` granted, deployer's `SUPER_ADMIN_ROLE`
+  revoked — all confirmed via live `hasRole`/`signatureVerifier()` calls. (Deployer intentionally
+  retains `DEFAULT_ADMIN_ROLE` — see T-020.)
 - WalletConnect modal (`lib/web3modal.ts` + `Web3Providers.tsx`) is wired and real.
 
 ---
