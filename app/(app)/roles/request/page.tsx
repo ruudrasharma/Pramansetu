@@ -11,6 +11,7 @@ import { identityByRole, ROLE_LABEL, type Role } from "@/lib/mock/fixtures";
 import { useRbacService } from "@/lib/services/rbacService";
 import { useAuditService } from "@/lib/services/auditService";
 import { formatRelativeTime } from "@/lib/utils";
+import { dataMode } from "@/lib/services/dataMode";
 
 const requestableRoles: Role[] = ["MANAGER", "AUDITOR", "ADMIN"];
 
@@ -46,25 +47,35 @@ export default function RoleRequestPage() {
           <Badge tone="neutral">{ROLE_LABEL[activeRole]}</Badge>
         </div>
 
-        <label className="mb-1.5 block text-[12px] text-ink-500">Requested role</label>
-        <Select value={desiredRole} onValueChange={(v) => setDesiredRole(v as Role)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {requestableRoles.map((r) => (
-              <SelectItem key={r} value={r}>
-                {ROLE_LABEL[r]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {dataMode === "onchain" ? (
+          <p className="rounded-lg border border-alert-500/25 bg-alert-500/[0.04] px-3 py-2 text-[12px] text-alert-400">
+            No on-chain self-service role request path exists yet (see TODO.md T-028) —
+            <span className="mono-value"> TimeBoundAccessControl</span> only allows an Admin or Super Admin to
+            initiate a grant directly. Contact an Admin to request a role.
+          </p>
+        ) : (
+          <>
+            <label className="mb-1.5 block text-[12px] text-ink-500">Requested role</label>
+            <Select value={desiredRole} onValueChange={(v: string) => setDesiredRole(v as Role)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {requestableRoles.map((r) => (
+                  <SelectItem key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-        <Button className="mt-4 w-full" onClick={submit}>
-          <Send size={14} />
-          Submit request
-        </Button>
-        {submitted && <p className="mt-2 text-center text-[12px] text-verified-400">Request submitted — pending Admin approval.</p>}
+            <Button className="mt-4 w-full" onClick={submit}>
+              <Send size={14} />
+              Submit request
+            </Button>
+            {submitted && <p className="mt-2 text-center text-[12px] text-verified-400">Request submitted — pending Admin approval.</p>}
+          </>
+        )}
       </Card>
 
       <Card>

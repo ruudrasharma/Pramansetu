@@ -12,21 +12,43 @@ import { RoleBadge } from "@/components/modules/RoleBadge";
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole, ROLE_LABEL, type Identity } from "@/lib/mock/fixtures";
 import { useRbacService } from "@/lib/services/rbacService";
+import { useDidService } from "@/lib/services/didService";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
+import { dataMode } from "@/lib/services/dataMode";
 
 export default function RolesPage() {
   const activeRole = useAppStore((s) => s.activeRole);
-  const me = identityByRole[activeRole];
+  const { did: myDid } = useCurrentIdentity();
+  const meMock = identityByRole[activeRole];
+  const me = dataMode === "onchain" ? { did: myDid ?? "" } : meMock;
+  const didService = useDidService(myDid);
+  const myRealIdentity = dataMode === "onchain" ? didService.resolveDID() : undefined;
   const rbacService = useRbacService();
   const identities = rbacService.listIdentities();
 
-  const canManage = activeRole === "SUPER_ADMIN" || activeRole === "ADMIN";
+  const canManage = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" || myRealIdentity?.role === "ADMIN" : activeRole === "SUPER_ADMIN" || activeRole === "ADMIN";
 
   const [revokeTarget, setRevokeTarget] = useState<Identity | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  function confirmRevoke() {
+  async function confirmRevoke() {
     if (!revokeTarget) return;
-    rbacService.revokeRole(revokeTarget.did, me.did);
-    setRevokeTarget(null);
+    setActionError(null);
+    try {
+      await rbacService.revokeRole(revokeTarget.did, me.did);
+      setRevokeTarget(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to revoke role");
+    }
+  }
+
+  async function handleRenew(identity: Identity) {
+    setActionError(null);
+    try {
+      await rbacService.grantTimedRole(identity.did, identity.role, Date.now() + 30 * 24 * 3_600_000, me.did);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to renew role");
+    }
   }
 
   return (
@@ -46,6 +68,10 @@ export default function RolesPage() {
         )}
       </div>
 
+      {actionError && (
+        <Card className="mb-4 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
+      )}
+
       <Card className="overflow-hidden p-0">
         <Table>
           <TableHead>
@@ -59,6 +85,13 @@ export default function RolesPage() {
             </TableRow>
           </TableHead>
           <TableBody>
+            {rbacService.isLoadingIdentities && identities.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canManage ? 6 : 5} className="text-center text-ink-500">
+                  Loading identities…
+                </TableCell>
+              </TableRow>
+            )}
             {identities.map((identity) => (
               <TableRow key={identity.did}>
                 <TableCell>
@@ -83,7 +116,8 @@ export default function RolesPage() {
                       <Button
                         variant="secondary"
                         className="px-2.5 py-1 text-[12px]"
-                        onClick={() => rbacService.grantTimedRole(identity.did, identity.role, Date.now() + 30 * 24 * 3_600_000, me.did)}
+                        onClick={() => handleRenew(identity)}
+                        disabled={rbacService.isPending}
                       >
                         Renew
                       </Button>
@@ -91,7 +125,7 @@ export default function RolesPage() {
                         variant="danger"
                         className="px-2.5 py-1 text-[12px]"
                         onClick={() => setRevokeTarget(identity)}
-                        disabled={identity.did === me.did}
+                        disabled={identity.did === me.did || rbacService.isPending}
                       >
                         <ShieldOff size={12} /> Revoke
                       </Button>

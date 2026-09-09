@@ -6,9 +6,10 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { readContract } from "wagmi/actions";
 import { keccak256, toBytes } from "viem";
 import { TimeBoundAccessControlAbi } from "@/lib/abis";
-import { contractAddresses } from "@/lib/wagmi";
+import { contractAddresses, wagmiConfig } from "@/lib/wagmi";
 
 const address = contractAddresses.accessControl;
 
@@ -26,6 +27,37 @@ export const ROLE = {
   AUDITOR_ROLE: keccak256(toBytes("AUDITOR_ROLE")),
   USER_ROLE: keccak256(toBytes("USER_ROLE")),
 } as const;
+
+// The 5 non-DEFAULT_ADMIN roles the app's Role union covers, highest privilege first.
+const CHECKABLE_ROLES: readonly [string, `0x${string}`][] = [
+  ["SUPER_ADMIN", ROLE.SUPER_ADMIN_ROLE],
+  ["ADMIN", ROLE.ADMIN_ROLE],
+  ["MANAGER", ROLE.MANAGER_ROLE],
+  ["AUDITOR", ROLE.AUDITOR_ROLE],
+  ["USER", ROLE.USER_ROLE],
+];
+
+/**
+ * Imperative (non-hook) "which role does this account currently hold" — for write paths that
+ * need to know a target's active role at click time (e.g. rbacService.revokeRole doesn't take
+ * a role argument; the real proposePlatformAction call needs one). Checks highest-privilege
+ * first, since holding multiple roles simultaneously is possible on the real contract even
+ * though the mock model assumes one role per identity. Returns undefined, honestly, if the
+ * account holds none of the 5 checkable roles — never guesses a default.
+ */
+export async function findActiveRole(account: `0x${string}`): Promise<{ name: string; hash: `0x${string}` } | undefined> {
+  if (!address) throw new Error("AccessControl address not configured");
+  for (const [name, hash] of CHECKABLE_ROLES) {
+    const held = (await readContract(wagmiConfig, {
+      address,
+      abi: TimeBoundAccessControlAbi,
+      functionName: "hasRole",
+      args: [hash, account],
+    })) as boolean;
+    if (held) return { name, hash };
+  }
+  return undefined;
+}
 
 // ── Read hooks ──────────────────────────────────────────────────────────────
 

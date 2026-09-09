@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
 import { GET_CREDENTIALS_BY_SUBJECT } from "@/lib/queries";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { adaptCredentials, deriveCredentialStatus, type RawCredential } from "@/lib/services/shared/credentials";
 
 export interface DidService {
   resolveDID: () => Identity | undefined;
@@ -66,41 +67,6 @@ function useMockDidService(did: string | undefined): DidService {
     isPending: false,
     isResolving: false,
   };
-}
-
-interface RawCredential {
-  id: string;
-  issuerDid: string;
-  vcHash: string;
-  role: string;
-  validUntil: string;
-  revoked: boolean;
-  issuedAt: string;
-}
-
-function adaptCredentials(did: string, raw: RawCredential[]): Credential[] {
-  return raw.map((c) => ({
-    vcId: c.id,
-    subjectDid: did,
-    issuerDid: c.issuerDid,
-    vcHash: c.vcHash,
-    // Real free-text from CredentialRegistry.issueCredential's `role` string param — not
-    // validated against the mock's 5-value Role union at runtime (no real credential has been
-    // issued through this app yet to establish the real convention against). Display-only
-    // (CredentialCard interpolates it as text), so a mismatched string here is inert, not
-    // misleading.
-    role: c.role as Role,
-    validUntil: Number(c.validUntil) * 1000,
-    revoked: c.revoked,
-  }));
-}
-
-function deriveCredentialStatus(credentials: Credential[]): Identity["credentialStatus"] {
-  if (credentials.length === 0) return "pending";
-  const now = Date.now();
-  if (credentials.some((c) => !c.revoked && c.validUntil > now)) return "verified";
-  // GET_CREDENTIALS_BY_SUBJECT orders by issuedAt desc, so [0] is the most recent.
-  return credentials[0]?.revoked ? "revoked" : "pending";
 }
 
 function useCredentialsQuery(did: string | undefined) {

@@ -6,6 +6,35 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.2] — 2026-09-09 — Phase B.2: rbacService wired to real onchain data
+
+Closes T-026/T-028, plus T-041 (found this pass, not in the original catalogue), per Rule Zero.
+
+### Added
+- `lib/hooks/useDIDRegistry.ts`: `resolveControllerAddress(did)` — imperative (non-hook) DID→address
+  resolution for write paths whose target `did` is only known inside a click handler, not at render
+  time; throws a clear error if the did doesn't resolve to a real registered identity, rather than
+  falling back to a zero address.
+- `lib/hooks/useAccessControl.ts`: `findActiveRole(account)` — imperative "which of the 5 checkable
+  roles does this account currently hold," needed because `revokeRole`'s mock-era interface
+  (`revokeRole(did, revokedBy)`) doesn't carry a role argument at all.
+- `lib/services/shared/credentials.ts`: credential-adaptation/status/role-derivation helpers
+  extracted out of `didService.ts` so `rbacService.ts` doesn't duplicate them.
+
+### Changed
+- `lib/services/rbacService.ts` (onchain branch): `grantTimedRole`/`revokeRole` resolve the real
+  target address (and, for revoke, the real currently-held role) instead of hardcoding a zero
+  address; `listIdentities` now queries real `Identity`+`Credential` subgraph data instead of
+  returning the mock fixture array (T-041); `requestRole` throws a clear "no on-chain self-service
+  path" error instead of a silent no-op; `getRoleExpiry` throws a clear "not implemented" error
+  (confirmed zero real callers — `listIdentities()`'s `roleExpiresAt` already covers its purpose).
+- `app/(app)/roles/page.tsx`: "who am I" now resolves via `useCurrentIdentity()` in onchain mode;
+  Renew/Revoke actions are async with real error surfacing instead of firing-and-forgetting.
+- `app/(app)/roles/request/page.tsx`: onchain mode shows a static "no self-service path — contact
+  an Admin" message instead of the old fake "Request submitted" success state.
+
+---
+
 ## [0.10.1] — 2026-09-09 — Phase B.1: didService wired to real onchain data
 
 Closes T-021/T-022/T-024 from TODO.md, partially closes T-023, in full per Rule Zero — no stub

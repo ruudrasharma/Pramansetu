@@ -57,14 +57,29 @@ challenge) sits right next to it and is genuinely wired. Needs either removal of
 or a clearly-labeled "demo shortcut, mock mode only" gate (`dataMode === "mock"`), same pattern as
 the role switcher above.
 
-### `lib/services/rbacService.ts`
-- **T-026** `grantTimedRole` / `revokeRole` — both target a hardcoded zero address. Needs the target
-  DID resolved to its controller address (same path as T-021) before either call.
-- **T-027** `getRoleExpiry` — always returns `undefined`. Needs `useRoleExpiry(roleHash, account)` once
-  the caller's controller address is resolved.
-- **T-028** `requestRole` — no-op. `TimeBoundAccessControl` has no self-service request path on-chain;
-  per Rule Zero's second branch this may end up as an honest "no on-chain self-service path — contact
-  an Admin" UI state rather than a fake call (Phase B.2 decision, not yet made).
+### `lib/services/rbacService.ts` — B.2, closed 2026-09-09 (T-026/T-028/T-041), stopgapped (T-027)
+- **T-026** ✅ `grantTimedRole` — resolves the target DID's real controller address via the new
+  `resolveControllerAddress` (`lib/hooks/useDIDRegistry.ts`, an imperative `readContract` call, not
+  a hook — the target `did` is only known inside a click handler, not at render time) before calling
+  the real contract function. `revokeRole` also resolves the address, then determines which role to
+  revoke via a new `findActiveRole` (`lib/hooks/useAccessControl.ts`) imperative check across the 5
+  checkable roles — the mock interface's `revokeRole(did, revokedBy)` doesn't carry a role argument
+  at all, so this couldn't be a hardcoded fix; it had to be resolved for real at call time.
+- **T-027** `getRoleExpiry` — confirmed zero callers anywhere in the app (`listIdentities()`'s
+  `roleExpiresAt` field already covers this per-row). Stopgapped with a clear thrown error per
+  Phase A.3 rather than building unverifiable machinery for a dead code path.
+- **T-028** ✅ `requestRole` — confirmed no on-chain self-service path exists
+  (`TimeBoundAccessControl.sol` / `docs/API_SPEC.md`: only `grantTimedRole`/`proposePrivilegedGrant`,
+  both Admin/Super-Admin-initiated). Now an honest thrown "no self-service path — contact an Admin"
+  error; `app/(app)/roles/request/page.tsx` shows this as a static message instead of the old fake
+  "Request submitted" success state.
+- **T-041** (found during B.2, not in the original catalogue) `listIdentities` — same category of bug
+  as T-031/T-032 (mock fixtures returned unconditionally in the onchain branch), just missed in the
+  original audit. Without a real list, T-026's fixes would have nothing real to operate on — grantTimedRole/revokeRole
+  would still be resolving fake fixture dids. Now a real `GET_IDENTITIES` subgraph query, adapted via
+  the new `lib/services/shared/credentials.ts` (shared with `didService.ts` to avoid duplicating the
+  credential-status/role-derivation logic). `name`/`department` are `""` for the same reason as T-021 —
+  would need N ipfs:// metadata fetches for a list this size, not done this pass.
 
 ### `lib/services/assetService.ts`
 - **T-029** `proposeMint` — submits a zero recipient/vcId when either is unresolved. Needs both
