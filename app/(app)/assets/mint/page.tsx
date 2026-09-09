@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UploadCloud, FileCheck, CheckCircle2, ArrowRight } from "lucide-react";
+import { UploadCloud, FileCheck, CheckCircle2, ArrowRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -10,7 +10,18 @@ import { SignerChips } from "@/components/modules/SignerChips";
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole, identities } from "@/lib/mock/fixtures";
 import { useAssetService } from "@/lib/services/assetService";
-import type { Asset } from "@/lib/mock/fixtures";
+import { dataMode } from "@/lib/services/dataMode";
+
+async function uploadMetadataToIPFS(metadata: { name: string; category: string }): Promise<string> {
+  const res = await fetch("/api/ipfs/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(metadata),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to upload metadata to IPFS");
+  return data.cid as string;
+}
 
 const stepLabels = ["Upload to IPFS", "Propose mint", "Manager co-signs"];
 
@@ -22,25 +33,52 @@ export default function MintAssetPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Certification");
   const [ownerDid, setOwnerDid] = useState(identities[0]!.did);
+  const [vcId, setVcId] = useState("");
+  const [recipient, setRecipient] = useState("");
   const [cid, setCid] = useState<string | null>(null);
-  const [asset, setAsset] = useState<Asset | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const step = asset?.status === "finalized" ? 3 : asset ? 2 : cid ? 1 : 0;
+  const isOnchain = dataMode === "onchain";
+  const isProposed = assetService.isProposeConfirmed;
+  const isMinted = assetService.isCoSignConfirmed;
+  const mintedAsset = assetService.lastMintedTokenId !== undefined ? assetService.getAsset(assetService.lastMintedTokenId) : undefined;
 
-  function handleUpload() {
-    setCid("bafybei" + Math.random().toString(36).slice(2).padEnd(52, "0").slice(0, 52));
+  const step = isMinted ? 3 : isProposed ? 2 : cid ? 1 : 0;
+
+  async function handleUpload() {
+    if (!name) return;
+    setUploadError(null);
+    setIsUploading(true);
+    try {
+      const uploadedCid = await uploadMetadataToIPFS({ name, category });
+      setCid(uploadedCid);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+    }
   }
 
-  function handlePropose() {
+  async function handlePropose() {
     if (!cid || !name) return;
-    const created = assetService.proposeMint({ name, category, ownerDid, cid, proposer: me.did });
-    setAsset(created);
+    setActionError(null);
+    try {
+      await assetService.proposeMint({ name, category, ownerDid, cid, proposer: me.did, vcId, recipient });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to propose mint");
+    }
   }
 
-  function handleCoSign() {
-    if (!asset) return;
-    assetService.coSignMint(asset.tokenId, identities.find((i) => i.role === "MANAGER")!.did);
-    setAsset({ ...asset, status: "finalized" });
+  async function handleCoSign() {
+    if (assetService.lastRequestId === undefined) return;
+    setActionError(null);
+    try {
+      await assetService.coSignMint(assetService.lastRequestId, identities.find((i) => i.role === "MANAGER")!.did);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to co-sign mint");
+    }
   }
 
   return (
@@ -72,7 +110,11 @@ export default function MintAssetPage() {
         ))}
       </div>
 
-      {!asset ? (
+      {actionError && (
+        <Card className="mb-4 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
+      )}
+
+      {!isProposed ? (
         <Card className="flex flex-col gap-4">
           <div>
             <label className="mb-1.5 block text-[12px] text-ink-500">Asset name</label>
@@ -91,59 +133,110 @@ export default function MintAssetPage() {
               className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
             />
           </div>
-          <div>
-            <label className="mb-1.5 block text-[12px] text-ink-500">Recipient identity</label>
-            <select
-              value={ownerDid}
-              onChange={(e) => setOwnerDid(e.target.value)}
-              className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
-            >
-              {identities.map((i) => (
-                <option key={i.did} value={i.did}>
-                  {i.name} — {i.department}
-                </option>
-              ))}
-            </select>
-          </div>
+
+          {!isOnchain && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-ink-500">Recipient identity</label>
+              <select
+                value={ownerDid}
+                onChange={(e) => setOwnerDid(e.target.value)}
+                className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 focus:border-signal-500 focus:outline-none"
+              >
+                {identities.map((i) => (
+                  <option key={i.did} value={i.did}>
+                    {i.name} — {i.department}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {isOnchain && (
+            <>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-ink-500">
+                  Recipient DID hash (bytes32) — <span className="text-ink-600">stored as `vcId` on-chain; see TODO.md T-019</span>
+                </label>
+                <input
+                  value={vcId}
+                  onChange={(e) => setVcId(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-ink-500">Recipient wallet address</label>
+                <input
+                  value={recipient}
+                  onChange={(e) => setRecipient(e.target.value)}
+                  placeholder="0x..."
+                  className="w-full rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
+                />
+              </div>
+            </>
+          )}
 
           {!cid ? (
-            <Button variant="secondary" onClick={handleUpload} disabled={!name}>
-              <UploadCloud size={14} /> Upload metadata to IPFS
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button variant="secondary" onClick={handleUpload} disabled={!name || isUploading}>
+                <UploadCloud size={14} /> {isUploading ? "Uploading..." : "Upload metadata to IPFS"}
+              </Button>
+              {uploadError && <p className="text-[12px] text-danger-400">{uploadError}</p>}
+            </div>
           ) : (
             <div className="flex items-center gap-2 rounded-lg border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
               <FileCheck size={13} /> <span className="mono-value truncate">{cid}</span>
             </div>
           )}
 
-          <Button onClick={handlePropose} disabled={!cid || !name}>
-            Propose mint <ArrowRight size={14} />
+          <Button onClick={handlePropose} disabled={!cid || !name || assetService.isPending || (isOnchain && (!vcId || !recipient))}>
+            {assetService.isPending ? (
+              <>
+                <Loader2 size={14} className="animate-spin" /> Confirming tx...
+              </>
+            ) : (
+              <>
+                Propose mint <ArrowRight size={14} />
+              </>
+            )}
           </Button>
         </Card>
       ) : (
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <p className="text-[13px] font-medium text-ink-50">{asset.name}</p>
-              <p className="mono-value mt-0.5 text-[11px] text-ink-600">Token #{asset.tokenId}</p>
+              <p className="text-[13px] font-medium text-ink-50">{mintedAsset?.name ?? name}</p>
+              <p className="mono-value mt-0.5 text-[11px] text-ink-600">
+                {isMinted ? `Token #${assetService.lastMintedTokenId}` : `Request #${assetService.lastRequestId}`}
+              </p>
             </div>
-            <Badge tone={asset.status === "finalized" ? "verified" : "alert"}>{asset.status === "finalized" ? "Finalized" : "Pending co-sign"}</Badge>
+            <Badge tone={isMinted ? "verified" : "alert"}>{isMinted ? "Finalized" : "Pending co-sign"}</Badge>
           </div>
 
-          <SignerChips
-            signers={[
-              { did: me.did, signed: true },
-              { did: identities.find((i) => i.role === "MANAGER")!.did, signed: asset.status === "finalized" },
-            ]}
-            required={2}
-          />
+          {!isOnchain && (
+            <SignerChips
+              signers={[
+                { did: me.did, signed: true },
+                { did: identities.find((i) => i.role === "MANAGER")!.did, signed: isMinted },
+              ]}
+              required={2}
+            />
+          )}
 
-          {asset.status !== "finalized" ? (
-            <Button className="mt-4 w-full" variant="secondary" onClick={handleCoSign}>
-              Simulate Manager co-sign
+          {!isMinted ? (
+            <Button className="mt-4 w-full" variant="secondary" onClick={handleCoSign} disabled={assetService.isPending}>
+              {assetService.isPending ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" /> Confirming tx...
+                </>
+              ) : isOnchain ? (
+                "Co-sign as Manager"
+              ) : (
+                "Simulate Manager co-sign"
+              )}
             </Button>
           ) : (
-            <Link href={`/assets/${asset.tokenId}`}>
+            <Link href={`/assets/${assetService.lastMintedTokenId}`}>
               <Button className="mt-4 w-full">View finalized asset</Button>
             </Link>
           )}

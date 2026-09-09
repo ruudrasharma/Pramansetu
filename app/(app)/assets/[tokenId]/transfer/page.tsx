@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, ShieldCheck, ShieldAlert, ArrowRight } from "lucide-react";
+import { ArrowLeft, ShieldCheck, ShieldAlert, ArrowRight, Loader2 } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
-import { identities, findIdentity, credentialForDid } from "@/lib/mock/fixtures";
+import { identities as mockIdentities, findIdentity, credentialForDid } from "@/lib/mock/fixtures";
 import { useAssetService } from "@/lib/services/assetService";
+import { useRbacService } from "@/lib/services/rbacService";
+import { useDidService } from "@/lib/services/didService";
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole } from "@/lib/mock/fixtures";
+import { dataMode } from "@/lib/services/dataMode";
 
 export default function TransferAssetPage() {
   const params = useParams<{ tokenId: string }>();
@@ -20,9 +23,21 @@ export default function TransferAssetPage() {
   const asset = assetService.getAsset(tokenId);
   const activeRole = useAppStore((s) => s.activeRole);
   const me = identityByRole[activeRole];
+  const isOnchain = dataMode === "onchain";
 
   const [recipientDid, setRecipientDid] = useState<string>("");
-  const [submitted, setSubmitted] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const rbacService = useRbacService();
+  const realIdentities = rbacService.listIdentities();
+  const recipientDidService = useDidService(recipientDid || undefined);
+  const recipientCredentials = recipientDidService.listCredentials();
+
+  useEffect(() => {
+    if (assetService.isTransferConfirmed) {
+      router.push(`/assets/${tokenId}`);
+    }
+  }, [assetService.isTransferConfirmed, router, tokenId]);
 
   if (!asset) {
     return (
@@ -32,16 +47,25 @@ export default function TransferAssetPage() {
     );
   }
 
-  const recipient = recipientDid ? findIdentity(recipientDid) : undefined;
-  const recipientCredential = recipientDid ? credentialForDid(recipientDid) : undefined;
-  const credentialValid = recipientCredential && !recipientCredential.revoked && recipientCredential.validUntil > Date.now();
+  const recipient = recipientDid ? (isOnchain ? realIdentities.find((i) => i.did === recipientDid) : findIdentity(recipientDid)) : undefined;
+  const credentialValid = isOnchain
+    ? recipientCredentials.some((c) => !c.revoked && c.validUntil > Date.now())
+    : (() => {
+        const c = recipientDid ? credentialForDid(recipientDid) : undefined;
+        return !!c && !c.revoked && c.validUntil > Date.now();
+      })();
 
-  function handleTransfer() {
+  async function handleTransfer() {
     if (!recipientDid || !credentialValid) return;
-    assetService.transferAsset(tokenId, recipientDid, me.did);
-    setSubmitted(true);
-    setTimeout(() => router.push(`/assets/${tokenId}`), 1200);
+    setActionError(null);
+    try {
+      await assetService.transferAsset(tokenId, recipientDid, me.did);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to transfer asset");
+    }
   }
+
+  const candidateIdentities = isOnchain ? realIdentities : mockIdentities;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
@@ -57,6 +81,10 @@ export default function TransferAssetPage() {
         </p>
       </div>
 
+      {actionError && (
+        <Card className="mb-4 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
+      )}
+
       <Card className="flex flex-col gap-4">
         <div>
           <label className="mb-1.5 block text-[12px] text-ink-500">Recipient identity</label>
@@ -65,11 +93,11 @@ export default function TransferAssetPage() {
               <SelectValue placeholder="Select a recipient…" />
             </SelectTrigger>
             <SelectContent>
-              {identities
+              {candidateIdentities
                 .filter((i) => i.did !== asset.ownerDid)
                 .map((i) => (
                   <SelectItem key={i.did} value={i.did}>
-                    {i.name} — {i.department}
+                    {i.name || i.did.slice(0, 20) + "…"} {i.department && `— ${i.department}`}
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -84,13 +112,21 @@ export default function TransferAssetPage() {
           >
             {credentialValid ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
             {credentialValid
-              ? `${recipient.name}'s credential is valid — transfer will pass the on-chain gate.`
-              : `${recipient.name}'s credential is revoked or expired — AssetRegistry will revert this transfer.`}
+              ? `${recipient.name || "This recipient"}'s credential is valid — transfer will pass the on-chain gate.`
+              : `${recipient.name || "This recipient"}'s credential is revoked, expired, or missing — AssetRegistry will revert this transfer.`}
           </div>
         )}
 
-        <Button onClick={handleTransfer} disabled={!recipientDid || !credentialValid || submitted}>
-          {submitted ? "Queuing transfer…" : "Queue transfer"} <ArrowRight size={14} />
+        <Button onClick={handleTransfer} disabled={!recipientDid || !credentialValid || assetService.isPending}>
+          {assetService.isPending ? (
+            <>
+              <Loader2 size={14} className="animate-spin" /> Confirming transfer…
+            </>
+          ) : (
+            <>
+              Queue transfer <ArrowRight size={14} />
+            </>
+          )}
         </Button>
       </Card>
     </div>

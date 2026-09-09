@@ -70,12 +70,16 @@ export const GET_ASSETS = gql`
       id
       tokenId
       cid
+      ownerAddress
       owner {
         id
       }
+      vcId
+      legalReference
       mintedAt
       proposedBy
       coSignedBy
+      txHash
     }
   }
 `;

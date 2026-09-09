@@ -81,15 +81,35 @@ the role switcher above.
   credential-status/role-derivation logic). `name`/`department` are `""` for the same reason as T-021 —
   would need N ipfs:// metadata fetches for a list this size, not done this pass.
 
-### `lib/services/assetService.ts`
-- **T-029** `proposeMint` — submits a zero recipient/vcId when either is unresolved. Needs both
-  resolved for real before the transaction is built.
-- **T-030** `transferAsset` — no-op. Needs the real ERC-721 `transferFrom`/`safeTransferFrom` call
-  wired, plus the missing hook in `lib/hooks/useAssetRegistry.ts`.
-- **T-031** `listAssets` / `getAsset` / `getProvenance` — all three return the imported mock fixture
-  array/lookup even in onchain mode. Needs subgraph queries over `Asset` entities, and the indexed
-  `AssetMinted`/`AssetTransferred` stream for provenance (`docs/API_SPEC.md`'s
-  `GET /audit?type=AssetTransferred`).
+### `lib/services/assetService.ts` — B.3, closed 2026-09-09 (T-029/T-030/T-042), partial (T-031), stopgapped (T-043)
+- **T-029** ✅ `proposeMint` — now throws if `vcId`/`recipient` are missing instead of defaulting to
+  a zero placeholder; both reach the real transaction as-provided from the mint page's raw inputs.
+- **T-030** ✅ `transferAsset` — real `transferFrom` via the new `useTransferAsset` hook
+  (`lib/hooks/useAssetRegistry.ts`); resolves the recipient DID to a real address via
+  `resolveControllerAddress` and reads the asset's real current `ownerAddress` (added to the
+  `Asset` type — mock mode leaves it `undefined`) rather than guessing the `from` argument.
+  `app/(app)/assets/[tokenId]/transfer/page.tsx` no longer redirects on click — it waits for
+  `assetService.isTransferConfirmed` (a real `useWaitForTransactionReceipt` result) via `useEffect`.
+- **T-031** 🟡 `listAssets`/`getAsset` ✅ — real `GET_ASSETS` subgraph query, each asset's real
+  IPFS-pinned metadata (`name`/`category`) fetched and merged in (worth the extra round-trip here,
+  unlike didService's name/department, since `Asset.name` is prominently displayed everywhere —
+  a failed fetch shows "(metadata unavailable)", never a blank or fabricated name). `status` is
+  always `"finalized"` for any indexed `Asset` (an entity only exists once `AssetMinted` fired) —
+  `"transferred"`/`"disputed"` aren't derived (would need a provenance lookup per list row just for
+  a list-view status); see T-043. `getProvenance` itself is stopgapped, see below.
+- **T-042** (found during B.3, not in the original catalogue) — **higher severity than a stub**:
+  the old onchain `proposeMint` submitted the real transaction correctly but then **returned a
+  hardcoded fake `Asset` object** (`assetById(0) ?? assets[0]!`) regardless of what was actually
+  proposed, and the mint page's `handleCoSign` synchronously faked `{...asset, status: "finalized"}`
+  on click without waiting for the real co-sign transaction at all. Both fixed: `proposeMint`/
+  `coSignMint` no longer return anything; callers read progress from new reactive fields
+  (`lastRequestId`, `isProposeConfirmed`, `lastMintedTokenId`, `isCoSignConfirmed`) that resolve
+  instantly in mock mode and only once a real transaction confirms onchain.
+- **T-043** `getProvenance` — confirmed zero callers anywhere in the app, same pattern as T-027/
+  dead-code stopgaps. If a caller appears: `AuditEvent` has no `assetId`/`targetId` field to filter
+  by (checked against `schema.graphql`) — a real implementation means fetching the event stream and
+  regex-matching `"#<tokenId>"` against the free-text `summary` field, honest but fragile enough
+  that it's worth building deliberately rather than guessing at a call site that doesn't exist yet.
 
 ### `lib/services/governanceService.ts`
 - **T-032** `getProposals` / `getDisputes` — both return mock fixture arrays. Needs subgraph queries

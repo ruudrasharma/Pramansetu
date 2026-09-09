@@ -125,14 +125,51 @@ export function useProposeMint() {
  */
 export function useCoSignMint() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   function coSignMint(requestId: bigint) {
     if (!address) throw new Error("AssetRegistry address not configured");
     writeContract({ address, abi: AssetRegistryAbi, functionName: "coSignMint", args: [requestId] });
   }
 
-  return { coSignMint, hash, isPending: isPending || isConfirming, isSuccess, error };
+  // Decode the real tokenId from the mined transaction's AssetMinted log — same pattern as
+  // useProposeMint's requestId decoding, and for the same reason: never guessed/inferred.
+  const tokenId = useMemo(() => {
+    if (!receipt || !address) return undefined;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== address.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({ abi: AssetRegistryAbi, data: log.data, topics: log.topics });
+        if (decoded.eventName === "AssetMinted") {
+          return (decoded.args as { tokenId: bigint }).tokenId;
+        }
+      } catch {
+        // not an AssetMinted log — skip
+      }
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `address` is the module-level
+    // contract address constant, not a React value; only `receipt` should retrigger this.
+  }, [receipt]);
+
+  return { coSignMint, hash, tokenId, isPending: isPending || isConfirming, isSuccess, error };
+}
+
+/**
+ * transferAsset — the inherited ERC-721 transferFrom, credential-gated via AssetRegistry's
+ * overridden _update hook (reverts with RecipientCredentialInvalid if the recipient's
+ * credential is invalid/revoked — see docs/API_SPEC.md AssetRegistry.transferFrom).
+ */
+export function useTransferAsset() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function transferAsset({ from, to, tokenId }: { from: `0x${string}`; to: `0x${string}`; tokenId: bigint }) {
+    if (!address) throw new Error("AssetRegistry address not configured");
+    writeContract({ address, abi: AssetRegistryAbi, functionName: "transferFrom", args: [from, to, tokenId] });
+  }
+
+  return { transferAsset, hash, isPending: isPending || isConfirming, isSuccess, error };
 }
 
 /**

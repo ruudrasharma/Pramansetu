@@ -5,62 +5,180 @@
  * minting, credential-gated transfers, content-addressed metadata.
  */
 
+import { useState } from "react";
 import { dataMode } from "./dataMode";
 import { useMockDataStore } from "@/lib/store/mockDataStore";
-import { assets, assetById, type Asset } from "@/lib/mock/fixtures";
-import { useProposeMint as useProposeMintOnchain, useCoSignMint as useCoSignMintOnchain } from "@/lib/hooks/useAssetRegistry";
+import { type Asset } from "@/lib/mock/fixtures";
+import {
+  useProposeMint as useProposeMintOnchain,
+  useCoSignMint as useCoSignMintOnchain,
+  useTransferAsset as useTransferAssetOnchain,
+} from "@/lib/hooks/useAssetRegistry";
+import { resolveControllerAddress } from "@/lib/hooks/useDIDRegistry";
+import { useQuery } from "@tanstack/react-query";
+import { getGraphQLClient } from "@/lib/graphql";
+import { GET_ASSETS } from "@/lib/queries";
 
 export interface AssetService {
   listAssets: () => Asset[];
   getAsset: (tokenId: number) => Asset | undefined;
   getProvenance: (tokenId: number) => Asset["provenance"];
-  proposeMint: (input: { name: string; category: string; ownerDid: string; cid: string; proposer: string }) => Asset;
-  coSignMint: (tokenId: number, coSigner: string) => void;
+  proposeMint: (input: { name: string; category: string; ownerDid: string; cid: string; proposer: string; vcId?: string; recipient?: string }) => void;
+  coSignMint: (requestId: number, coSigner: string) => void;
   transferAsset: (tokenId: number, newOwnerDid: string, actorDid: string) => void;
   isPending: boolean;
+  isLoadingAssets: boolean;
+  /** Real, reactive mint-flow status. proposeMint/coSignMint above no longer return a value
+   * (the old onchain stub returned a hardcoded fake Asset regardless of what was actually
+   * proposed — see TODO.md T-042) — callers read progress from these fields instead, which
+   * resolve instantly in mock mode and only once a real transaction confirms in onchain mode. */
+  lastRequestId: number | undefined;
+  isProposeConfirmed: boolean;
+  lastMintedTokenId: number | undefined;
+  isCoSignConfirmed: boolean;
+  isTransferConfirmed: boolean;
 }
 
 function useMockAssetService(): AssetService {
   const store = useMockDataStore();
+  const [lastRequestId, setLastRequestId] = useState<number>();
+  const [lastMintedTokenId, setLastMintedTokenId] = useState<number>();
+  const [isTransferConfirmed, setIsTransferConfirmed] = useState(false);
 
   return {
     listAssets: () => store.assets,
     getAsset: (tokenId) => store.assets.find((a) => a.tokenId === tokenId),
     getProvenance: (tokenId) => store.assets.find((a) => a.tokenId === tokenId)?.provenance ?? [],
-    proposeMint: store.proposeMint,
-    coSignMint: store.coSignMint,
-    transferAsset: store.transferAsset,
+    proposeMint: (input) => {
+      const created = store.proposeMint(input);
+      setLastRequestId(created.tokenId);
+      setLastMintedTokenId(undefined);
+    },
+    coSignMint: (requestId, coSigner) => {
+      store.coSignMint(requestId, coSigner);
+      setLastMintedTokenId(requestId);
+    },
+    transferAsset: (tokenId, newOwnerDid, actorDid) => {
+      store.transferAsset(tokenId, newOwnerDid, actorDid);
+      setIsTransferConfirmed(true);
+    },
     isPending: false,
+    isLoadingAssets: false,
+    lastRequestId,
+    isProposeConfirmed: lastRequestId !== undefined,
+    lastMintedTokenId,
+    isCoSignConfirmed: lastMintedTokenId !== undefined,
+    isTransferConfirmed,
+  };
+}
+
+const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+
+async function fetchAssetMetadata(cid: string): Promise<{ name: string; category: string }> {
+  const hash = cid.replace(/^ipfs:\/\//, "");
+  const res = await fetch(`${IPFS_GATEWAY}${hash}`);
+  if (!res.ok) throw new Error(`IPFS gateway returned ${res.status}`);
+  const json = await res.json();
+  return { name: json.name ?? "", category: json.category ?? json.description ?? "" };
+}
+
+interface RawAsset {
+  id: string;
+  tokenId: string;
+  cid: string;
+  ownerAddress: string;
+  owner: { id: string } | null;
+  vcId: string;
+  legalReference: string | null;
+  mintedAt: string;
+  proposedBy: string;
+  coSignedBy: string;
+  txHash: string;
+}
+
+async function adaptAsset(raw: RawAsset): Promise<Asset> {
+  // Real IPFS fetch, honestly labeled if it fails — never a blank/fabricated name. Worth the
+  // extra round-trip here (unlike didService's name/department, left unpopulated) because
+  // Asset.name is prominently displayed everywhere assets appear, not a rarely-read field.
+  let name = "";
+  let category = "";
+  try {
+    const meta = await fetchAssetMetadata(raw.cid);
+    name = meta.name;
+    category = meta.category;
+  } catch {
+    name = "(metadata unavailable)";
+  }
+
+  return {
+    tokenId: Number(raw.tokenId),
+    cid: raw.cid,
+    name,
+    category,
+    ownerDid: raw.owner?.id ?? "",
+    ownerAddress: raw.ownerAddress,
+    // vcIdOf really stores a DID hash, not a VC id, on the currently deployed contract — see
+    // TODO.md T-019 (contract-level, not fixed without sign-off). Passed through as-is.
+    vcId: raw.vcId,
+    legalReference: raw.legalReference,
+    mintedAt: Number(raw.mintedAt) * 1000,
+    proposer: raw.proposedBy,
+    coSigner: raw.coSignedBy,
+    // An indexed Asset entity only exists once AssetMinted has fired — pending proposals live
+    // in the separate MintRequest entity instead. "transferred"/"disputed" aren't derived here
+    // (would need a provenance lookup per asset just to compute a list-view status) — see
+    // TODO.md T-042.
+    status: "finalized",
+    provenance: [],
   };
 }
 
 function useOnchainAssetService(): AssetService {
-  const { proposeMint, isPending: isProposing } = useProposeMintOnchain();
-  const { coSignMint, isPending: isCoSigning } = useCoSignMintOnchain();
+  const { proposeMint, requestId, isPending: isProposing, isSuccess: isProposeSuccess } = useProposeMintOnchain();
+  const { coSignMint, tokenId: mintedTokenId, isPending: isCoSigning, isSuccess: isCoSignSuccess } = useCoSignMintOnchain();
+  const { transferAsset: transferAssetOnchain, isPending: isTransferring, isSuccess: isTransferSuccess } = useTransferAssetOnchain();
+
+  const assetsQuery = useQuery({
+    queryKey: ["assets"],
+    queryFn: async () => {
+      const data = await getGraphQLClient().request<{ assets: RawAsset[] }>(GET_ASSETS);
+      return Promise.all(data.assets.map(adaptAsset));
+    },
+  });
 
   return {
-    // TODO(onchain): no "list all tokens" view — AssetRegistry only exposes per-tokenId
-    // reads (tokenURI/vcIdOf/ownerOf). Needs a subgraph query over Asset entities
-    // (docs/DATABASE_SCHEMA.md) or an ERC-721 Enumerable extension.
-    listAssets: () => assets,
-    getAsset: (tokenId) => assetById(tokenId),
-    // TODO(onchain): provenance/transfer history isn't stored on AssetRegistry itself —
-    // it's reconstructed from the indexed AssetMinted/AssetTransferred event stream
-    // (docs/API_SPEC.md GET /audit?type=AssetTransferred&...).
-    getProvenance: (tokenId) => assetById(tokenId)?.provenance ?? [],
-    proposeMint: ({ cid, ownerDid }) => {
-      // TODO(onchain): `ownerDid` here is a human-readable DID string; AssetRegistry.
-      // proposeMint expects (cid, vcId, recipient address) — resolve the recipient's vcId
-      // and controller address first (contracts/AssetRegistry.sol:118-120 convention).
-      proposeMint({ cid, vcId: "0x0000000000000000000000000000000000000000000000000000000000000000", recipient: "0x0000000000000000000000000000000000000000" });
-      return assetById(0) ?? assets[0]!;
+    listAssets: () => assetsQuery.data ?? [],
+    getAsset: (tokenId) => assetsQuery.data?.find((a) => a.tokenId === tokenId),
+    getProvenance: () => {
+      // Confirmed zero callers anywhere in the app (2026-09-09), same as rbacService's
+      // getRoleExpiry (T-027) — stopgapped rather than building unverifiable machinery for a
+      // dead code path. If a caller does appear: AuditEvent has no assetId/targetId field to
+      // filter by (checked against schema.graphql directly), only a free-text `summary` — a
+      // real implementation means fetching the event stream and regex-matching "#<tokenId>"
+      // against summary text, honest but fragile, and worth doing properly rather than
+      // guessing at call-site shape for a function nothing currently uses. See TODO.md T-043.
+      throw new Error("getProvenance is not implemented in onchain mode yet — see TODO.md T-043.");
     },
-    coSignMint: (tokenId) => coSignMint(BigInt(tokenId)),
-    // TODO(onchain): transfers are the inherited ERC-721 transferFrom/safeTransferFrom,
-    // credential-gated via the overridden _update hook — no dedicated hook exists yet in
-    // lib/hooks/useAssetRegistry.ts.
-    transferAsset: () => {},
-    isPending: isProposing || isCoSigning,
+    proposeMint: async ({ cid, vcId, recipient }) => {
+      if (!vcId || !recipient) {
+        throw new Error("A recipient address and vcId/recipientDid are required — none reaches a real transaction as a zero placeholder (see TODO.md T-029).");
+      }
+      proposeMint({ cid, vcId: vcId as `0x${string}`, recipient: recipient as `0x${string}` });
+    },
+    coSignMint: (requestId) => coSignMint(BigInt(requestId)),
+    transferAsset: async (tokenId, newOwnerDid, _actorDid) => {
+      const asset = assetsQuery.data?.find((a) => a.tokenId === tokenId);
+      if (!asset?.ownerAddress) throw new Error(`Asset #${tokenId} not found or has no known owner address.`);
+      const to = await resolveControllerAddress(newOwnerDid as `0x${string}`);
+      transferAssetOnchain({ from: asset.ownerAddress as `0x${string}`, to, tokenId: BigInt(tokenId) });
+    },
+    isPending: isProposing || isCoSigning || isTransferring,
+    isLoadingAssets: assetsQuery.isLoading,
+    lastRequestId: requestId !== undefined ? Number(requestId) : undefined,
+    isProposeConfirmed: isProposeSuccess,
+    lastMintedTokenId: mintedTokenId !== undefined ? Number(mintedTokenId) : undefined,
+    isCoSignConfirmed: isCoSignSuccess,
+    isTransferConfirmed: isTransferSuccess,
   };
 }
 

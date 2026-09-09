@@ -24,6 +24,10 @@ export interface Asset {
   name: string;
   category: string;
   ownerDid: string;
+  /** Real owner wallet address — only ever set by assetService's onchain branch (the owner's
+   * DID may not exist, so this is the reliable way to resolve a real transferFrom `from`
+   * argument without indirecting through ownerDid). Undefined in mock mode. */
+  ownerAddress?: string;
   vcId: string;
   legalReference: string | null;
   mintedAt: number | null;

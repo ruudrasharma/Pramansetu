@@ -6,6 +6,39 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.3] — 2026-09-09 — Phase B.3: assetService wired to real onchain data
+
+Closes T-029/T-030, plus T-042 (found this pass, higher severity than a stub), per Rule Zero.
+Partially closes T-031; T-043 stopgapped (zero real callers, same as T-027).
+
+### Added
+- `lib/hooks/useAssetRegistry.ts`: `useTransferAsset()` — real `transferFrom` write. `useCoSignMint()`
+  now decodes the real minted `tokenId` from the `AssetMinted` event log, same pattern as
+  `useProposeMint`'s existing `requestId` decoding.
+- `lib/mock/fixtures/assets.ts`: `Asset.ownerAddress?` — the real owner wallet address, needed so
+  `transferAsset` can resolve a real `from` argument without indirecting through a DID that might
+  not exist. Undefined in mock mode.
+
+### Changed
+- `lib/services/assetService.ts` (onchain branch): `listAssets`/`getAsset` now query real `Asset`
+  subgraph entities, each merged with its real IPFS-pinned metadata (name/category) rather than the
+  mock fixture array. `proposeMint` throws if `vcId`/`recipient` are missing instead of defaulting
+  to a zero placeholder. `transferAsset` performs the real credential-gated ERC-721 transfer.
+- **Found and fixed, not in the original catalogue (T-042)**: the old `proposeMint` submitted a
+  real transaction but returned a hardcoded fake `Asset` regardless of what was actually proposed;
+  `coSignMint`'s caller separately faked `status: "finalized"` on click without waiting for the
+  real co-sign transaction. `proposeMint`/`coSignMint` no longer return anything — callers read
+  real, reactive progress (`lastRequestId`, `isProposeConfirmed`, `lastMintedTokenId`,
+  `isCoSignConfirmed`) instead.
+- `app/(app)/assets/mint/page.tsx`: mint flow now reflects real transaction state at every step;
+  onchain mode's recipient-DID-hash field is relabeled to flag T-019 (it's really a DID, not a VC
+  id, on the currently deployed contract).
+- `app/(app)/assets/[tokenId]/transfer/page.tsx`: no longer redirects until the real transfer
+  transaction confirms; recipient picker and credential check use real `rbacService`/`didService`
+  data in onchain mode instead of mock fixtures.
+
+---
+
 ## [0.10.2] — 2026-09-09 — Phase B.2: rbacService wired to real onchain data
 
 Closes T-026/T-028, plus T-041 (found this pass, not in the original catalogue), per Rule Zero.
