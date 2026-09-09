@@ -1,4 +1,4 @@
-# Deployment — Cipherloom
+# Deployment — Praman Setu
 
 ## 1. Branching Model
 
@@ -70,9 +70,9 @@ This is the exact runbook actually followed for the live deployment currently in
    npm run codegen
    npm run build
    npx graph auth --studio <GRAPH_DEPLOY_KEY>
-   npx graph deploy cipherloom subgraph.yaml --version-label v<N>
+   npx graph deploy praman-setu subgraph.yaml --version-label v<N>
    ```
-   Bump `<N>` on every redeploy — Graph Studio's query URL includes the version label (`.../cipherloom/v3`, currently), so `NEXT_PUBLIC_SUBGRAPH_URL` in `.env.local` needs updating to match after each deploy.
+   Bump `<N>` on every redeploy — Graph Studio's query URL includes the version label (`.../praman-setu/v3`, currently), so `NEXT_PUBLIC_SUBGRAPH_URL` in `.env.local` needs updating to match after each deploy.
 4. **Confirm it's actually indexing** before moving on:
    ```bash
    curl -s -X POST "$NEXT_PUBLIC_SUBGRAPH_URL" -H "Content-Type: application/json" -d '{"query":"{ _meta { block { number } hasIndexingErrors } }"}'
@@ -110,8 +110,8 @@ CMD ["npm", "run", "start"]
 ```
 
 ```bash
-docker build -t bel-chain-frontend .
-docker run -p 3000:3000 --env-file .env.production bel-chain-frontend
+docker build -t praman-setu-frontend .
+docker run -p 3000:3000 --env-file .env.production praman-setu-frontend
 ```
 
 ## 7. CI/CD Pipeline (GitHub Actions)

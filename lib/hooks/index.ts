@@ -1,5 +1,5 @@
 /**
- * lib/hooks/index.ts — single import point for all Cipherloom wagmi hooks.
+ * lib/hooks/index.ts — single import point for all Praman Setu wagmi hooks.
  *
  * Usage:
  *   import { useResolveDID, useProposeMint, useHasRole } from "@/lib/hooks";

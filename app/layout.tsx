@@ -23,7 +23,7 @@ const geistMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cipherloom — Identity, Access & Asset Platform",
+  title: "Praman Setu — Identity, Access & Asset Platform",
   description:
     "Blockchain-based secure platform for identity, access control, and digital asset management — PS 26125.",
 };

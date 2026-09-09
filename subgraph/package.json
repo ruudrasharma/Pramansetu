@@ -1,12 +1,12 @@
 {
-  "name": "bel-chain-subgraph",
+  "name": "praman-setu-subgraph",
   "version": "1.0.0",
-  "description": "BEL Chain IDAM indexer — identity, access, and digital asset events (PS 26125)",
+  "description": "Praman Setu IDAM indexer — identity, access, and digital asset events (PS 26125)",
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy:sepolia": "graph deploy --product hosted-service bel-chain/idam subgraph.yaml",
-    "deploy:studio": "graph deploy bel-chain subgraph.yaml --version-label v1"
+    "deploy:sepolia": "graph deploy --product hosted-service praman-setu/idam subgraph.yaml",
+    "deploy:studio": "graph deploy praman-setu subgraph.yaml --version-label v1"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "^0.81.0",

@@ -1,4 +1,4 @@
-# Security — Cipherloom
+# Security — Praman Setu
 
 This document is the security section of the submission: authentication, authorization, encryption,
 input validation, and the full threat model — stated, unstated, and future-facing (quantum). Source

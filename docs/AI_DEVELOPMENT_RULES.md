@@ -1,6 +1,6 @@
 # AI_DEVELOPMENT_RULES.md
 
-**Project:** Cipherloom — SIH 2026, Problem Statement 26125
+**Project:** Praman Setu — SIH 2026, Problem Statement 26125
 **Scope:** Governs any AI coding agent (Antigravity, Claude Code, Copilot, Cursor, etc.) operating on this repository.
 **Status:** Mandatory. Do not bypass, shorten, or reinterpret these rules to save time.
 
@@ -105,7 +105,7 @@ These come directly from `docs/SECURITY.md` and the Gap Analysis. An agent must 
 ## 8. Repository & Environment Context
 
 - Local working copy: `/Users/rudra/Development/SIH2026_Build`
-- Canonical remote: `https://github.com/ruudrasharma/Cipherloom`
+- Canonical remote: `https://github.com/ruudrasharma/Pramansetu`
 - Reference-only source material (not part of the build, do not commit): `original-docs/Problem_Gap_Analysis.pdf`, `original-docs/Complete_Solution_Document.pdf`, kept inside the repo per `original-docs/NOTE.md`.
 
 ---

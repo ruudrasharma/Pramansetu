@@ -1,7 +1,7 @@
-# BEL-Chain Task Tracker
+# Praman Setu Task Tracker
 
 ## Phase 0 — Repo Hygiene & Infrastructure
-- [x] 0.1 — git init at bel-chain/, .gitignore, initial commit
+- [x] 0.1 — git init at praman-setu/, .gitignore, initial commit
 - [x] 0.2 — Copy AI_DEVELOPMENT_RULES.md to repo root
 - [x] 0.3 — Remove spurious bracket directories
 - [x] 0.4 — npm install + add @openzeppelin/hardhat-upgrades@3.9.1 + dotenv

@@ -28,6 +28,6 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
     }),
-    { name: "bel-chain-app-store" }
+    { name: "praman-setu-app-store" }
   )
 );

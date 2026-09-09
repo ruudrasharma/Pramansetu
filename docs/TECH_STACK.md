@@ -1,4 +1,4 @@
-# Tech Stack — Cipherloom
+# Tech Stack — Praman Setu
 
 ## Contracts
 | Item | Choice | Version |

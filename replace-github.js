@@ -23,7 +23,7 @@ let replacedFiles = 0;
 for (const file of files) {
   try {
     let content = fs.readFileSync(file, 'utf8');
-    let newContent = content.replace(/github.com\/ruudrasharma\/SIH2026/g, 'github.com/ruudrasharma/Cipherloom');
+    let newContent = content.replace(/github.com\/ruudrasharma\/SIH2026/g, 'github.com/ruudrasharma/Pramansetu');
     if (content !== newContent) {
       fs.writeFileSync(file, newContent, 'utf8');
       console.log(`Updated ${file}`);

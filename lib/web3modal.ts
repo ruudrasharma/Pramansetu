@@ -22,7 +22,7 @@ if (!projectId) {
     enableOnramp: false,
     themeMode: "dark",
     themeVariables: {
-      "--w3m-accent": "var(--brand-bel)", // use the brand color defined in our CSS
+      "--w3m-accent": "var(--brand-praman-setu)", // use the brand color defined in our CSS
       "--w3m-border-radius-master": "1px",
       "--w3m-font-family": "var(--font-inter)",
     },

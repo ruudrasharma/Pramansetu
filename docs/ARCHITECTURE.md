@@ -1,4 +1,4 @@
-# Architecture — Cipherloom
+# Architecture — Praman Setu
 
 ## 1. Layered System
 

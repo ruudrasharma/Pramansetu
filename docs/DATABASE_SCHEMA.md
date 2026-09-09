@@ -1,4 +1,4 @@
-# Database / State Schema — Cipherloom
+# Database / State Schema — Praman Setu
 
 This system has **no central relational database of record** — the blockchain itself is the source of
 truth (this is the entire point of PS 26125). Two schema layers exist: (1) on-chain contract storage, and

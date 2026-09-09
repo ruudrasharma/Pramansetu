@@ -10,6 +10,9 @@
 import { dataMode } from "./dataMode";
 import { useMockDataStore } from "@/lib/store/mockDataStore";
 import { auditEvents, anomalyAlerts, type AuditEvent, type AnomalyAlert } from "@/lib/mock/fixtures";
+import { useQuery } from "@tanstack/react-query";
+import { getGraphQLClient } from "@/lib/graphql";
+import { GET_AUDIT_EVENTS } from "@/lib/queries";
 
 export interface AuditService {
   getEvents: () => AuditEvent[];
@@ -30,19 +33,32 @@ function useMockAuditService(): AuditService {
 }
 
 function useOnchainAuditService(): AuditService {
+  const eventsQuery = useQuery({
+    queryKey: ["auditEvents"],
+    queryFn: async () => getGraphQLClient().request<any>(GET_AUDIT_EVENTS, { first: 100, skip: 0 }),
+    refetchInterval: 5000,
+  });
+
+  const anomaliesQuery = useQuery({
+    queryKey: ["anomalyAlerts"],
+    queryFn: async () => {
+      const res = await fetch("/api/audit/anomalies");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load anomalies");
+      return json;
+    },
+    refetchInterval: 10000,
+  });
+
+  const events = eventsQuery.data?.auditEvents?.map((e: any) => ({
+    ...e,
+    timestamp: Number(e.timestamp) * 1000,
+  })) || [];
+
   return {
-    // TODO(onchain): no on-chain "list events" call exists by design (contracts only
-    // emit); the real source is the subgraph's AuditEvent entity (docs/API_SPEC.md
-    // GET /audit?actor=&type=&from=&to=).
-    getEvents: () => auditEvents,
-    // TODO(onchain): anomaly scores are explicitly a computed off-chain layer, never
-    // on-chain (docs/DATABASE_SCHEMA.md — AuditEvent.riskScore "populated by the
-    // anomaly-detection service, not the chain"). Call ANOMALY_SERVICE_URL's
-    // GET /audit/anomalies once that service exists.
-    getAnomalies: () => anomalyAlerts,
+    getEvents: () => events,
+    getAnomalies: () => anomaliesQuery.data || [],
     dismissAlert: () => {},
-    // TODO(onchain): wrap wagmi's useWatchContractEvent per contract (none of
-    // lib/hooks/* currently use it) or subscribe to the subgraph over WebSocket.
     subscribeToEvents: () => () => {},
   };
 }

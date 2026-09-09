@@ -1,4 +1,4 @@
-# User Flows — Cipherloom
+# User Flows — Praman Setu
 
 ## 1. New Employee Onboarding (Identity Creation)
 1. HR verifies the employee's real-world identity through BEL's existing internal process.

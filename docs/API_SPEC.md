@@ -1,4 +1,4 @@
-# API Specification — Cipherloom
+# API Specification — Praman Setu
 
 There are two API surfaces: (1) **on-chain write/read calls** made directly against deployed contracts via
 a wallet (this is the actual source of truth and the only place state changes), and (2) an **off-chain
@@ -65,7 +65,7 @@ token. Every function below reverts if the caller's DID does not hold the requir
 
 ## 2. Off-Chain Read API (Indexer)
 
-Base URL (prototype): `https://api.thegraph.com/subgraphs/name/bel-chain/idam`
+Base URL (prototype): `https://api.thegraph.com/subgraphs/name/praman-setu/idam`
 Base URL (production): self-hosted, e.g. `https://indexer.internal.bel.gov.in/graphql`
 
 All endpoints are **read-only, unauthenticated** (data is already public on-chain; the API just makes it

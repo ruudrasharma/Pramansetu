@@ -11,7 +11,7 @@ import { truncateMiddle } from "@/lib/utils";
 
 type Step = "connect" | "sign" | "resolving" | "done";
 
-const CHALLENGE = `BEL SecureChain — sign to authenticate.\nNonce: ${Date.now().toString(36)}\nNo password was ever created for this account.`;
+const CHALLENGE = `Praman Setu — sign to authenticate.\nNonce: ${Date.now().toString(36)}\nNo password was ever created for this account.`;
 
 const steps: { key: Step; label: string; icon: typeof Wallet }[] = [
   { key: "connect", label: "Connect wallet", icon: Wallet },

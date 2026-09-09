@@ -1,5 +1,5 @@
 """
-Cipherloom IDAM subgraph schema (PS 26125).
+Praman Setu IDAM subgraph schema (PS 26125).
 
 This schema mirrors docs/DATABASE_SCHEMA.md §2 (indexer layer).
 All entities are re-derivable from raw on-chain events — the indexer

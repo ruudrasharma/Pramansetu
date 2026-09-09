@@ -1,4 +1,4 @@
-# Testing Strategy — Cipherloom
+# Testing Strategy — Praman Setu
 
 ## 1. Smart Contract Tests (Hardhat + Chai)
 

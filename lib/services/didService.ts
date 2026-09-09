@@ -167,7 +167,7 @@ function useOnchainDidService(did: string | undefined): DidService {
       // the connected wallet's own key and cannot be recovered if this fails or the browser
       // storage is cleared. Production custody is out of scope for this pass.
       try {
-        localStorage.setItem(`cipherloom:did-key:${account.address}`, privateKey);
+        localStorage.setItem(`praman-setu:did-key:${account.address}`, privateKey);
       } catch {
         throw new Error("Could not save the new DID's private key locally (storage unavailable) — aborting before submitting the transaction.");
       }

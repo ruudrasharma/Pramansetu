@@ -24,9 +24,9 @@ let replacedFiles = 0;
 for (const file of files) {
   try {
     let content = fs.readFileSync(file, 'utf8');
-    let newContent = content.replace(/Cipherloom/g, 'Cipherloom')
-                            .replace(/Cipherloom/g, 'Cipherloom')
-                            .replace(/"name": "cipherloom"/g, '"name": "cipherloom"');
+    let newContent = content.replace(/Praman Setu/g, 'Praman Setu')
+                            .replace(/Praman Setu/g, 'Praman Setu')
+                            .replace(/"name": "praman-setu"/g, '"name": "praman-setu"');
     if (content !== newContent) {
       fs.writeFileSync(file, newContent, 'utf8');
       console.log(`Updated ${file}`);

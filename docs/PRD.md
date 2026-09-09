@@ -1,4 +1,4 @@
-# Product Requirements Document — Cipherloom (PS 26125)
+# Product Requirements Document — Praman Setu (PS 26125)
 
 ## 1. Problem Statement
 

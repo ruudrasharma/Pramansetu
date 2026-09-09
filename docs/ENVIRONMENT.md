@@ -1,4 +1,4 @@
-# Environment Configuration — Cipherloom
+# Environment Configuration — Praman Setu
 
 ## .env.example
 

@@ -13,7 +13,7 @@ describe("ECDSASignatureVerifier", function () {
     const wallet = ethers.Wallet.createRandom();
     
     // The message we want to sign
-    const message = "Hello Cipherloom";
+    const message = "Hello Praman Setu";
     const messageHash = ethers.keccak256(ethers.toUtf8Bytes(message));
     
     // signMessage automatically prefixes with "\x19Ethereum Signed Message:\n" + length

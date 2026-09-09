@@ -1,4 +1,4 @@
-# UI/UX Specification — Cipherloom
+# UI/UX Specification — Praman Setu
 
 ## 0. Design Concept
 

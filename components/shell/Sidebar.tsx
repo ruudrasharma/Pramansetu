@@ -82,7 +82,7 @@ export function Sidebar() {
         <div className="mono-value flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-signal-500/15 text-[11px] font-semibold text-signal-400">
           BC
         </div>
-        {!collapsed && <span className="truncate text-[13px] font-medium text-ink-50">BEL SecureChain</span>}
+        {!collapsed && <span className="truncate text-[13px] font-medium text-ink-50">Praman Setu</span>}
       </div>
 
       <nav className="flex flex-1 flex-col gap-1">

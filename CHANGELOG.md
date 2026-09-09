@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Cipherloom (SIH 2026, PS 26125) are documented here.
+All notable changes to Praman Setu (SIH 2026, PS 26125) are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
@@ -226,7 +226,7 @@ another one. See `TODO.md`'s "Resolved — T-017/T-018" entry for the full incid
   deploy block (`11665400`) on all 5 data sources instead of `0` — the previous `startBlock: 0`
   made the indexer attempt a full scan from Sepolia genesis, which is why the first deploy attempt
   never finished syncing in a reasonable time.
-- Subgraph redeployed to Graph Studio as `cipherloom/v3` (`.env.local`'s `NEXT_PUBLIC_SUBGRAPH_URL`
+- Subgraph redeployed to Graph Studio as `praman-setu/v3` (`.env.local`'s `NEXT_PUBLIC_SUBGRAPH_URL`
   updated to match), confirmed live and indexing with zero errors, and confirmed to correctly show
   the deployer's role revocation as `"RoleRevoked"` (not `"EmergencyPaused"`) — validating the
   Phase 8 subgraph mapping fix against real fresh data.
@@ -255,7 +255,7 @@ another one. See `TODO.md`'s "Resolved — T-017/T-018" entry for the full incid
 ## [0.6.0] — 2026-09-08 — Phase 6: Live Data Wiring & Testing Polish
 
 ### Added
-- Subgraph indexer deployed to Graph Studio (`cipherloom` schema) with fully implemented mapping logic
+- Subgraph indexer deployed to Graph Studio (`praman-setu` schema) with fully implemented mapping logic
 - Wired `lib/hooks/` reads into live UI pages, replacing static mock data entirely
 - Implemented cursor-based pagination on Audit stream UI (GraphQL query logic + UI load more button)
 - Implemented role-based gating to `app/assets/page.tsx` using `useHasRole`
@@ -340,12 +340,12 @@ another one. See `TODO.md`'s "Resolved — T-017/T-018" entry for the full incid
 
 ### Fixed
 ## [0.2.0] - 2026-09-08
-- Rebranded platform name from "BEL-Chain" to "Cipherloom".
+- Rebranded platform name from "Praman Setu" to "Praman Setu".
 
 ## [0.1.0] - 2026-09-05 - Phase 1: Contract Environment
 
 ### Added
-- Monorepo root at `bel-chain/` (Next.js 14 App Router + Hardhat in same directory)
+- Monorepo root at `praman-setu/` (Next.js 14 App Router + Hardhat in same directory)
 - Contract scaffold: DIDRegistry, CredentialRegistry, TimeBoundAccessControl (UUPS), AssetRegistry (UUPS), GuardianRecovery, GovernanceTimelock
 - Hardhat toolbox + OpenZeppelin Contracts Upgradeable v5
 - Test suite: 86 tests covering all contracts

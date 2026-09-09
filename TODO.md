@@ -1,4 +1,4 @@
-# TODO — Cipherloom (SIH 2026, PS 26125)
+# TODO — Praman Setu (SIH 2026, PS 26125)
 
 This file tracks outstanding work ordered by priority.
 Completed items are moved to CHANGELOG.md.
@@ -152,7 +152,7 @@ the role switcher above.
 **T-017** (untracked address holding `SUPER_ADMIN_ROLE`) and **T-018** (deployer retaining
 `DEFAULT_ADMIN_ROLE`) were both closed, but not by patching the old deployment — see the incident
 note below for why. The platform is now on a **fresh deployment** (new addresses in
-`deployments/sepolia.json` / `.env.local`, new subgraph at `.../cipherloom/v3`) produced by a
+`deployments/sepolia.json` / `.env.local`, new subgraph at `.../praman-setu/v3`) produced by a
 clean, unmodified `deploy.ts` + `postDeploySetup.ts` run with no manual grants in between. On this
 deployment: exactly one tracked address holds `SUPER_ADMIN_ROLE` (`deployments/sepolia.json`'s
 `mockWallets.secondSuperAdmin`), and the deployer **still holds `DEFAULT_ADMIN_ROLE`** —

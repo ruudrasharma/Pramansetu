@@ -1,4 +1,4 @@
-# Cipherloom — Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management
+# Praman Setu — Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management
 
 **SIH 2026 · Problem Statement 26125 · Bharat Electronics Limited (BEL) · Theme: Blockchain & Cybersecurity**
 
@@ -47,7 +47,7 @@ Deep detail on each module lives in [`FEATURES.md`](./FEATURES.md) and [`ARCHITE
 ## Repository Structure
 
 ```
-Cipherloom/
+Praman Setu/
 ├── docs/                     # this documentation set
 ├── contracts/                # Solidity source (DID, RBAC, NFT, Governance, Recovery)
 │   ├── DIDRegistry.sol

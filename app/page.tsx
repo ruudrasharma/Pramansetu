@@ -45,7 +45,7 @@ export default function LandingPage() {
           <div className="mono-value flex h-8 w-8 items-center justify-center rounded-lg bg-signal-500/15 text-[12px] font-semibold text-signal-400">
             BC
           </div>
-          <span className="text-[14px] font-medium text-ink-50">BEL SecureChain</span>
+          <span className="text-[14px] font-medium text-ink-50">Praman Setu</span>
         </div>
         <Link href="/auth">
           <Button variant="secondary">Connect Wallet</Button>
@@ -103,7 +103,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t border-graphite-800 py-6 text-center text-[12px] text-ink-600">
-        BEL SecureChain — Blockchain & Cybersecurity · SIH 2026 PS 26125
+        Praman Setu — Blockchain & Cybersecurity · SIH 2026 PS 26125
       </footer>
     </div>
   );

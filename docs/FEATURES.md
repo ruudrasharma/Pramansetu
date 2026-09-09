@@ -1,4 +1,4 @@
-# Features — Cipherloom
+# Features — Praman Setu
 
 Feature-by-feature behavior spec, organized by module. Each feature lists: what it does, the contract
 call(s) behind it, the UI surface, and the edge cases it must handle.

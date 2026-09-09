@@ -1,8 +1,8 @@
 {
-  "name": "cipherloom",
+  "name": "praman-setu",
   "version": "0.1.0",
   "private": true,
-  "description": "BEL Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management — PS 26125",
+  "description": "Praman Setu Blockchain-Based Secure Platform for Identity, Access Control & Digital Asset Management — PS 26125",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
