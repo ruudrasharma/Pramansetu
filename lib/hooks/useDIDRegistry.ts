@@ -4,11 +4,10 @@
  * React hooks for reading from and writing to the DIDRegistry contract.
  * All reads use wagmi's useReadContract; all writes use useWriteContract.
  *
- * When contract addresses are not yet set in .env.local (pre-deployment),
- * hooks return { data: undefined, isLoading: false } gracefully — the UI
- * falls back to mock-data (lib/mock-data.ts) until addresses are populated.
- *
- * Swap from mock-data → live: set NEXT_PUBLIC_DID_REGISTRY_ADDRESS in .env.local.
+ * If NEXT_PUBLIC_DID_REGISTRY_ADDRESS isn't set, these hooks stay disabled
+ * (`{ data: undefined, isLoading: false }`, via `query.enabled`) rather than
+ * substituting any mock/placeholder value — see deployments/sepolia.json for
+ * the currently deployed address.
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";

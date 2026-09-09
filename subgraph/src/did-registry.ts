@@ -2,6 +2,7 @@ import { BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   DIDCreated as DIDCreatedEvent,
   KeyRotated as KeyRotatedEvent,
+  DIDRegistry,
 } from "../generated/DIDRegistry/DIDRegistry";
 import { Identity, AuditEvent } from "../generated/schema";
 
@@ -9,9 +10,19 @@ export function handleDIDCreated(event: DIDCreatedEvent): void {
   // Create or update the Identity entity keyed by DID hash
   let identity = new Identity(event.params.did.toHexString());
   identity.controller   = event.params.controller;
-  identity.keyType      = "ES256K"; // default; updated on KeyRotated
-  identity.pubKey       = Bytes.empty();
-  identity.metadataURI  = event.params.keyType; // the ABI actually named this string param 'keyType'
+  identity.keyType      = event.params.keyType;
+
+  // DIDCreated only emits (did, controller, keyType, timestamp) — no pubKey/metadataURI. Read the
+  // real values via a bound resolveDID() call instead of reusing an adjacent event param.
+  let didRegistry = DIDRegistry.bind(event.address);
+  let doc = didRegistry.try_resolveDID(event.params.did);
+  if (!doc.reverted) {
+    identity.pubKey      = doc.value.pubKey;
+    identity.metadataURI = doc.value.metadataURI;
+  } else {
+    identity.pubKey      = Bytes.empty();
+    identity.metadataURI = "";
+  }
   identity.createdAt    = event.block.timestamp;
   identity.updatedAt    = event.block.timestamp;
   identity.save();
@@ -34,13 +45,21 @@ export function handleKeyRotated(event: KeyRotatedEvent): void {
   if (identity == null) return; // guard: should always exist
 
   identity.controller = event.params.newController;
-  identity.metadataURI = event.params.keyType; // the ABI actually named this string param 'keyType'
+  identity.keyType = event.params.keyType;
+
+  // Same fix as handleDIDCreated: KeyRotated doesn't emit pubKey/metadataURI either.
+  let didRegistry = DIDRegistry.bind(event.address);
+  let doc = didRegistry.try_resolveDID(event.params.did);
+  if (!doc.reverted) {
+    identity.pubKey = doc.value.pubKey;
+    identity.metadataURI = doc.value.metadataURI;
+  }
   identity.updatedAt = event.block.timestamp;
   identity.save();
 
   let auditId = "DIDRegistry-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
   let audit = new AuditEvent(auditId);
-  audit.type         = "DIDCreated"; // closest existing type; extend EventType for KeyRotated
+  audit.type         = "KeyRotated"; // lib/mock-data.ts's EventType already includes this — no need to reuse DIDCreated
   audit.actorAddress = event.transaction.from;
   audit.actorDid     = event.params.did;
   audit.summary      = "Key rotated for: " + event.params.did.toHexString().slice(0, 14) + "…";

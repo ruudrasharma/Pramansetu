@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { graphQLClient } from "@/lib/graphql";
+import { getGraphQLClient } from "@/lib/graphql";
 import { GET_GOVERNANCE } from "@/lib/queries";
 import { useState } from "react";
 import { useQueuedTx, useNextTxId } from "@/lib/hooks";
@@ -79,9 +79,9 @@ function TimelockLookup() {
 }
 
 export default function GovernancePage() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["governanceData"],
-    queryFn: async () => graphQLClient.request<any>(GET_GOVERNANCE),
+    queryFn: async () => getGraphQLClient().request<any>(GET_GOVERNANCE),
     refetchInterval: 5000,
   });
 
@@ -101,7 +101,11 @@ export default function GovernancePage() {
         <div>
           <h3 className="mb-3 text-[13px] font-medium text-ink-400">Timelock queue</h3>
           <div className="flex flex-col gap-3">
-            {isLoading ? (
+            {error ? (
+              <Card className="flex items-center justify-center py-8 text-center text-[13px] text-danger-400">
+                Subgraph not reachable: {(error as Error).message}
+              </Card>
+            ) : isLoading ? (
               <Card className="flex items-center justify-center py-8 text-[13px] text-ink-500">Loading queue...</Card>
             ) : queueItems.length === 0 ? (
               <Card className="flex items-center justify-center py-8 text-[13px] text-ink-500">No queued transactions.</Card>

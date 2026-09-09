@@ -2,20 +2,120 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { useOwnerOf, useVcIdOf, useTokenURI, useHasRole, ROLE } from "@/lib/hooks";
+import { useOwnerOf, useVcIdOf, useTokenURI, useHasRole, usePendingMint, useCoSignMint, ROLE } from "@/lib/hooks";
 import { useProposeMint } from "@/lib/hooks/useAssetRegistry";
-import { uploadMetadataToIPFS } from "@/lib/ipfs";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { truncateMiddle } from "@/lib/utils";
-import { FileCheck2, Upload, UserCheck, Boxes, Search } from "lucide-react";
+import { FileCheck2, Upload, UserCheck, Boxes, Search, CheckCircle2 } from "lucide-react";
 
-const mintSteps = [
-  { label: "Upload to IPFS", icon: Upload, done: true },
-  { label: "Admin proposes", icon: FileCheck2, done: true },
-  { label: "Manager co-signs", icon: UserCheck, done: false },
-];
+async function uploadMetadataToIPFS(metadata: { name: string; description: string }): Promise<string> {
+  const res = await fetch("/api/ipfs/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(metadata),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to upload metadata to IPFS");
+  return data.cid as string;
+}
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+/** Real mint-flow stepper — every "done" state is read live from AssetRegistry.pendingMints,
+ *  never assumed. Looks up either the request just proposed in this session or one entered
+ *  manually below. */
+function MintFlowStatus({ requestId }: { requestId: bigint | undefined }) {
+  const { address } = useAccount();
+  const { data: isManager } = useHasRole(ROLE.MANAGER_ROLE, address);
+  const { data: isAdmin } = useHasRole(ROLE.ADMIN_ROLE, address);
+  const { data: pm, isLoading, refetch } = usePendingMint(requestId);
+  const { coSignMint, isPending: isCoSigning, isSuccess: coSignSuccess } = useCoSignMint();
+
+  if (requestId === undefined) {
+    return (
+      <Card>
+        <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow</h3>
+        <p className="py-8 text-center text-[13px] text-ink-600">
+          Propose a mint above, or look up an existing request ID, to see its real dual-attestation status.
+        </p>
+      </Card>
+    );
+  }
+
+  if (isLoading || !pm) {
+    return (
+      <Card>
+        <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow — request #{requestId.toString()}</h3>
+        <div className="flex items-center justify-center py-8 text-[13px] text-ink-500">Querying request...</div>
+      </Card>
+    );
+  }
+
+  const [, , , proposer, coSigner, executed] = pm as unknown as [string, string, string, string, string, boolean];
+  const proposed = proposer !== ZERO_ADDRESS;
+  const coSigned = coSigner !== ZERO_ADDRESS;
+  const canCoSign = (isManager || isAdmin) && proposed && !coSigned && !executed;
+
+  const steps = [
+    { label: "Upload to IPFS", icon: Upload, done: proposed },
+    { label: "Admin proposes", icon: FileCheck2, done: proposed },
+    { label: executed ? "Manager co-signed" : "Manager co-signs", icon: UserCheck, done: coSigned || executed },
+  ];
+
+  return (
+    <Card>
+      <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow — request #{requestId.toString()}</h3>
+      <div className="flex flex-col gap-4">
+        {steps.map((step) => (
+          <div key={step.label} className="flex items-center gap-3">
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-full border ${
+                step.done
+                  ? "border-verified-500/40 bg-verified-500/10 text-verified-400"
+                  : "border-graphite-700 bg-graphite-800 text-ink-600"
+              }`}
+            >
+              <step.icon size={14} strokeWidth={1.75} />
+            </div>
+            <div className="flex-1">
+              <p className={`text-[13px] ${step.done ? "text-ink-50" : "text-ink-400"}`}>{step.label}</p>
+            </div>
+            {step.done && <Badge tone="verified">done</Badge>}
+          </div>
+        ))}
+      </div>
+      {executed ? (
+        <div className="mt-5 flex items-center justify-center gap-2 text-[13px] text-verified-400">
+          <CheckCircle2 size={14} /> Minted
+        </div>
+      ) : (
+        <Button
+          variant="secondary"
+          className="mt-5 w-full"
+          disabled={!canCoSign || isCoSigning}
+          onClick={() => coSignMint(requestId)}
+        >
+          {isCoSigning
+            ? "Confirming co-signature..."
+            : coSigned
+            ? "Awaiting execution"
+            : !proposed
+            ? "No pending request"
+            : !(isManager || isAdmin)
+            ? "Requires Manager/Admin role to co-sign"
+            : "Co-sign as Manager"}
+        </Button>
+      )}
+      {coSignSuccess && (
+        <p className="mt-2 text-center text-[12px] text-verified-400">
+          Co-signed on-chain. <button className="underline" onClick={() => refetch()}>Refresh status</button>
+        </p>
+      )}
+    </Card>
+  );
+}
 
 function AssetLookup() {
   const [tokenIdInput, setTokenIdInput] = useState("");
@@ -78,11 +178,17 @@ export default function AssetsPage() {
   const [showMintForm, setShowMintForm] = useState(false);
   const [formData, setFormData] = useState({ name: "", description: "", vcId: "", recipient: "" });
   const [isUploading, setIsUploading] = useState(false);
-  const { proposeMint, isPending, isSuccess } = useProposeMint();
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const { proposeMint, requestId, isPending, isSuccess } = useProposeMint();
+
+  const [requestIdInput, setRequestIdInput] = useState("");
+  const [lookedUpRequestId, setLookedUpRequestId] = useState<bigint | undefined>();
+  const activeRequestId = lookedUpRequestId ?? requestId;
 
   const handleMint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.description || !formData.vcId || !formData.recipient) return;
+    setUploadError(null);
     try {
       setIsUploading(true);
       const cid = await uploadMetadataToIPFS({
@@ -92,7 +198,7 @@ export default function AssetsPage() {
       setIsUploading(false);
       proposeMint({ cid, vcId: formData.vcId as `0x${string}`, recipient: formData.recipient as `0x${string}` });
     } catch (err) {
-      console.error(err);
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
       setIsUploading(false);
     }
   };
@@ -140,42 +246,31 @@ export default function AssetsPage() {
                 <Button disabled={isUploading || isPending} className="mt-2" variant="primary">
                   {isUploading ? "Uploading to IPFS..." : isPending ? "Confirming tx..." : "Submit Proposal"}
                 </Button>
+                {uploadError && <p className="text-[12px] text-danger-400 mt-2">{uploadError}</p>}
                 {isSuccess && <p className="text-[12px] text-verified-400 mt-2">Proposal submitted to chain!</p>}
               </form>
             </Card>
           )}
         </div>
 
-        <Card>
-          <h3 className="mb-4 text-[14px] font-medium text-ink-50">Mint flow — Asset #45</h3>
-          <div className="flex flex-col gap-4">
-            {mintSteps.map((step, i) => (
-              <div key={step.label} className="flex items-center gap-3">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border ${
-                    step.done
-                      ? "border-verified-500/40 bg-verified-500/10 text-verified-400"
-                      : "border-graphite-700 bg-graphite-800 text-ink-600"
-                  }`}
-                >
-                  <step.icon size={14} strokeWidth={1.75} />
-                </div>
-                <div className="flex-1">
-                  <p className={`text-[13px] ${step.done ? "text-ink-50" : "text-ink-400"}`}>
-                    {step.label}
-                  </p>
-                </div>
-                {step.done && <Badge tone="verified">done</Badge>}
-                {i < mintSteps.length - 1 && (
-                  <span className="absolute ml-4 mt-8 h-4 w-px bg-graphite-700" aria-hidden />
-                )}
-              </div>
-            ))}
-          </div>
-          <Button variant="secondary" className="mt-5 w-full" disabled>
-            Awaiting Manager co-signature
-          </Button>
-        </Card>
+        <div className="flex flex-col gap-5">
+          <Card className="flex flex-col gap-3 p-4">
+            <p className="text-[12px] text-ink-400">Look up a mint request by ID</p>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                placeholder="Request ID"
+                className="flex-1 rounded-lg border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 placeholder:text-ink-600 focus:border-graphite-600 focus:outline-none"
+                value={requestIdInput}
+                onChange={(e) => setRequestIdInput(e.target.value)}
+              />
+              <Button onClick={() => setLookedUpRequestId(requestIdInput ? BigInt(requestIdInput) : undefined)}>
+                <Search size={14} />
+              </Button>
+            </div>
+          </Card>
+          <MintFlowStatus requestId={activeRequestId} />
+        </div>
       </div>
     </div>
   );

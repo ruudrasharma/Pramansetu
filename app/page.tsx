@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
-import { graphQLClient } from "@/lib/graphql";
+import { getGraphQLClient } from "@/lib/graphql";
 import { GET_DASHBOARD_DATA } from "@/lib/queries";
 import type { EventType, AuditEvent } from "@/lib/mock-data";
 import { Card } from "@/components/ui/Card";
@@ -23,9 +23,9 @@ import { usePlatformPaused } from "@/lib/hooks";
 export default function OverviewPage() {
   const { data: isPaused } = usePlatformPaused();
 
-  const { data: dashboardData, isLoading } = useQuery({
+  const { data: dashboardData, isLoading, error: dashboardError } = useQuery({
     queryKey: ["dashboardData"],
-    queryFn: async () => graphQLClient.request<any>(GET_DASHBOARD_DATA),
+    queryFn: async () => getGraphQLClient().request<any>(GET_DASHBOARD_DATA),
     refetchInterval: 5000,
   });
 
@@ -86,6 +86,11 @@ export default function OverviewPage() {
   return (
     <DetailPanelProvider>
       <div className="mx-auto max-w-7xl px-6 py-6">
+        {dashboardError && (
+          <div className="mb-5 rounded-lg border border-danger-500/30 bg-danger-500/10 px-4 py-3 text-[13px] text-danger-400">
+            Subgraph not reachable: {(dashboardError as Error).message}
+          </div>
+        )}
         {/* Health strip */}
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {healthCards.map(({ label, value, icon: Icon, tone }) => (

@@ -6,6 +6,84 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.8.0] — 2026-09-09 — Phase 8: Fake-data removal, real fixes, doc reconciliation
+
+A prior pass had left fabricated/mocked data disguised as real functionality in three places, plus
+several bugs that silently produced plausible-but-wrong output instead of failing loudly. This pass
+removed all of it and replaced each with either real on-chain reads or an honest failure state.
+
+### Removed
+- `app/api/audit/anomalies/route.ts`: deleted the hardcoded fallback that invented two fake
+  security incidents whenever the real heuristic found zero anomalies. Zero anomalies now returns
+  `[]`, and the `/audit` page's existing "No anomalies detected." empty state renders correctly.
+- `lib/ipfs.ts`: deleted. It silently returned a fake `ipfs://mocked-cid-*` whenever Pinata keys
+  were missing or misnamed — which, due to a `NEXT_PUBLIC_`-prefix mismatch against `.env.example`,
+  was firing on every single mint regardless of configuration.
+- `app/assets/page.tsx`: removed the hardcoded `mintSteps` array (`done: true, true, false`)
+  that displayed a static "Mint flow — Asset #45" progress stepper unconnected to any real request.
+- `components/shell/ContextBar.tsx`: removed the `systemHealth.platformPaused` mock-data read that
+  drove the top bar's paused/live indicator on every page regardless of actual chain state.
+
+### Added
+- `app/api/ipfs/upload/route.ts`: server-side Pinata pin. Reads `PINATA_API_KEY`/
+  `PINATA_SECRET_API_KEY` (server-only, never `NEXT_PUBLIC_`) and returns a clear 500 if unset —
+  never a fake CID.
+- `usePendingMint` hook (`lib/hooks/useAssetRegistry.ts`) + a real mint-request lookup panel on
+  the Assets page: every step shown (proposed / co-signed / executed) is read live from
+  `AssetRegistry.pendingMints`, with a working "Co-sign as Manager" button for role-holders.
+- Honest "Subgraph not reachable: <message>" error states on `/`, `/audit`, `/governance` when
+  `NEXT_PUBLIC_SUBGRAPH_URL` is unset or unreachable, instead of a silent empty/blank result.
+
+### Fixed
+- **`lib/hooks/useAccessControl.ts`**: `ROLE.ADMIN_ROLE`/`MANAGER_ROLE`/`AUDITOR_ROLE`/`ISSUER_ROLE`/
+  `SUPER_ADMIN_ROLE` were computed as a hex-encoded-and-padded role *name* instead of
+  `keccak256(roleName)` — meaning every `useHasRole(ROLE.ADMIN_ROLE, ...)` check in the app was
+  silently comparing against a role hash nobody had ever been granted on-chain, always returning
+  `false`. Now computed via `keccak256(toBytes(name))`, matching the deployed contract exactly.
+- **Subgraph mappings** — three fields that were storing the wrong value instead of the real one
+  (looked fixed, weren't):
+  - `subgraph/src/asset-registry.ts`: `Asset.ownerAddress` now reads the real owner via a bound
+    `ownerOf(tokenId)` call (was storing the recipient's DID hash); `Asset.vcId` and
+    `MintRequest.recipient` now read real values via bound `vcIdOf`/`pendingMints` calls (were
+    hardcoded/wrong).
+  - `subgraph/src/did-registry.ts`: `Identity.metadataURI` and `Identity.pubKey` now come from a
+    bound `resolveDID()` call in both `handleDIDCreated` and `handleKeyRotated` (were storing the
+    `keyType` string in the `metadataURI` field). `KeyRotated` events are now labeled `"KeyRotated"`
+    instead of reusing `"DIDCreated"`.
+  - `subgraph/src/credential-registry.ts`: `Credential.vcHash` now reads the real value via a
+    bound `credentials(vcId)` call (was storing `vcId` itself as a stand-in).
+  - `subgraph/src/access-control.ts`: `handleActionExecuted` previously labeled every
+    `actionType` (emergencyRevoke, pause, unpause) as `"EmergencyPaused"`, so a real (benign)
+    role revocation showed on the ledger identically to an actual platform pause. Each
+    `actionType` now gets its own correct label.
+- **`lib/graphql.ts`** / anomalies route: both previously read `NEXT_PUBLIC_GRAPHQL_ENDPOINT`
+  (undocumented in `.env.example`) with a hardcoded Graph Studio URL as a silent fallback.
+  Consolidated to the documented `NEXT_PUBLIC_SUBGRAPH_URL` everywhere; missing config now throws
+  a clear error instead of falling back.
+- **`lib/web3modal.ts`**: previously fell back to an all-zeros placeholder WalletConnect project ID
+  with only a `console.warn` if unset, silently initializing a non-functional wallet modal. Now
+  skips initialization and the UI shows "Wallet connection not configured" instead of a broken
+  button.
+- **`.env.local`**: consolidated duplicate/appended key declarations into their proper slots (no
+  functional change — the later declarations were already the ones in effect), and renamed the
+  working subgraph URL from `NEXT_PUBLIC_GRAPHQL_ENDPOINT` to the canonical `NEXT_PUBLIC_SUBGRAPH_URL`.
+- **`docs/ENVIRONMENT.md`**: `NEXT_PUBLIC_CHAIN_ID=80002` was a leftover from the Polygon
+  Amoy → Sepolia migration (80002 is Amoy's chain ID, not Sepolia's `11155111`); corrected, and
+  the dead pre-June-2024 hosted-service subgraph URL default replaced with the real Graph Studio
+  URL format.
+
+### Corrected (this file, and `TODO.md`)
+- **Deployment status was stale, in the other direction from the fake-data problem**: `TODO.md`
+  previously listed Sepolia deployment as blocked on credential provisioning. It isn't blocked —
+  it already happened. Verified directly against the chain and the live subgraph (not from any
+  doc): all 6 contracts have real bytecode on Sepolia, the Graph Studio subgraph is indexing with
+  zero errors, and the post-deploy checklist (second Super Admin, signature verifier, `ISSUER_ROLE`)
+  is real and confirmed via live `hasRole()`/`signatureVerifier()` calls. See `TODO.md` for what's
+  still genuinely open, including two access-control items (T-017, T-018) that need your sign-off
+  before anyone acts on them, and one contract-level bug found in the process (T-019, not fixed).
+
+---
+
 ## [0.5.0] — 2026-09-06 — Phase 5: Verification & Polish
 
 ### Added

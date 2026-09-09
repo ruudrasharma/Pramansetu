@@ -5,7 +5,9 @@
  * transfers, and token metadata reads.
  */
 
+import { useMemo } from "react";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { decodeEventLog } from "viem";
 import { AssetRegistryAbi } from "@/lib/abis";
 import { contractAddresses } from "@/lib/wagmi";
 
@@ -53,6 +55,20 @@ export function useOwnerOf(tokenId: bigint | undefined) {
   });
 }
 
+/**
+ * pendingMints — real on-chain state of a proposed-but-not-yet-executed mint request.
+ * Drives the mint-flow stepper honestly (no step is ever marked "done" without reading it here).
+ */
+export function usePendingMint(requestId: bigint | undefined) {
+  return useReadContract({
+    address,
+    abi: AssetRegistryAbi,
+    functionName: "pendingMints",
+    args: requestId !== undefined ? [requestId] : undefined,
+    query: { enabled: requestId !== undefined && !!address },
+  });
+}
+
 // ── Write hooks ─────────────────────────────────────────────────────────────
 
 /**
@@ -65,7 +81,7 @@ export function useOwnerOf(tokenId: bigint | undefined) {
  */
 export function useProposeMint() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   function proposeMint({
     cid,
@@ -80,7 +96,27 @@ export function useProposeMint() {
     writeContract({ address, abi: AssetRegistryAbi, functionName: "proposeMint", args: [cid, vcId, recipient] });
   }
 
-  return { proposeMint, hash, isPending: isPending || isConfirming, isSuccess, error };
+  // Decode the real requestId from the mined transaction's MintProposed log — never guessed
+  // or inferred from local state, since another proposer's tx could land in between.
+  const requestId = useMemo(() => {
+    if (!receipt || !address) return undefined;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== address.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({ abi: AssetRegistryAbi, data: log.data, topics: log.topics });
+        if (decoded.eventName === "MintProposed") {
+          return (decoded.args as { requestId: bigint }).requestId;
+        }
+      } catch {
+        // not a MintProposed log — skip
+      }
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `address` is the module-level
+    // contract address constant, not a React value; only `receipt` should retrigger this.
+  }, [receipt]);
+
+  return { proposeMint, hash, requestId, isPending: isPending || isConfirming, isSuccess, error };
 }
 
 /**

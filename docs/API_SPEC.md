@@ -92,7 +92,17 @@ Filtered audit event stream (same data backing the Overview ledger and Audit scr
 ### `GET /audit/anomalies`
 Risk-scored alerts from the anomaly-detection service (this is the one endpoint whose data is **not**
 purely re-derivable from raw chain data — it's a computed layer, clearly labeled as such in the UI per
-UI_UX_SPEC §2.6).
+UI_UX_SPEC §2.6). Returns only real, heuristic-derived results — an empty array (rendered by the UI as
+"No anomalies detected.") is a valid, honest response when no anomaly rule fired; this endpoint never
+substitutes placeholder/sample alerts to keep the panel populated. Returns `500` with an explicit error
+message if `NEXT_PUBLIC_SUBGRAPH_URL` isn't configured, rather than falling back to a hardcoded endpoint.
+
+### `POST /api/ipfs/upload`
+Server-side-only IPFS pin via Pinata. Body: asset metadata JSON (`{ name, description, image?,
+clearanceLevel?, properties? }`). Returns `{ cid: "ipfs://<hash>" }` on success. Reads
+`PINATA_API_KEY`/`PINATA_SECRET_API_KEY` from the server environment only (never `NEXT_PUBLIC_`-
+prefixed, never bundled into client JS); returns `500` with an explicit error if those aren't
+configured, or `502` if the Pinata call itself fails. Never returns a mocked/placeholder CID.
 
 ### Example Response — `GET /identities/:did`
 ```json

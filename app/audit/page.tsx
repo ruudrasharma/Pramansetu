@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { graphQLClient } from "@/lib/graphql";
+import { getGraphQLClient } from "@/lib/graphql";
 import { GET_AUDIT_EVENTS } from "@/lib/queries";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -18,17 +18,19 @@ export default function AuditPage() {
   const [page, setPage] = useState(0);
   const itemsPerPage = 20;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["auditEvents", page],
-    queryFn: async () => graphQLClient.request<any>(GET_AUDIT_EVENTS, { first: itemsPerPage, skip: page * itemsPerPage }),
+    queryFn: async () => getGraphQLClient().request<any>(GET_AUDIT_EVENTS, { first: itemsPerPage, skip: page * itemsPerPage }),
     refetchInterval: 5000,
   });
 
-  const { data: anomaliesData, isLoading: isAnomaliesLoading } = useQuery({
+  const { data: anomaliesData, isLoading: isAnomaliesLoading, error: anomaliesError } = useQuery({
     queryKey: ["anomalyAlerts"],
     queryFn: async () => {
       const res = await fetch("/api/audit/anomalies");
-      return res.json();
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load anomalies");
+      return json;
     },
     refetchInterval: 10000,
   });
@@ -55,7 +57,11 @@ export default function AuditPage() {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
         <Card>
           <div>
-            {isLoading && page === 0 ? (
+            {error ? (
+              <div className="flex items-center justify-center py-8 text-center text-[13px] text-danger-400">
+                Subgraph not reachable: {(error as Error).message}
+              </div>
+            ) : isLoading && page === 0 ? (
               <div className="flex items-center justify-center py-8 text-[13px] text-ink-500">Loading audit trail...</div>
             ) : events.length === 0 ? (
               <div className="flex items-center justify-center py-8 text-[13px] text-ink-500">No events found.</div>
@@ -89,7 +95,11 @@ export default function AuditPage() {
             Rule-based checks on the indexed event stream — computed off-chain via heuristics API.
           </p>
           <div className="flex flex-col gap-3">
-            {isAnomaliesLoading ? (
+            {anomaliesError ? (
+              <div className="flex items-center justify-center py-4 text-center text-[12px] text-danger-400">
+                {(anomaliesError as Error).message}
+              </div>
+            ) : isAnomaliesLoading ? (
               <div className="flex items-center justify-center py-4 text-[12px] text-ink-500">Scanning for anomalies...</div>
             ) : anomalies.length === 0 ? (
               <div className="flex items-center justify-center py-4 text-[12px] text-ink-500">No anomalies detected.</div>

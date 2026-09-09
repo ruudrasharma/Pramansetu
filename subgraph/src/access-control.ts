@@ -75,9 +75,14 @@ export function handleActionExecuted(event: ActionExecutedEvent): void {
   action.executedAt  = event.block.timestamp;
   action.save();
 
-  let typeStr = event.params.actionType == 1 ? "EmergencyPaused"
+  // actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause (contracts/TimeBoundAccessControl.sol).
+  // Previously every actionType collapsed to "EmergencyPaused", so a real role revocation (1)
+  // showed on the ledger/audit table identically to an actual platform pause (2) — indistinguishable
+  // and misleading. Label each actionType with what it actually is; "GovernanceExecuted" for
+  // unpause (3) matches the label already used by handleUnpaused() below for the direct Unpaused event.
+  let typeStr = event.params.actionType == 1 ? "RoleRevoked"
               : event.params.actionType == 2 ? "EmergencyPaused"
-              : "EmergencyPaused"; // 3 = unpause — extend EventType as needed
+              : "GovernanceExecuted"; // 3 = unpause
 
   let auditId = "AC-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
   let audit = new AuditEvent(auditId);

@@ -4,6 +4,7 @@ import {
   MintProposed as MintProposedEvent,
   MintCoSigned as MintCoSignedEvent,
   Transfer as TransferEvent,
+  AssetRegistry,
 } from "../generated/AssetRegistry/AssetRegistry";
 import { Asset, MintRequest, AuditEvent, Identity } from "../generated/schema";
 
@@ -11,8 +12,16 @@ export function handleMintProposed(event: MintProposedEvent): void {
   let req = new MintRequest(event.params.requestId.toString());
   req.requestId   = event.params.requestId;
   req.cid         = event.params.cid;
-  req.vcId        = Bytes.empty(); // vcId no longer emitted
-  req.recipient   = event.params.recipientDid;
+  // MintProposed doesn't emit vcId — AssetRegistry.sol's PendingMint struct doesn't store one
+  // either (proposeMint's second param is actually `recipientDid`, not a vcId — see the
+  // AssetRegistry.sol / vcIdOf note below and docs/API_SPEC.md flag on this). Leaving this
+  // genuinely empty (rather than guessing a value) is the honest representation here.
+  req.vcId        = Bytes.empty();
+  // The real recipient wallet address (distinct from recipientDid) only exists in the contract's
+  // pendingMints(requestId) storage, not in this event — read it via a bound call.
+  let assetRegistry = AssetRegistry.bind(event.address);
+  let pm = assetRegistry.try_pendingMints(event.params.requestId);
+  req.recipient   = pm.reverted ? Bytes.empty() : pm.value.getRecipient();
   req.proposer    = event.transaction.from;
   req.executed    = false;
   req.proposedAt  = event.block.timestamp;
@@ -39,8 +48,18 @@ export function handleAssetMinted(event: AssetMintedEvent): void {
   let asset = new Asset(event.params.tokenId.toString());
   asset.tokenId       = event.params.tokenId;
   asset.cid           = event.params.cid;
-  asset.ownerAddress  = event.params.recipientDid; // storing DID hash in ownerAddress field for now
-  asset.vcId          = Bytes.empty();
+
+  // AssetMinted doesn't carry the real owner wallet address (recipientDid is a DID hash, not an
+  // address) — mint() calls _safeMint(recipient, tokenId) directly, so ownerOf(tokenId) is the
+  // real current owner right after this event. vcIdOf(tokenId) is likewise a real, queryable
+  // getter (AssetRegistry.sol currently stores the recipientDid there rather than an actual VC
+  // id — a contract-level naming bug flagged separately, not fixed here — but this at least
+  // mirrors real on-chain state instead of a hardcoded empty placeholder).
+  let assetRegistry = AssetRegistry.bind(event.address);
+  let ownerCall = assetRegistry.try_ownerOf(event.params.tokenId);
+  asset.ownerAddress  = ownerCall.reverted ? Bytes.empty() : ownerCall.value;
+  let vcIdCall = assetRegistry.try_vcIdOf(event.params.tokenId);
+  asset.vcId          = vcIdCall.reverted ? Bytes.empty() : vcIdCall.value;
   let proposedBy: Bytes = event.transaction.from;
   let coSignedBy: Bytes = event.transaction.from;
   if (req != null) {

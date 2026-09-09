@@ -6,19 +6,26 @@
  */
 
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { keccak256, toBytes } from "viem";
 import { TimeBoundAccessControlAbi } from "@/lib/abis";
 import { contractAddresses } from "@/lib/wagmi";
 
 const address = contractAddresses.accessControl;
 
-// ── Constants (role hashes — match contracts/TimeBoundAccessControl.sol) ────
+// ── Constants (role hashes — MUST match contracts/TimeBoundAccessControl.sol's
+//    `keccak256("ROLE_NAME")` constants exactly). Solidity's keccak256(string) hashes the
+//    UTF-8 bytes of the literal with no length prefix — keccak256(toBytes(name)) here does the
+//    same, so these are always in sync with the deployed contract by construction. Previously
+//    this used a hex-encode-and-pad of the raw name instead of a real hash, which meant every
+//    `useHasRole(ROLE.ADMIN_ROLE, ...)` check silently checked a role nobody had ever been
+//    granted and always returned false. ─────────────────────────────────────────────────────
 export const ROLE = {
-  SUPER_ADMIN: "0x" + "0".repeat(64) as `0x${string}`, // DEFAULT_ADMIN_ROLE
-  SUPER_ADMIN_ROLE: "0x" + Buffer.from("SUPER_ADMIN_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  ADMIN_ROLE:       "0x" + Buffer.from("ADMIN_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  MANAGER_ROLE:     "0x" + Buffer.from("MANAGER_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  ISSUER_ROLE:      "0x" + Buffer.from("ISSUER_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
-  AUDITOR_ROLE:     "0x" + Buffer.from("AUDITOR_ROLE").toString("hex").padStart(64, "0") as `0x${string}`,
+  SUPER_ADMIN: "0x" + "0".repeat(64) as `0x${string}`, // DEFAULT_ADMIN_ROLE (OZ convention: bytes32(0), not a hash)
+  SUPER_ADMIN_ROLE: keccak256(toBytes("SUPER_ADMIN_ROLE")),
+  ADMIN_ROLE:       keccak256(toBytes("ADMIN_ROLE")),
+  MANAGER_ROLE:     keccak256(toBytes("MANAGER_ROLE")),
+  ISSUER_ROLE:      keccak256(toBytes("ISSUER_ROLE")),
+  AUDITOR_ROLE:     keccak256(toBytes("AUDITOR_ROLE")),
 } as const;
 
 // ── Read hooks ──────────────────────────────────────────────────────────────

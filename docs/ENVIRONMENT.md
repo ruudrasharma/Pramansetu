@@ -4,8 +4,8 @@
 
 ```bash
 # ── Chain / RPC ──────────────────────────────────────────────
-NEXT_PUBLIC_CHAIN_ID=80002                       # Ethereum Sepolia testnet
-NEXT_PUBLIC_RPC_URL=https://rpc-sepolia.polygon.technology
+NEXT_PUBLIC_CHAIN_ID=11155111                    # Ethereum Sepolia testnet
+NEXT_PUBLIC_SEPOLIA_RPC_URL=                     # Your Alchemy/Infura Sepolia RPC URL
 DEPLOYER_PRIVATE_KEY=                            # NEVER commit — deployer wallet for Hardhat scripts
 ALCHEMY_API_KEY=
 ETHERSCAN_API_KEY=                               # for contract verification (Etherscan Sepolia)
@@ -22,12 +22,14 @@ NEXT_PUBLIC_GOVERNANCE_TIMELOCK_ADDRESS=
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 
 # ── IPFS / Pinata ───────────────────────────────────────────────
-PINATA_API_KEY=
+PINATA_API_KEY=                                  # server-only — read by app/api/ipfs/upload/route.ts, never NEXT_PUBLIC_
 PINATA_SECRET_API_KEY=
 NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs/
 
 # ── Subgraph / Indexer ───────────────────────────────────────────
-NEXT_PUBLIC_SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/bel-chain/idam
+# The old hosted-service URL format (api.thegraph.com/subgraphs/name/...) has been dead since
+# June 2024. Use a real Graph Studio URL once deployed: https://api.studio.thegraph.com/query/<id>/<name>/<version>
+NEXT_PUBLIC_SUBGRAPH_URL=
 GRAPH_DEPLOY_KEY=
 
 # ── Anomaly Detection Service ─────────────────────────────────────

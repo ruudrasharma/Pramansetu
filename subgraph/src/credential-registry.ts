@@ -2,6 +2,7 @@ import { BigInt, Bytes } from "@graphprotocol/graph-ts";
 import {
   CredentialIssued as CredentialIssuedEvent,
   CredentialRevoked as CredentialRevokedEvent,
+  CredentialRegistry,
 } from "../generated/CredentialRegistry/CredentialRegistry";
 import { Credential, Identity, AuditEvent } from "../generated/schema";
 
@@ -23,7 +24,11 @@ export function handleCredentialIssued(event: CredentialIssuedEvent): void {
   let cred = new Credential(event.params.vcId.toHexString());
   cred.subject      = subjectId;
   cred.issuerDid    = event.params.issuerDid;
-  cred.vcHash       = event.params.vcId; // the event no longer emits vcHash, fallback to vcId
+
+  // CredentialIssued doesn't emit vcHash — read the real value from the credentials(vcId) getter.
+  let credRegistry = CredentialRegistry.bind(event.address);
+  let stored = credRegistry.try_credentials(event.params.vcId);
+  cred.vcHash = stored.reverted ? Bytes.empty() : stored.value.getVcHash();
   cred.role         = event.params.role;
   cred.validUntil   = event.params.validUntil;
   cred.revoked      = false;

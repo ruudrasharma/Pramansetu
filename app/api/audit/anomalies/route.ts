@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { GraphQLClient } from "graphql-request";
 import { GET_AUDIT_EVENTS } from "@/lib/queries";
 
-// The GraphQL client needs the subgraph endpoint
-const endpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || "https://api.studio.thegraph.com/query/1758953/cipherloom/v1";
-const client = new GraphQLClient(endpoint);
-
 export async function GET() {
   try {
+    const endpoint = process.env.NEXT_PUBLIC_SUBGRAPH_URL;
+    if (!endpoint) {
+      return NextResponse.json(
+        { error: "NEXT_PUBLIC_SUBGRAPH_URL is not configured — set it in .env.local (see docs/ENVIRONMENT.md)." },
+        { status: 500 }
+      );
+    }
+    const client = new GraphQLClient(endpoint);
+
     // 1. Fetch recent events from the subgraph (last 50)
     const data: any = await client.request(GET_AUDIT_EVENTS, { first: 50, skip: 0 });
     const events = data.auditEvents || [];
@@ -32,12 +37,15 @@ export async function GET() {
         roleGrantsByActor[event.actorAddress]!.push(timestamp);
       }
 
-      // Check Emergency Actions
+      // Check Emergency Actions. actorDid is nullable on AuditEvent (many handlers, including the
+      // one that emits EmergencyPaused, never set it) — actorAddress always is, so use that
+      // instead of crashing on a real null value here (confirmed live: this route 500s on the
+      // real deployed subgraph's current data without this fix).
       if (event.type === "EmergencyPaused" && !hasEmergencyPause) {
         anomalies.push({
           id: `anomaly-emergency-${event.id}`,
           rule: "Emergency Action",
-          detail: `Platform was paused by ${event.actorDid.slice(0, 10)}... Requires immediate review.`,
+          detail: `Platform was paused by ${event.actorAddress.slice(0, 10)}... Requires immediate review.`,
           riskScore: 90,
           timestamp: timestamp,
           status: "open",
@@ -66,25 +74,8 @@ export async function GET() {
       }
     }
 
-    // Default mock data if no anomalies are found from heuristic (so the demo looks populated)
-    if (anomalies.length === 0) {
-      anomalies.push({
-        id: "anomaly-default-1",
-        rule: "Off-hours Privileged Action",
-        detail: "SUPER_ADMIN_ROLE proposal initiated outside of defined geographical bounds (IP: non-domestic).",
-        riskScore: 65,
-        timestamp: Date.now() - 3600000,
-        status: "open",
-      });
-      anomalies.push({
-        id: "anomaly-default-2",
-        rule: "Velocity Check: Repeated Dispute",
-        detail: "AUDITOR_ROLE raised 3 consecutive disputes on Governance queue within 5 minutes.",
-        riskScore: 45,
-        timestamp: Date.now() - 86400000,
-        status: "resolved",
-      });
-    }
+    // Zero anomalies is a correct, honest result — the UI renders "No anomalies detected." for
+    // an empty array (see app/audit/page.tsx) rather than needing a populated placeholder here.
 
     // Sort descending by riskScore
     anomalies.sort((a, b) => b.riskScore - a.riskScore);

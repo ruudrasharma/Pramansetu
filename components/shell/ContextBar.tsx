@@ -2,9 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { Search, Circle } from "lucide-react";
-import { systemHealth } from "@/lib/mock-data";
+import { usePlatformPaused } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import { commandPaletteSignal } from "@/lib/commandPaletteSignal";
+import { web3ModalConfigured } from "@/lib/web3modal";
 
 const titles: Record<string, string> = {
   "/": "Overview",
@@ -17,6 +18,7 @@ const titles: Record<string, string> = {
 
 export function ContextBar() {
   const pathname = usePathname();
+  const { data: isPaused } = usePlatformPaused();
   const title =
     Object.entries(titles).find(([href]) =>
       href === "/" ? pathname === "/" : pathname.startsWith(href)
@@ -32,10 +34,10 @@ export function ContextBar() {
             size={7}
             className={cn(
               "fill-current",
-              systemHealth.platformPaused ? "text-danger-500" : "text-verified-500"
+              isPaused ? "text-danger-500" : "text-verified-500"
             )}
           />
-          {systemHealth.platformPaused ? "Platform paused" : "Live · Ethereum Sepolia"}
+          {isPaused ? "Platform paused" : "Live · Ethereum Sepolia"}
         </div>
       </div>
 
@@ -53,8 +55,14 @@ export function ContextBar() {
           </kbd>
         </button>
 
-        {/* WalletConnect button */}
-        <w3m-button />
+        {/* WalletConnect button — only rendered once createWeb3Modal() has actually run */}
+        {web3ModalConfigured ? (
+          <w3m-button />
+        ) : (
+          <span className="rounded-lg border border-alert-500/30 bg-alert-500/10 px-3 py-1.5 text-[12px] text-alert-400">
+            Wallet connection not configured
+          </span>
+        )}
       </div>
     </header>
   );

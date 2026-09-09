@@ -37,6 +37,7 @@ export {
   useTokenURI,
   useVcIdOf,
   useOwnerOf,
+  usePendingMint,
   useProposeMint,
   useCoSignMint,
   useAttachLegalReference,

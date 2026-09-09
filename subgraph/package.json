@@ -5,8 +5,7 @@
   "scripts": {
     "codegen": "graph codegen",
     "build": "graph build",
-    "deploy:sepolia": "graph deploy --product hosted-service cipherloom/idam subgraph.yaml",
-    "deploy:studio": "graph deploy bel-chain subgraph.yaml --version-label v1"
+    "deploy:studio": "graph deploy cipherloom subgraph.yaml --version-label v1"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "^0.81.0",

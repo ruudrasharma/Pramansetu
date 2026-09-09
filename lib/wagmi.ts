@@ -3,10 +3,10 @@ import { sepolia } from "wagmi/chains";
 import { injected, walletConnect } from "wagmi/connectors";
 
 /**
- * Scaffold only — pages currently read from lib/mock-data.ts (see TODO.md "Blocking" items).
- * Once contracts are deployed (docs/DEPLOYMENT.md §3) and addresses are in .env.local
- * (docs/ENVIRONMENT.md), replace mock-data reads with wagmi's `useReadContract` /
- * `useWriteContract` hooks against the ABIs in `lib/abis/`.
+ * Contracts are deployed to Sepolia (see deployments/sepolia.json) and addresses are populated
+ * in .env.local — pages read live via wagmi's `useReadContract`/`useWriteContract` hooks against
+ * the ABIs in `lib/abis/` (see lib/hooks/). `lib/mock-data.ts` is retained only for its exported
+ * TypeScript types (`EventType`, `AuditEvent`), not as a runtime data source.
  */
 export const wagmiConfig = createConfig({
   chains: [sepolia],
