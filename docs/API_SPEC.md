@@ -64,33 +64,29 @@ token. Every function below reverts if the caller's DID does not hold the requir
 | Resolve dispute | `resolveDispute(uint256 txId, bool proceed)` | `SUPER_ADMIN_ROLE` — `proceed: true` returns the tx to Queued (still needs `executeTransaction` once `eta` passes), `false` cancels it permanently |
 | Execute | `executeTransaction(uint256 txId)` | Anyone, after `eta` and no active dispute — `GovernanceService.executeTransaction`, an "Execute" button on `/governance/disputes`' queued-tx row (T-053) |
 
-## 2. Off-Chain Read API (Indexer)
+## 2. Off-Chain Data Access (Indexer)
 
-Base URL (prototype): `https://api.thegraph.com/subgraphs/name/praman-setu/idam`
-Base URL (production): self-hosted, e.g. `https://indexer.internal.bel.gov.in/graphql`
+**Corrected 2026-09-11 (T-056/T-061)**: this section previously documented a REST "Off-Chain Read API"
+(`GET /identities`, `/identities/:did`, `/role-grants`, `/assets?ownerDid=`, `/governance/queue`,
+`/audit`) that was never built — no such routes exist anywhere in `app/api/` (`find app/api -type d`
+confirms only the two real routes documented below). The app has always queried the subgraph directly
+via GraphQL instead, and that's the real, intended pattern — this REST layer was planned-then-abandoned
+scaffolding in the original doc, not a gap to fill. **`lib/queries.ts` is the source of truth for what's
+queryable**: `GET_IDENTITIES`, `GET_ASSETS`, `GET_GOVERNANCE`, `GET_PLATFORM_ACTIONS`,
+`GET_PENDING_GRANTS`, `GET_CREDENTIALS_BY_SUBJECT`, `GET_RECOVERY`, `GET_AUDIT_EVENTS` — each is a
+named GraphQL query run against `NEXT_PUBLIC_SUBGRAPH_URL` via `graphql-request`
+(`lib/graphql.ts`'s `getGraphQLClient()`), called from `lib/services/*.ts`'s onchain branches. The
+subgraph's own schema (`subgraph/schema.graphql`, mirrored in `docs/DATABASE_SCHEMA.md` §2) is the
+contract for what fields exist — query any of the entities there directly for anything not already
+covered by a named query above. Base URL (prototype): the Graph Studio query URL in
+`NEXT_PUBLIC_SUBGRAPH_URL` (`.env.local`); base URL (production): self-hosted, e.g.
+`https://indexer.internal.bel.gov.in/graphql`. Both are read-only, unauthenticated — data is already
+public on-chain, this layer only makes it fast to query, and no PII beyond what's already on-chain is
+ever stored here.
 
-All endpoints are **read-only, unauthenticated** (data is already public on-chain; the API just makes it
-fast to query). No PII beyond what is already on-chain is ever stored here.
+Two real, non-subgraph API routes exist under `app/api/` — documented in full below:
 
-### `GET /identities`
-Returns paginated `Identity` entities. Query params: `role`, `credentialStatus`, `limit`, `cursor`.
-
-### `GET /identities/:did`
-Full identity detail incl. linked credentials, role grants, owned assets.
-
-### `GET /role-grants?expiringBefore=<unix_ts>`
-Powers the "expiring in 24h" widget.
-
-### `GET /assets?ownerDid=<did>`
-Assets owned by a given identity.
-
-### `GET /governance/queue`
-Pending multisig + timelock items, with dispute status.
-
-### `GET /audit?actor=&type=&from=&to=`
-Filtered audit event stream (same data backing the Overview ledger and Audit screen table).
-
-### `GET /audit/anomalies`
+### `GET /api/audit/anomalies`
 Risk-scored alerts from the anomaly-detection service (this is the one endpoint whose data is **not**
 purely re-derivable from raw chain data — it's a computed layer, clearly labeled as such in the UI per
 UI_UX_SPEC §2.6). Returns only real, heuristic-derived results — an empty array (rendered by the UI as
@@ -114,12 +110,12 @@ never anything that could substitute for real chain state.
 ### `subscribeToEvents` (service-layer, not a REST endpoint)
 `lib/services/auditService.ts`'s `AuditService.subscribeToEvents` is not implemented as a push
 subscription in onchain mode — it throws a clear error naming this decision (T-037) rather than
-silently no-op-ing. The real "live" mechanism for this project's scope is polling: `GET /audit` events
-and `GET /audit/anomalies` both refresh on a `refetchInterval` (5s / 10s respectively) via React Query,
-which is a genuinely live-updating read, just not a WebSocket/event-subscription one. There are zero
-real callers of `subscribeToEvents` anywhere in the app; if a future feature needs true push delivery,
-wire `wagmi`'s `useWatchContractEvent` per relevant contract rather than reusing this method's signature
-for polling.
+silently no-op-ing. The real "live" mechanism for this project's scope is polling: `GET_AUDIT_EVENTS`
+(the real subgraph query, §2 above) and `GET /api/audit/anomalies` both refresh on a `refetchInterval`
+(5s / 10s respectively) via React Query, which is a genuinely live-updating read, just not a
+WebSocket/event-subscription one. There are zero real callers of `subscribeToEvents` anywhere in the
+app; if a future feature needs true push delivery, wire `wagmi`'s `useWatchContractEvent` per relevant
+contract rather than reusing this method's signature for polling.
 
 ### `POST /api/ipfs/upload`
 Server-side-only IPFS pin via Pinata — generic JSON metadata upload, not asset-specific. Body:
@@ -130,21 +126,22 @@ for onboarding metadata). Returns `{ cid: "ipfs://<hash>" }` on success. Reads
 prefixed, never bundled into client JS); returns `500` with an explicit error if those aren't
 configured, or `502` if the Pinata call itself fails. Never returns a mocked/placeholder CID.
 
-### Example Response — `GET /identities/:did`
+### Example — `GET_IDENTITIES` (real GraphQL query, `lib/queries.ts`)
 ```json
 {
-  "did": "did:ethr:0xA11CE...",
-  "controller": "0xA11CE...",
-  "keyType": "ES256K",
-  "createdAt": "2026-01-14T09:12:00Z",
-  "credentials": [
-    { "vcId": "0x9f2...", "role": "Manager", "validUntil": "2027-01-14T00:00:00Z", "revoked": false }
-  ],
-  "roleGrants": [
-    { "role": "MANAGER_ROLE", "expiresAt": "2027-01-14T00:00:00Z", "status": "active" }
-  ],
-  "assets": [ { "tokenId": "42", "cid": "bafybei...", "mintedAt": "2026-02-01T00:00:00Z" } ],
-  "guardianCount": 4
+  "data": {
+    "identities": [
+      {
+        "id": "0x9f2...",
+        "controller": "0xA11CE...",
+        "keyType": "ES256K",
+        "createdAt": "1789024056",
+        "credentials": [
+          { "id": "0x9f2...", "role": "Manager", "validUntil": "1820560042", "revoked": false }
+        ]
+      }
+    ]
+  }
 }
 ```
 
