@@ -6,6 +6,32 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.18.0] — 2026-09-11 — Phase 3 deployed live to Sepolia; fixed a subgraph labeling bug found while verifying it
+
+Per explicit sign-off, `deploy.ts` then `postDeploySetup.ts` ran for real against Sepolia. All 6
+core contracts + `ECDSASignatureVerifier` redeployed fresh; old addresses abandoned. Verified
+directly on-chain (not assumed): deployer's `SUPER_ADMIN_ROLE` revoked, second admin's granted,
+`DIDRegistry`'s `accessControl()`/`signatureVerifier()`/`guardianRecoveryContract()` all correctly
+wired via the new 2-of-N flow, `ISSUER_ROLE` granted, all 7 contracts have real bytecode.
+
+### Changed (live Sepolia contract state)
+- Fresh deployment of `DIDRegistry`, `CredentialRegistry`, `TimeBoundAccessControl`,
+  `AssetRegistry`, `GuardianRecovery`, `GovernanceTimelock`, `ECDSASignatureVerifier`. New addresses
+  in `deployments/sepolia.json`.
+
+### Fixed — found while verifying the redeploy against real subgraph data
+- `subgraph/src/access-control.ts`'s `handleActionExecuted`: actionType 3 (unpause) and the new
+  4/5/6 (T-3.1/T-3.2) all fell through to a generic `"Platform action executed: type=N"` summary.
+  First fix attempt referenced a nonexistent `event.params.account` (`ActionExecuted` only emits
+  `(actionId, actionType)`) — caught by rebuilding before redeploying, not shipped. Real fix:
+  `handleActionProposed` now reads `role`/`account` via a bound `pendingActions(actionId)` call
+  (same pattern `asset-registry.ts` already uses), closing a gap T-032 had previously left as
+  permanently empty; `handleActionExecuted` uses that for a genuine, address-specific summary per
+  actionType. Verified against live data: `platformActions.account` now matches the real
+  `guardianRecovery`/`ecdsaSignatureVerifier`/revoked-deployer addresses exactly.
+- Subgraph redeployed as `v11` (new contract addresses) then `v12` (the labeling fix).
+  `NEXT_PUBLIC_SUBGRAPH_URL` now points at `v12`.
+
 ## [0.17.1] — 2026-09-11 — Update deploy scripts for Phase 3's 2-of-N flows; smoke-tested, not deployed
 
 Per explicit request, implements the deploy-script runbook `TODO.md`'s Phase 3 section had flagged

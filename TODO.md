@@ -5,12 +5,41 @@ Completed items are moved to CHANGELOG.md.
 
 ---
 
-## 🔒 Phase 3 — Contract-level fixes (audit §2.2/§2.3/§2.5): designed, written, tested — NOT deployed
+## ✅ Phase 3 — Contract-level fixes (audit §2.2/§2.3/§2.5): DEPLOYED LIVE to Sepolia 2026-09-11
 
-Per `AI_DEVELOPMENT_RULES.md` §2.5/§9, these are contract-level/access-control changes and stay
-gated behind explicit sign-off before any deploy script runs. This section is what Rudra reviews
-to decide what (if anything) actually gets deployed, and when. **Nothing below has touched Sepolia
-— `deploy.ts`/`postDeploySetup.ts` were not run for any of this.**
+Per explicit sign-off from Rudra, `deploy.ts` then `postDeploySetup.ts` were run for real against
+Sepolia — this is now the live deployment, not a pending plan. New addresses in
+`deployments/sepolia.json` (all 6 contracts + `ECDSASignatureVerifier`); the old addresses this
+file previously referenced (`0xd1de1e...`/`0x309C32...`/etc.) are abandoned, same precedent as the
+T-017/T-018 redeploy.
+
+**Verified directly on-chain after deploy, not assumed**: deployer's `SUPER_ADMIN_ROLE` → `false`
+(revoked, last step), second admin's → `true`, deployer's `DEFAULT_ADMIN_ROLE` → `true`
+(intentionally retained, same as T-020), `DIDRegistry.accessControl()`/`signatureVerifier()`/
+`guardianRecoveryContract()` all correctly wired to the real new addresses, issuer wallet's
+`ISSUER_ROLE` → `true`, all 7 contracts have real bytecode on Sepolia.
+
+**Subgraph redeployed twice more to track this** (`v11` pointing at the new addresses, `v12` fixing
+a bug found while verifying `v11` against real data — see below) — `NEXT_PUBLIC_SUBGRAPH_URL` in
+`.env.local` now points at `v12`.
+
+**New finding while verifying `v11`, fixed in `v12`**: `subgraph/src/access-control.ts`'s
+`handleActionExecuted` only ever labeled actionType 1/2 descriptively — 3 (unpause) and the new
+4/5/6 (T-3.1/T-3.2) all fell through to a generic `"Platform action executed: type=N"` summary,
+and my first attempt at fixing this referenced `event.params.account`, which doesn't exist —
+`ActionExecuted` only emits `(actionId, actionType)`, and `ActionProposed` doesn't carry
+role/account either (a real contract-level gap already flagged as T-032, previously left
+permanently `Bytes.empty()`). Fixed for real: `handleActionProposed` now reads the real
+`role`/`account` via a bound `pendingActions(actionId)` call (same pattern `asset-registry.ts`
+already uses for its own event-data gaps), and `handleActionExecuted` uses that to build a genuine,
+address-specific summary per actionType (e.g. "DIDRegistry guardian recovery contract authorized:
+0xdc30f7f9…") instead of a raw type number. Verified against live `v12` data: `platformActions`'
+`account` field now matches the real `guardianRecovery`/`ecdsaSignatureVerifier`/revoked-deployer
+addresses exactly, and `auditEvents` summaries are genuinely descriptive, not placeholders.
+
+**Historical note — the section below is the original design writeup**, kept for the reasoning
+behind each fix; treat "not yet deployed"/"not yet implemented" language inside it as describing
+the state *before* this deploy, superseded by the paragraphs above.
 
 ### 3.1 ✅ Single-signer UUPS upgrade authorization (audit §2.2)
 **Files/functions**: `contracts/TimeBoundAccessControl.sol` (`_authorizeUpgrade`, new
@@ -77,8 +106,9 @@ same zero-DID finding above — would be abandoned, same as the old contract). N
 codebase holds an immutable reference to `DIDRegistry` (checked via
 `grep -n immutable contracts/*.sol`).
 
-**Deploy-script bootstrapping — ✅ implemented and smoke-tested 2026-09-11 (still not run against
-Sepolia)**: `scripts/deploy.ts` reordered so `TimeBoundAccessControl` deploys first (step 1, was
+**Deploy-script bootstrapping — ✅ implemented, smoke-tested, then run for real against Sepolia
+2026-09-11** (see this section's top for the live deployment record): `scripts/deploy.ts` reordered
+so `TimeBoundAccessControl` deploys first (step 1, was
 step 3), then `DIDRegistry(accessControlAddr)` (step 2). The direct `didRegistry.setGuardianRecoveryContract(...)`
 call that used to run inside `deploy.ts` right after `GuardianRecovery` deployed is now gone from
 that script entirely — it needs 2-of-N `SUPER_ADMIN_ROLE` approval, and only the deployer holds
@@ -825,6 +855,13 @@ rename is ever wanted for its own sake.
 ---
 
 ## ✅ Already done, verified live on-chain (this file previously listed these as blocked)
+
+**Superseded 2026-09-11 by the Phase 3 redeploy** (see the top of this file) — every address named
+below is from the *old*, now-abandoned deployment. The new `deployments/sepolia.json` has fresh
+addresses for all 7 contracts, and the specific facts below (who holds `SUPER_ADMIN_ROLE`, which
+wallets exist) no longer describe the live system — they're kept here as the historical record of
+what was verified about the old deployment, not a claim about the current one. The current
+deployment's own equivalent verification is in the Phase 3 section at the top of this file.
 
 What follows used to be listed as blocked on credential provisioning. Verified directly against
 Sepolia and the live Graph Studio subgraph in this session — not from a doc, from `eth_getCode`,

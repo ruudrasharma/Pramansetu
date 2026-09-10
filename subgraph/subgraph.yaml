@@ -11,9 +11,9 @@ dataSources:
     name: DIDRegistry
     network: sepolia   # Polygon Amoy; change to matic for mainnet
     source:
-      address: "0xd1de1e31580A446da22aAadB2f653Bb527317cA3"
+      address: "0x66F83cB562a3A7B8B6D4f1E0Eb5D364E10F536ac"
       abi: DIDRegistry
-      startBlock: 11665400
+      startBlock: 11675947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -35,9 +35,9 @@ dataSources:
     name: CredentialRegistry
     network: sepolia
     source:
-      address: "0xF2ad6b0A73a0958Ae7Aa6E0632b2Fc294D58C38e"
+      address: "0x1a3B1752eb096a9Ca6ad0aD6d474396967A7f96D"
       abi: CredentialRegistry
-      startBlock: 11665400
+      startBlock: 11675947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -59,9 +59,9 @@ dataSources:
     name: TimeBoundAccessControl
     network: sepolia
     source:
-      address: "0x309C3243bfD73ea0e82f1b9CD07d47ed295F1f7D"
+      address: "0x0a100F8c9389B723Aa0c92F63fE4F05E7737ECC3"
       abi: TimeBoundAccessControl
-      startBlock: 11665400
+      startBlock: 11675947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -99,9 +99,9 @@ dataSources:
     name: AssetRegistry
     network: sepolia
     source:
-      address: "0x438536D93017d74F03C11872Cf1b555DF0199c4D"
+      address: "0xD403b9366697D42756bE6a2b40CBE4ADbC84f23b"
       abi: AssetRegistry
-      startBlock: 11665400
+      startBlock: 11675947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -128,9 +128,9 @@ dataSources:
     name: GovernanceTimelock
     network: sepolia
     source:
-      address: "0x4AFfa2F9d55Fc94Ce07b265804F445364C6bC19C"
+      address: "0x4512A3E1C5d0e4777766001f5e67fa564E894502"
       abi: GovernanceTimelock
-      startBlock: 11665400
+      startBlock: 11675947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -157,9 +157,9 @@ dataSources:
     name: GuardianRecovery
     network: sepolia
     source:
-      address: "0x77AC774Bc577D684bf7166468722e37a4f65Aa27"
+      address: "0xdC30F7f9616d02B04AB04f095EcCC8cB2E006Ee3"
       abi: GuardianRecovery
-      startBlock: 11665400
+      startBlock: 11675947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

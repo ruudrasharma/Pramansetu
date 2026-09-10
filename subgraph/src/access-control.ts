@@ -9,6 +9,7 @@ import {
   GrantCoSigned as GrantCoSignedEvent,
   Paused as PausedEvent,
   Unpaused as UnpausedEvent,
+  TimeBoundAccessControl,
 } from "../generated/TimeBoundAccessControl/TimeBoundAccessControl";
 import { RoleGrant, PlatformAction, PendingGrant, AuditEvent } from "../generated/schema";
 
@@ -63,8 +64,17 @@ export function handleActionProposed(event: ActionProposedEvent): void {
   let action = new PlatformAction(event.params.actionId.toString());
   action.actionId    = event.params.actionId;
   action.actionType  = event.params.actionType;
-  action.role        = Bytes.empty();
-  action.account     = Bytes.empty();
+  // ActionProposed itself doesn't emit role/account (contracts/TimeBoundAccessControl.sol:74) —
+  // previously left permanently Bytes.empty() as a result (T-032). Both are real, queryable public
+  // storage (pendingActions(actionId)) regardless of what the event carries, so read them via a
+  // bound call instead — same pattern asset-registry.ts already uses for pendingMints. Needed for
+  // real reasons, not just completeness: actionType 4/5/6 (T-3.1/T-3.2) store their target address
+  // (implementation/verifier/guardian-recovery contract) in this same `account` field, and
+  // handleActionExecuted below needs it for a real, descriptive audit summary.
+  let accessControl = TimeBoundAccessControl.bind(event.address);
+  let pending = accessControl.try_pendingActions(event.params.actionId);
+  action.role        = pending.reverted ? Bytes.empty() : pending.value.getRole();
+  action.account     = pending.reverted ? Bytes.empty() : pending.value.getAccount();
   action.proposer    = event.params.proposer;
   action.executed    = false;
   action.proposedAt  = event.block.timestamp;
@@ -88,20 +98,37 @@ export function handleActionExecuted(event: ActionExecutedEvent): void {
   action.executedAt  = event.block.timestamp;
   action.save();
 
-  // actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause (contracts/TimeBoundAccessControl.sol).
-  // Previously every actionType collapsed to "EmergencyPaused", so a real role revocation (1)
-  // showed on the ledger/audit table identically to an actual platform pause (2) — indistinguishable
-  // and misleading. Label each actionType with what it actually is; "GovernanceExecuted" for
-  // unpause (3) matches the label already used by handleUnpaused() below for the direct Unpaused event.
+  // actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause, 4 = authorizeUpgrade,
+  // 5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery
+  // (contracts/TimeBoundAccessControl.sol). Previously every actionType collapsed to
+  // "EmergencyPaused", so a real role revocation (1) showed on the ledger/audit table identically
+  // to an actual platform pause (2) — indistinguishable and misleading. Label each actionType with
+  // what it actually is; "GovernanceExecuted" for 3/4/5/6 matches the label already used by
+  // handleUnpaused() below for the direct Unpaused event, and the mock fixture's own convention
+  // (lib/mock/fixtures/auditEvents.ts already models a UUPS upgrade as a GovernanceExecuted-typed
+  // row) — the specific action is conveyed in `summary`, not a dedicated `type` per actionType.
   let typeStr = event.params.actionType == 1 ? "RoleRevoked"
               : event.params.actionType == 2 ? "EmergencyPaused"
-              : "GovernanceExecuted"; // 3 = unpause
+              : "GovernanceExecuted"; // 3 = unpause, 4/5/6 = authorization actions (T-3.1/T-3.2)
+
+  // action.account was populated in handleActionProposed above via a bound pendingActions() call
+  // (ActionExecuted itself carries no account param either) — real target address for 4/5/6, not
+  // guessed or omitted.
+  let accountStr = action.account.toHexString().slice(0, 10) + "…";
+  let summary =
+    event.params.actionType == 1 ? "Emergency role revocation executed"
+    : event.params.actionType == 2 ? "Platform pause executed"
+    : event.params.actionType == 3 ? "Platform unpause executed"
+    : event.params.actionType == 4 ? "UUPS upgrade authorized: implementation " + accountStr
+    : event.params.actionType == 5 ? "DIDRegistry signature verifier authorized: " + accountStr
+    : event.params.actionType == 6 ? "DIDRegistry guardian recovery contract authorized: " + accountStr
+    : "Platform action executed: type=" + event.params.actionType.toString();
 
   let auditId = "AC-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
   let audit = new AuditEvent(auditId);
   audit.type         = typeStr;
   audit.actorAddress = event.transaction.from;
-  audit.summary      = "Platform action executed: type=" + event.params.actionType.toString();
+  audit.summary      = summary;
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
