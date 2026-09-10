@@ -427,6 +427,15 @@ reading like a shipped mitigation. The actual Semaphore/snarkjs integration rema
 ### T-016: Oracle Attestation (Phase 4)
 Integrate decentralized oracles for off-chain data validation.
 
+### T-057 ✅ closed 2026-09-10 — `/onboarding` walkthrough was silently ambiguous about being fake (audit §3)
+`app/onboarding/page.tsx` is pure animation — `Math.random()` for the DID/pubKey shown, no service
+calls, no `dataMode` awareness — duplicating the real identity-creation flow that already works at
+`/identity` (+ `/identity/issue` per T-051). Chose option (a) of the two the audit offered (explicitly
+label it, rather than rebuild it into the real flow): added a visible "Demo walkthrough — illustrative,
+not a real transaction" badge, a "Go to the real flow" link to `/identity`, and a doc comment. Rebuilding
+it as a second real onchain wizard would duplicate `/identity`'s + `/identity/issue`'s logic behind a
+harder-to-maintain second UI for no functional gain — a real end-to-end onboarding path already exists.
+
 ### T-047 ✅ closed 2026-09-10 — "AI" anomaly detection relabeled honestly (audit §4.4)
 `app/api/audit/anomalies/route.ts` is a genuinely working, honest rule-based heuristic (mint/role-grant
 velocity + emergency-pause checks) — good code, but `README.md`, `docs/README.md`, `docs/ARCHITECTURE.md`,

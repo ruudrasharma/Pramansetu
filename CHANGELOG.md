@@ -6,6 +6,23 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.1] — 2026-09-10 — Gap audit fixes, batch 8: label /onboarding as a demo walkthrough (T-057)
+
+Closes T-057 (audit §3) — the last Phase 1 item from the 2026-09-10 gap audit.
+
+### Changed
+- `app/onboarding/page.tsx`: added a visible "Demo walkthrough — illustrative, not a real
+  transaction" badge and a "Go to the real flow" link to `/identity`, plus a doc comment explaining
+  the choice. Chose to keep it as an explicitly-labeled explainer rather than rebuild it as a second
+  real onchain wizard — `/identity` (createDID) and `/identity/issue` (T-051) already are the real,
+  working flow; duplicating that logic behind a second UI had no functional upside.
+
+This closes out every Phase 1 item from `Praman_Setu_Implementation_Gap_Audit.md` (1.1–1.8). Phase 3's
+contract-level findings (§2.1–2.5 / TODO §3.1–3.4) remain open pending sign-off per
+`AI_DEVELOPMENT_RULES.md` §9.
+
+---
+
 ## [0.11.0] — 2026-09-10 — Gap audit fixes, batch 7: governanceService onchain wiring (T-032–T-035)
 ## + a critical subgraph manifest fix that was silently blocking every subgraph deploy
 

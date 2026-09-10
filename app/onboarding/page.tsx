@@ -10,6 +10,16 @@ import { GradientBanner } from "@/components/ui/GradientBanner";
 import { cn, truncateMiddle } from "@/lib/utils";
 import { identities } from "@/lib/mock/fixtures";
 
+/**
+ * /onboarding — an explainer/storyboard walkthrough of the identity-creation flow, not the real
+ * flow itself (TODO.md T-057 / audit §3). Every value shown (DID, pubKey, "Issued" credential
+ * badge) is generated with Math.random() and never calls any real or mock service — no dataMode
+ * awareness, deliberately, since this is fiction regardless of data mode. The real, working flow
+ * lives at /identity (createDID) and /identity/issue (credential issuance, T-051). Kept as an
+ * explainer rather than rebuilt into the real flow (option (a) of the two the audit offered) —
+ * rebuilding it as a real multi-step onchain wizard would duplicate /identity + /identity/issue's
+ * logic behind a second, harder-to-maintain UI for no functional gain.
+ */
 const steps = ["HR verification", "Key generation", "DID confirmation", "Guardian selection", "Credential receipt"] as const;
 const candidateGuardians = identities.filter((i) => i.credentialStatus === "verified").slice(0, 8);
 
@@ -33,6 +43,12 @@ export default function OnboardingPage() {
         learnMoreHref="/compliance"
       />
       <Card className="w-full max-w-lg">
+        <div className="mb-4 flex items-center justify-between">
+          <Badge tone="alert">Demo walkthrough — illustrative, not a real transaction</Badge>
+          <Link href="/identity" className="text-[11px] text-ink-500 underline underline-offset-2 hover:text-ink-300">
+            Go to the real flow
+          </Link>
+        </div>
         <div className="mb-6 flex items-center gap-1.5">
           {steps.map((s, i) => (
             <div key={s} className={cn("h-1 flex-1 rounded-full", i <= step ? "bg-signal-500" : "bg-graphite-800")} />
