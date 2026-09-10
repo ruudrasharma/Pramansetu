@@ -6,6 +6,36 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.16.0] — 2026-09-11 — Real subgraph redeploy; found and fixed a zeroed-address regression (T-050, T-059)
+
+Closes T-050. Closes T-059 (new finding this pass).
+
+### Fixed
+- `subgraph/subgraph.yaml`: the `praman-setu` Graph Studio project slot was confirmed created by
+  Rudra and a fresh `GRAPH_DEPLOY_KEY` provided — `graph auth --studio` + `graph deploy
+  --version-label v8` succeeded for the first time (previously "Subgraph not found" on three separate
+  attempts, T-050). Querying `v8` still came back with zero indexed entities across every entity type,
+  which turned out to be a second, independent bug: all five pre-existing data sources' contract
+  `address` fields had been silently zeroed to `0x000...000` in the T-039 commit (confirmed via `git
+  log -p -- subgraph/subgraph.yaml`) — only the new `GuardianRecovery` data source was meant to start
+  unaddressed. Restored the real addresses from `deployments/sepolia.json` and corrected
+  `startBlock: 0` back to the real deploy block `11665400` (also regressed) on all six data sources.
+  Redeployed as `v9`.
+- `.env.local`: `NEXT_PUBLIC_SUBGRAPH_URL` now points at `v9`.
+
+### Verified against real indexed data, not just a clean build
+- `_meta { block { number } hasIndexingErrors }` returns a real, current Sepolia block number with no
+  indexing errors.
+- `roleGrants` now returns the real 3 live `SUPER_ADMIN_ROLE` grants; `auditEvents` shows the real
+  `RoleGranted`×3/`RoleRevoked`×1 history; `platformActions` shows the real emergencyRevoke action from
+  the T-017/T-018 incident. `identities`/`credentials`/`assets`/`mintRequests`/`pendingGrants`/
+  `governanceTxes`/`disputes`/`recoveries` are genuinely empty (no DID or asset has ever been created
+  through the real UI yet) — an honest empty state, not a bug.
+- Direct Sepolia calls (not re-read from `TODO.md`) reconfirmed every "Already done, verified live
+  on-chain" claim except one: the deployer's `SUPER_ADMIN_ROLE` was claimed "revoked" but is currently
+  `true` — correct per T-020's later deliberate re-grant, but that TODO bullet had gone stale. Corrected
+  in `TODO.md`.
+
 ## [0.15.1] — 2026-09-11 — Test the anomaly-detection heuristics and the GET route directly (T-058)
 
 Closes T-058.

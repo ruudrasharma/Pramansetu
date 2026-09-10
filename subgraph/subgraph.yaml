@@ -11,10 +11,9 @@ dataSources:
     name: DIDRegistry
     network: sepolia   # Polygon Amoy; change to matic for mainnet
     source:
-      # Fill in after deploy: deployments/sepolia.json → contracts.didRegistry
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xd1de1e31580A446da22aAadB2f653Bb527317cA3"
       abi: DIDRegistry
-      startBlock: 0
+      startBlock: 11665400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -36,9 +35,9 @@ dataSources:
     name: CredentialRegistry
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xF2ad6b0A73a0958Ae7Aa6E0632b2Fc294D58C38e"
       abi: CredentialRegistry
-      startBlock: 0
+      startBlock: 11665400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -60,9 +59,9 @@ dataSources:
     name: TimeBoundAccessControl
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0x309C3243bfD73ea0e82f1b9CD07d47ed295F1f7D"
       abi: TimeBoundAccessControl
-      startBlock: 0
+      startBlock: 11665400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -100,9 +99,9 @@ dataSources:
     name: AssetRegistry
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0x438536D93017d74F03C11872Cf1b555DF0199c4D"
       abi: AssetRegistry
-      startBlock: 0
+      startBlock: 11665400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -129,9 +128,9 @@ dataSources:
     name: GovernanceTimelock
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0x4AFfa2F9d55Fc94Ce07b265804F445364C6bC19C"
       abi: GovernanceTimelock
-      startBlock: 0
+      startBlock: 11665400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -158,9 +157,9 @@ dataSources:
     name: GuardianRecovery
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0x77AC774Bc577D684bf7166468722e37a4f65Aa27"
       abi: GuardianRecovery
-      startBlock: 0
+      startBlock: 11665400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

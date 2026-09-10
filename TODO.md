@@ -340,7 +340,7 @@ pattern as the `MultisigApprovalWidget` fix), coalesced to `""` rather than `und
   (`lib/services/auditService.ts`) and in `docs/API_SPEC.md` — the onchain branch now throws a clear
   error naming this decision instead of silently no-op-ing (same pattern as T-027/T-043's stopgaps).
 
-### T-050 🔴 — The configured live subgraph deployment currently returns "Not found"
+### T-050 ✅ closed 2026-09-11 — The configured live subgraph deployment currently returns "Not found"
 Found 2026-09-10 while smoke-testing the T-036/T-037 fixes end-to-end against real onchain mode
 (`NEXT_PUBLIC_DATA_MODE=onchain` is set in this machine's `.env.local`, pointed at
 `NEXT_PUBLIC_SUBGRAPH_URL=https://api.studio.thegraph.com/query/1758953/praman-setu/v3` — the exact
@@ -376,6 +376,47 @@ upload of the build artifacts. This isn't a one-off; the slot is genuinely absen
 **2026-09-11 update, while closing T-039**: reconfirmed a third time — `--version-label v6` (shipping
 the new `GuardianRecovery`/`Recovery` entity/mappings) failed identically. Three separate redeploy
 attempts across two sessions, same manifest slot, same "Subgraph not found" every time.
+
+**2026-09-11 — actually closed.** Rudra confirmed the `praman-setu` Studio project now exists and
+provided a fresh `GRAPH_DEPLOY_KEY`. `graph auth --studio <key>` + `graph deploy ... --version-label
+v8` succeeded for the first time — `_meta { block { number } hasIndexingErrors }` returned a real,
+current block number (`11675189`, matching live Sepolia head) with `hasIndexingErrors: false`, not
+`{"message":"Not found"}`. The Studio-side rejection this item tracked is genuinely resolved.
+
+**Immediately found a second, compounding bug while verifying v8 against real data (see T-059
+below)**: even with a working Studio slot, `identities`/`assets`/`roleGrants`/etc. all came back
+empty on v8 — not because there's no real on-chain activity, but because `subgraph/subgraph.yaml`'s
+contract addresses had been silently zeroed to `0x000...000` for all five pre-existing data sources
+in the T-039 commit (git history confirms: `git log -p -- subgraph/subgraph.yaml` shows the real
+deployed addresses being replaced with the zero address in that diff, alongside the new
+`GuardianRecovery` data source that legitimately started unaddressed). Fixed by restoring the real
+addresses from `deployments/sepolia.json` and setting `startBlock: 11665400` (the real deploy block,
+matching Phase 9's original fix — it had also regressed back to `0`) on all six data sources.
+Redeployed as `v9`; `.env.local`'s `NEXT_PUBLIC_SUBGRAPH_URL` now points there. Verified against real
+data, not just a clean build: `roleGrants` now returns the real 3 `SUPER_ADMIN_ROLE` grants (matching
+the `hasRole()` addresses confirmed live in T-020), `auditEvents` shows the real `RoleGranted`×3 /
+`RoleRevoked`×1 history, and `platformActions` shows the real emergencyRevoke action id `0` from the
+T-017/T-018 incident. `identities`/`credentials`/`assets`/`mintRequests`/`pendingGrants`/
+`governanceTxes`/`disputes`/`recoveries` are all genuinely empty — no DID has ever been created and no
+asset ever minted through the real UI yet, consistent with T-019's existing note, not a bug.
+
+### T-059 ✅ closed 2026-09-11 — `subgraph/subgraph.yaml`'s addresses were silently zeroed in T-039
+See T-050's closing note above for the full finding — recorded here as its own item since it's a
+distinct regression (a manifest-authoring mistake), not the Studio-access problem T-050 tracked.
+Whoever wrote the T-039 diff (adding the `GuardianRecovery` data source, which correctly starts as
+`0x000...000` pending deploy) appears to have templated all six data sources from the same
+unaddressed scaffold, overwriting the five *already-live* addresses that had been correctly set since
+Phase 9's redeploy. Every subsequent "clean build" claim between T-039 and this fix (T-046, T-054's
+build/IPFS-upload verification) was real as far as it went — `graph codegen`/`graph build` don't
+validate that an address is non-zero or actually has the expected bytecode, only that the manifest is
+well-formed — but none of those builds would have indexed anything even if the Studio slot had existed
+the whole time. This is exactly the kind of gap T-050's own "verified by source reading, not by
+exercising it" caveat was warning about, just one level deeper: even the *build* step didn't have a
+way to catch a real regression here, since it's a stale-value bug, not a stale-schema-vs-manifest
+mismatch. No test/lint catches this class of bug; flagged as worth a one-line sanity note in
+`docs/DEPLOYMENT.md`'s redeploy runbook (verify every data-source address against
+`deployments/<network>.json` before any `graph deploy`, not just a clean local build) rather than
+building actual tooling for it — out of scope for this pass.
 
 ### T-056 ✅ closed 2026-09-11 — `docs/DATABASE_SCHEMA.md` fully synced against the real schema/contracts
 Found while writing `governanceService.ts`'s subgraph queries (2026-09-10), fixed in a dedicated pass.
@@ -570,12 +611,24 @@ Sepolia and the live Graph Studio subgraph in this session — not from a doc, f
 - Deployer wallet funded, `.env.local` fully populated (Alchemy RPC, deploy key, WalletConnect
   project ID, Graph deploy key).
 - All 6 core contracts deployed to Sepolia (`deployments/sepolia.json`), bytecode confirmed live
-  on-chain at every recorded address.
-- Subgraph deployed to Graph Studio and indexing with zero errors.
+  on-chain at every recorded address (re-confirmed 2026-09-11 via a direct `eth_getCode` script, not
+  re-read from this note).
+- Subgraph deployed to Graph Studio and indexing with zero errors — **re-verified 2026-09-11, and this
+  specific claim was false at the time it was written**: T-050 later proved the live query endpoint
+  actually 404'd, and T-059 found the manifest's contract addresses had also been silently zeroed. Both
+  are now genuinely fixed (`v9`, see T-050/T-059) and `_meta`/entity queries against the real deployed
+  addresses return real data, not just `hasIndexingErrors: false` on an empty/misaddressed indexer.
 - Post-deploy checklist: second Super Admin enrolled and confirmed live, `ECDSASignatureVerifier`
-  deployed and wired into `DIDRegistry`, `ISSUER_ROLE` granted, deployer's `SUPER_ADMIN_ROLE`
-  revoked — all confirmed via live `hasRole`/`signatureVerifier()` calls. (Deployer intentionally
-  retains `DEFAULT_ADMIN_ROLE` — see T-020.)
+  deployed and wired into `DIDRegistry` (`signatureVerifier()` matches `deployments/sepolia.json`),
+  `guardianRecoveryContract()` also confirmed wired to the real `GuardianRecovery` address,
+  `ISSUER_ROLE` granted to the recorded issuer wallet — all reconfirmed live 2026-09-11 via direct
+  `hasRole`/`signatureVerifier`/`guardianRecoveryContract` calls, not assumed from this note.
+  **Correction**: this bullet previously also said "deployer's `SUPER_ADMIN_ROLE` revoked" — that was
+  true only briefly, between the original T-017/T-018 fix and T-020's later re-grant. As of T-020, the
+  deployer (`0x38c10EAEb7BF06ECC0c5273533465E85717C3E38`) deliberately holds `SUPER_ADMIN_ROLE` again
+  (plus its pre-existing `DEFAULT_ADMIN_ROLE`) — reconfirmed live 2026-09-11: all three addresses named
+  in T-020's note (`0xD9Bd2...`, `0x38c10...`, `0xdE183...`) currently hold `SUPER_ADMIN_ROLE`, matching
+  T-020, not this stale bullet.
 - WalletConnect modal (`lib/web3modal.ts` + `Web3Providers.tsx`) is wired and real.
 
 ---
