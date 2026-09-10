@@ -6,6 +6,19 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.16.1] — 2026-09-11 — Off-boarded guardian indicator (T-062)
+
+Closes T-062 (docs/FEATURES.md F1.3's flagged edge case).
+
+### Added
+- `components/modules/GuardianStatusBadge.tsx`: a per-guardian warning badge, shown when a guardian's
+  own resolved identity has `credentialStatus === "revoked"` — never a block, `GuardianRecovery.sol`
+  still treats them as a valid signer. Mock mode uses `findIdentity`; onchain mode resolves the
+  guardian's DID from its address via `useDIDOf` then `useDidService(did).resolveDID()`, reusing the
+  same resolution every other identity display already relies on.
+- Wired into `/identity/recovery` and `/identity/recovery/guardian`'s guardian-list rows — the app's
+  two real per-guardian list surfaces (`/identity` itself only ever showed a guardian *count*).
+
 ## [0.16.0] — 2026-09-11 — Real subgraph redeploy; found and fixed two live query bugs (T-050, T-059, T-060)
 
 Closes T-050. Closes T-059, T-060 (new findings this pass).

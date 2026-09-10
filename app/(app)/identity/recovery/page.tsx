@@ -10,6 +10,7 @@ import { IconBadge } from "@/components/ui/IconBadge";
 import { EmptyState } from "@/components/ui/Card";
 import { DateStrip } from "@/components/ui/DateStrip";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
+import { GuardianStatusBadge } from "@/components/modules/GuardianStatusBadge";
 import { truncateMiddle } from "@/lib/utils";
 import { findIdentity } from "@/lib/mock/fixtures";
 import { useDidService } from "@/lib/services/didService";
@@ -105,7 +106,10 @@ export default function GuardianRecoveryPage() {
                       <p className="truncate text-ink-200">{g?.name ?? truncateMiddle(did)}</p>
                       <p className="mono-value truncate text-[11px] text-ink-600">{truncateMiddle(did, 10, 4)}</p>
                     </div>
-                    {recovery && (hasSigned ? <Check size={14} className="text-verified-400" /> : <span className="text-ink-600">—</span>)}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <GuardianStatusBadge guardianRef={did} />
+                      {recovery && (hasSigned ? <Check size={14} className="text-verified-400" /> : <span className="text-ink-600">—</span>)}
+                    </div>
                   </div>
                 );
               })}

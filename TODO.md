@@ -70,6 +70,21 @@ across three separate redeploy attempts this project); ready to ship the moment 
 **Not built this pass**: no UI flags an off-boarded guardian (their own DID/role later revoked) —
 `docs/FEATURES.md` F1.3's edge case, tracked as a follow-up.
 
+### T-062 ✅ closed 2026-09-11 — Off-boarded guardian indicator (F1.3's flagged edge case)
+Built `components/modules/GuardianStatusBadge.tsx`: a small warning badge (never a block —
+`GuardianRecovery.sol` still allows an off-boarded guardian to sign, this is UI-only) shown per
+guardian row when that guardian's own resolved identity has `credentialStatus === "revoked"`. Mock mode
+resolves via the existing `findIdentity(guardianRef)`; onchain mode resolves the guardian's DID from
+its address via `useDIDOf` (same reverse lookup `useCurrentIdentity` uses) then reuses
+`useDidService(did).resolveDID()` — the same `resolveDID`/`hasRole`-derived `credentialStatus` every
+other identity display in the app already relies on, not a new derivation. Wired into the two real
+per-guardian list UIs: `/identity/recovery` (viewing my own guardians) and
+`/identity/recovery/guardian` (acting as guardian for someone else). **Scoping note**: the top-level
+`/identity` page never had a per-guardian list to begin with — only a `"N configured"` count on the
+Guardians stat (see T-039) — so there's no individual row there to attach a badge to; the two pages
+above are the app's actual guardian-list surfaces. `tsc --noEmit` clean; `npm run lint` unchanged
+(76 warnings, 0 errors).
+
 ### T-040 ✅ closed 2026-09-10 — `app/auth/page.tsx`'s "Simulate (demo)" button fakes wallet-signature authentication
 `handleSimulateResolve` flips the UI through "resolving" → "done" via two `setTimeout`s and redirects
 to `/dashboard`, without ever calling `signMessage` or resolving anything real. Fixed by gating the

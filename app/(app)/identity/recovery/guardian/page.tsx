@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { IconBadge } from "@/components/ui/IconBadge";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
+import { GuardianStatusBadge } from "@/components/modules/GuardianStatusBadge";
 import { truncateMiddle } from "@/lib/utils";
 import { identities, findIdentity } from "@/lib/mock/fixtures";
 import { useDidService } from "@/lib/services/didService";
@@ -157,7 +158,10 @@ export default function GuardianConsolePage() {
                       <p className="truncate text-ink-200">{identity?.name ?? truncateMiddle(g)}</p>
                       <p className="mono-value truncate text-[11px] text-ink-600">{truncateMiddle(g, 10, 4)}</p>
                     </div>
-                    {recovery && (hasSigned ? <Check size={14} className="text-verified-400" /> : <span className="text-ink-600">—</span>)}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <GuardianStatusBadge guardianRef={g} />
+                      {recovery && (hasSigned ? <Check size={14} className="text-verified-400" /> : <span className="text-ink-600">—</span>)}
+                    </div>
                   </div>
                 );
               })}
