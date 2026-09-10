@@ -25,6 +25,7 @@ import {
 import {
   useRaiseDispute as useRaiseDisputeOnchain,
   useResolveDispute as useResolveDisputeOnchain,
+  useExecuteTransaction as useExecuteTransactionOnchain,
 } from "@/lib/hooks/useGovernanceTimelock";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
@@ -46,6 +47,13 @@ export interface GovernanceService {
   getDisputes: () => TimelockTransaction[];
   raiseDispute: (txId: number, reason: string, raisedBy: string) => void;
   resolveDispute: (txId: number, proceed: boolean, resolvedBy: string) => void;
+  /**
+   * Finalizes a queued, non-disputed transaction once its `eta` has passed
+   * (`GovernanceTimelock.executeTransaction` — permissionless onchain, "Anyone, after eta and no
+   * active dispute" per docs/API_SPEC.md; `executedBy` is only used for the mock store's audit
+   * log, ignored onchain since the real caller doesn't need any particular role). T-053.
+   */
+  executeTransaction: (txId: number, executedBy: string) => void;
   pause: (proposedBy: string) => void;
   unpause: (proposedBy: string) => void;
   isPlatformPaused: boolean;
@@ -62,6 +70,7 @@ function useMockGovernanceService(): GovernanceService {
     getDisputes: () => store.timelockTransactions,
     raiseDispute: store.raiseDispute,
     resolveDispute: store.resolveDispute,
+    executeTransaction: store.executeTransaction,
     pause: (by) => store.proposePlatformAction("pause", "Emergency pause — freeze all state-changing functions", by),
     unpause: (by) => store.proposePlatformAction("unpause", "Unpause platform", by),
     isPlatformPaused: store.platformPaused,
@@ -108,6 +117,7 @@ function useOnchainGovernanceService(): GovernanceService {
   const { data: isPaused } = usePlatformPausedOnchain();
   const { raiseDispute, isPending: isDisputing } = useRaiseDisputeOnchain();
   const { resolveDispute: resolveDisputeOnchain, isPending: isResolving } = useResolveDisputeOnchain();
+  const { executeTransaction: executeTransactionOnchain, isPending: isExecuting } = useExecuteTransactionOnchain();
 
   const actionsQuery = useQuery({
     queryKey: ["platformActions"],
@@ -215,10 +225,11 @@ function useOnchainGovernanceService(): GovernanceService {
     getDisputes: () => disputes,
     raiseDispute: (txId, reason) => raiseDispute({ txId: BigInt(txId), reason }),
     resolveDispute: (txId, proceed) => resolveDisputeOnchain({ txId: BigInt(txId), proceed }),
+    executeTransaction: (txId) => executeTransactionOnchain(BigInt(txId)),
     pause: () => proposePlatformAction({ actionType: 2, role: ZERO_ROLE, account: ZERO_ADDRESS }),
     unpause: () => proposePlatformAction({ actionType: 3, role: ZERO_ROLE, account: ZERO_ADDRESS }),
     isPlatformPaused: !!isPaused,
-    isPending: isProposingAction || isCoSigningAction || isProposingGrant || isCoSigningGrant || isDisputing || isResolving,
+    isPending: isProposingAction || isCoSigningAction || isProposingGrant || isCoSigningGrant || isDisputing || isResolving || isExecuting,
   };
 }
 

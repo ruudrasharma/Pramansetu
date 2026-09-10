@@ -225,21 +225,21 @@ remove Admin" form (target address + validity for addAdmin) on the governance pa
 Admin, before FR-5.1 ("Super Admin actions... require M-of-N multisig") is demonstrable end-to-end for
 role changes specifically (pause/unpause already are).
 
-### T-055 — Governance pages (`/governance`, `/governance/approvals`, `/governance/disputes`) are not
-`dataMode`-aware at all
-Found while closing T-032–T-035 (2026-09-10). All three pages resolve "me" via
-`identityByRole[useAppStore((s) => s.activeRole)]` unconditionally — the mock-only demo role switcher
-— never `useCurrentIdentity()`/`dataMode`, unlike `/roles` and `/identity` (fixed in Phases B.1/B.2).
-Concretely, in onchain mode: `canPause`/`canRaise`/`canResolve` gate on the demo role switcher instead
-of a real connected wallet's on-chain role (so a real Super Admin wallet won't see pause controls, and
-anyone who sets the mock switcher to "SUPER_ADMIN" would incorrectly see them, even though the
-underlying contract call would still correctly revert for an unauthorized caller); `proposedBy`/
-`raisedBy`/`resolvedBy`/`currentSignerDid` are all a mock persona's DID string, not the real connected
-address `getProposals()`'s onchain signers are now keyed by (see T-032's note above on signer identity
-being address-based, not DID-based, for real multisig data) — so the "already signed" check in
-`MultisigApprovalWidget` won't correctly match a real signer either. Out of scope for this pass (T-032–
-T-035 was specifically the service layer); needs the same page-level rewrite `/roles` and `/identity`
-already got.
+### T-055 ✅ closed 2026-09-11 — Governance pages are now `dataMode`-aware
+`/governance`, `/governance/approvals`, and `/governance/disputes` now resolve "me" the same way
+`/roles`/`/identity` do: `useCurrentIdentity()` for the real connected wallet in onchain mode, with
+`useDidService(myDid).resolveDID()`'s derived `.role` backing `canPause`/`canRaise`/`canResolve`
+instead of the mock-only demo role switcher. `currentSignerDid` passed into `MultisigApprovalWidget`
+now uses the real connected **address** in onchain mode (not DID) — matching T-032's onchain
+`getProposals()` adapter, which keys `signers[].did` by address since multisig co-signing on
+`TimeBoundAccessControl` is by `msg.sender`, not DID — so the "already signed" check now actually
+matches a real signer. `proposedBy`/`raisedBy`/`resolvedBy` arguments still pass `me.did`
+unconditionally: confirmed these are ignored by every onchain service implementation already (the
+real actor is always `msg.sender`), so which identifier shape is passed there doesn't affect behavior,
+only the mock-mode audit log's cosmetic actor label. All three pages' write actions (`pause`/
+`unpause`/`approveProposal`/`raiseDispute`/`resolveDispute`/`executeTransaction`) are now awaited with
+real error surfacing (`actionError` state), matching the `/roles` convention, instead of
+firing-and-forgetting.
 
 ### `lib/services/auditService.ts`
 - **T-036** ✅ closed 2026-09-10 — `dismissAlert` was a no-op in onchain mode; the dismissal was
@@ -310,15 +310,15 @@ at the top of §2 pointing to `subgraph/schema.graphql` as ground truth, not fix
 pass — the drift is pervasive enough (nearly every entity, not just governance) that it deserves a
 dedicated full-sync pass rather than a partial patch.
 
-### T-053 — No UI or service method calls `GovernanceTimelock.executeTransaction`
-Found while closing T-035 (2026-09-10) — `governanceService.ts` no longer needs
-`useExecuteTransaction` internally (it was only ever used as T-035's workaround, calling it instead of
-a real `resolveDispute`). Checked: nothing else in the app calls it either, so a queued, non-disputed
-transaction has no way to actually be finalized once its `eta` passes — the timelock queue can be
-populated and disputed, but never executed, through the product today. Not fixed this pass (out of
-T-035's scope); needs either a `GovernanceService.executeTransaction` method + a button on the
-timelock-queue lane once `eta` has passed, or a documented decision that this is acceptable to leave
-manual (e.g. via Etherscan) for this build's scope.
+### T-053 ✅ closed 2026-09-11 — Added a real `executeTransaction` path
+Added `GovernanceService.executeTransaction(txId, executedBy)`: onchain, it wraps the
+`useExecuteTransaction` hook (`lib/hooks/useGovernanceTimelock.ts`, already built for T-035, just
+unused since then) — permissionless per the contract, `executedBy` is accepted for interface symmetry
+but not actually used onchain. Mock mode gained a matching `mockDataStore.executeTransaction` action
+(a never-disputed "queued" tx had no way to become "executed" in the mock model either, same gap on
+both sides) that mirrors the real contract's preconditions (queued status, `eta` passed). UI: an
+"Execute" button on `/governance/disputes`' queued-tx row, visible once a live-ticking clock shows
+`eta` has passed — no role gate, matching `executeTransaction`'s real permissionless access control.
 
 ### T-049 — No frontend/API-route test framework exists anywhere in this repo
 Found while closing T-036 (2026-09-10). `docs/TESTING.md` §2–4 (Frontend Unit Tests, Integration

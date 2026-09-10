@@ -65,6 +65,7 @@ interface MockDataState {
 
   raiseDispute: (txId: number, reason: string, raisedBy: string) => void;
   resolveDispute: (txId: number, proceed: boolean, resolvedBy: string) => void;
+  executeTransaction: (txId: number, executedBy: string) => void;
 
   proposePlatformAction: (kind: "addAdmin" | "removeAdmin" | "upgrade" | "pause" | "unpause", title: string, proposedBy: string) => void;
   coSignPlatformAction: (proposalId: string, signer: string) => void;
@@ -207,6 +208,20 @@ export const useMockDataStore = create<MockDataState>()((set, get) => ({
       ),
     }));
     get().logEvent("GovernanceExecuted", resolvedBy, `Dispute on tx #${txId} resolved — ${proceed ? "proceeded" : "cancelled"}`);
+  },
+
+  // Mirrors GovernanceTimelock.executeTransaction's real preconditions (queued, eta passed, no
+  // active dispute) — T-053. A never-disputed "queued" tx had no way to become "executed" in the
+  // mock model either until this existed, same gap as the onchain side.
+  executeTransaction: (txId, executedBy) => {
+    const tx = get().timelockTransactions.find((t) => t.txId === txId);
+    if (!tx || tx.status !== "queued" || Date.now() < tx.eta) return;
+    set((s) => ({
+      timelockTransactions: s.timelockTransactions.map((t) =>
+        t.txId === txId ? { ...t, status: "executed", resolution: { proceeded: true, resolvedBy: executedBy, resolvedAt: Date.now() } } : t
+      ),
+    }));
+    get().logEvent("GovernanceExecuted", executedBy, `Governance tx #${txId} executed`);
   },
 
   proposePlatformAction: (kind, title, proposedBy) => {

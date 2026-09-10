@@ -14,24 +14,51 @@ import { truncateMiddle } from "@/lib/utils";
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole } from "@/lib/mock/fixtures";
 import { useGovernanceService } from "@/lib/services/governanceService";
+import { useDidService } from "@/lib/services/didService";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
+import { dataMode } from "@/lib/services/dataMode";
 
 export default function GovernancePage() {
   const activeRole = useAppStore((s) => s.activeRole);
-  const me = identityByRole[activeRole];
+  const { did: myDid, address: myAddress } = useCurrentIdentity();
+  const meMock = identityByRole[activeRole];
+  const me = dataMode === "onchain" ? { did: myDid ?? "" } : meMock;
+  const didService = useDidService(myDid);
+  const myRealIdentity = dataMode === "onchain" ? didService.resolveDID() : undefined;
   const governanceService = useGovernanceService();
   const proposals = governanceService.getProposals();
   const disputes = governanceService.getDisputes();
 
-  const canPause = activeRole === "SUPER_ADMIN";
+  const canPause = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" : activeRole === "SUPER_ADMIN";
+  // Onchain multisig signers are keyed by wallet address, not DID (see governanceService.ts's
+  // getProposals adapter) — MultisigApprovalWidget's "already signed" check needs the matching
+  // identifier for whichever mode is active.
+  const currentSignerId = dataMode === "onchain" ? myAddress : me.did;
+
   const [confirmAction, setConfirmAction] = useState<"pause" | "unpause" | null>(null);
   const [confirmText, setConfirmText] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
   const isPaused = governanceService.isPlatformPaused;
 
-  function handleConfirm() {
-    if (confirmAction === "pause") governanceService.pause(me.did);
-    if (confirmAction === "unpause") governanceService.unpause(me.did);
-    setConfirmAction(null);
-    setConfirmText("");
+  async function handleConfirm() {
+    setActionError(null);
+    try {
+      if (confirmAction === "pause") await governanceService.pause(me.did);
+      if (confirmAction === "unpause") await governanceService.unpause(me.did);
+      setConfirmAction(null);
+      setConfirmText("");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to propose action");
+    }
+  }
+
+  async function handleApprove(id: string) {
+    setActionError(null);
+    try {
+      await governanceService.approveProposal(id, me.did);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to approve proposal");
+    }
   }
 
   const queuedTimelocks = disputes.filter((d) => d.status === "queued");
@@ -50,6 +77,10 @@ export default function GovernancePage() {
           <Button variant="secondary">Disputes</Button>
         </Link>
       </div>
+
+      {actionError && (
+        <Card className="mb-5 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
+      )}
 
       {canPause && (
         <Card className={`mb-5 ${isPaused ? "border-danger-500/25 bg-danger-500/[0.04]" : "border-danger-500/15"}`}>
@@ -87,7 +118,7 @@ export default function GovernancePage() {
           ) : (
             <div className="flex flex-col gap-3">
               {proposals.map((p) => (
-                <MultisigApprovalWidget key={p.id} proposal={p} currentSignerDid={me.did} onApprove={(id) => governanceService.approveProposal(id, me.did)} />
+                <MultisigApprovalWidget key={p.id} proposal={p} currentSignerDid={currentSignerId} onApprove={handleApprove} />
               ))}
             </div>
           )}

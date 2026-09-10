@@ -6,6 +6,32 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.6] — 2026-09-11 — executeTransaction UI + governance pages' dataMode wiring (T-053, T-055)
+
+Closes T-053 and T-055.
+
+### Added
+- `GovernanceService.executeTransaction(txId, executedBy)`: onchain wraps the existing (previously
+  unused since T-035's fix) `useExecuteTransaction` hook; mock mode gained a matching
+  `mockDataStore.executeTransaction` action mirroring the real contract's preconditions (queued,
+  `eta` passed) — a never-disputed queued tx had no way to become "executed" in either mode before.
+- `app/(app)/governance/disputes/page.tsx`: an "Execute" button on each queued-tx row, shown once a
+  live-ticking clock shows `eta` has passed — no role gate, matching `executeTransaction`'s real
+  permissionless access control.
+
+### Changed
+- `/governance`, `/governance/approvals`, `/governance/disputes` now resolve "me" via
+  `useCurrentIdentity()`/`useDidService(...).resolveDID()` in onchain mode instead of the mock-only
+  demo role switcher — `canPause`/`canRaise`/`canResolve` now gate on a real connected wallet's
+  on-chain role. `MultisigApprovalWidget`'s `currentSignerDid` now receives the real connected
+  **address** in onchain mode (not DID), matching how T-032's `getProposals()` keys onchain signers —
+  the "already signed" check now actually matches a real signer instead of never matching.
+  `pause`/`unpause`/`approveProposal`/`raiseDispute`/`resolveDispute`/`executeTransaction` are all now
+  awaited with real error surfacing instead of firing-and-forgetting, matching `/roles`' convention.
+- `docs/API_SPEC.md`: updated `executeTransaction`'s row — it now has a real caller.
+
+---
+
 ## [0.11.5] — 2026-09-10 — Phase 3 §3.1(a): fix the mint page's vcId/DID mixup, no contract change (T-019)
 
 Closes the functional half of T-019, per explicit sign-off on the gap audit's §2.1 plan, option (a).
