@@ -6,6 +6,28 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.18.3] — 2026-09-11 — Correct T-020 role assignment: real named Super Admins, separate deployer/recovery key
+
+Corrects T-020 on the live Phase 3 Sepolia deployment (`accessControl` =
+`0x0a100F8c9389B723Aa0c92F63fE4F05E7737ECC3`). Re-verified live state first rather than trusting
+`TODO.md`'s existing T-020 note, which turned out to describe the old, already-abandoned deployment —
+on the current contract, nobody held `SUPER_ADMIN_ROLE` and only the deploying account held
+`DEFAULT_ADMIN_ROLE`. Smoke-tested the corrected sequence on a local Sepolia fork before broadcasting.
+
+### Changed (live Sepolia transactions)
+- Granted `SUPER_ADMIN_ROLE` (1-year `validUntil`) to Rudra (`0xb28EBde85D12Fd402ff8Daa7CFE1C84Bc449AD88`).
+- Re-granted `SUPER_ADMIN_ROLE` (1-year `validUntil`) to Shivansh (`0x38c10EAEb7BF06ECC0c5273533465E85717C3E38`),
+  restoring what the Phase 3 deploy had deliberately revoked as its last step.
+- Granted `DEFAULT_ADMIN_ROLE` (never-expiring) to a dedicated deployer/recovery account
+  (`0xD9Bd20FDC3A25C1e4C612cB44BF85C7CD6B5a5ED`), verified live before the next step.
+- Revoked `DEFAULT_ADMIN_ROLE` from Shivansh's address (self-revoke, per explicit instruction), only
+  after the recovery account's grant was confirmed live — Shivansh now holds `SUPER_ADMIN_ROLE` only;
+  the recovery account is the sole `DEFAULT_ADMIN_ROLE` holder, with no redundancy.
+
+See `TODO.md`'s T-020 entry for full transaction hashes and the live `hasRole()` verification table.
+
+---
+
 ## [0.18.2] — 2026-09-11 — Fix real null-actorDid crash across the ledger/audit UI (T-065)
 
 Closes T-065. Found immediately after T-064 by continuing to click through the local dev server
