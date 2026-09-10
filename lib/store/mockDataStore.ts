@@ -73,6 +73,8 @@ interface MockDataState {
   signRecovery: (did: string, guardianDid: string) => void;
   finalizeRecovery: (did: string) => void;
 
+  issueCredential: (input: { subjectDid: string; issuerDid: string; role: Role; validUntil: number }) => Credential;
+
   dismissAlert: (alertId: string, reason: string) => void;
 }
 
@@ -110,6 +112,26 @@ export const useMockDataStore = create<MockDataState>()((set, get) => ({
     }));
     const label = get().identities.find((i) => i.did === did)?.name ?? did.slice(0, 14) + "…";
     get().logEvent("RoleRevoked", revokedBy, `Emergency-revoked role from ${label}`);
+  },
+
+  issueCredential: ({ subjectDid, issuerDid, role, validUntil }) => {
+    const credential: Credential = {
+      vcId: nextId("vc"),
+      subjectDid,
+      issuerDid,
+      vcHash: "0x" + Math.random().toString(16).slice(2).padEnd(56, "0") + "00",
+      role,
+      validUntil,
+      revoked: false,
+    };
+    // Prepended (not appended) so credentialForDid's .find() surfaces the newly-issued
+    // credential immediately — real chain semantics allow multiple credentials per DID over
+    // time (FEATURES.md F1.2's edge case), the mock model's single-lookup helper just always
+    // reads the first match.
+    set((s) => ({ credentials: [credential, ...s.credentials] }));
+    const label = get().identities.find((i) => i.did === subjectDid)?.name ?? subjectDid.slice(0, 14) + "…";
+    get().logEvent("CredentialIssued", issuerDid, `Issued ${role}_ROLE credential to ${label}`);
+    return credential;
   },
 
   proposeMint: ({ name, category, ownerDid, cid, proposer }) => {

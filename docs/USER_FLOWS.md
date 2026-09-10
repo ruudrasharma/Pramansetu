@@ -5,8 +5,9 @@
 2. Employee's wallet generates a key pair locally — the private key never leaves the device.
 3. Public key + metadata submitted via `DIDRegistry.createDID()` → `DIDCreated` event fires.
 4. Employee registers 3–5 guardian DIDs for future key recovery (Identity screen → "Register Guardians").
-5. An authorized HR-Issuer DID signs a Verifiable Credential stating role and department; the VC hash +
-   revocation-registry entry is pushed on-chain, and the full VC is handed to the employee's wallet.
+5. An authorized HR-Issuer DID signs a Verifiable Credential stating role and department (Identity
+   screen → "Issue credential", `/identity/issue` — ISSUER_ROLE-gated); the VC hash + revocation-
+   registry entry is pushed on-chain, and the full VC is handed to the employee's wallet.
 6. Employee can now authenticate anywhere in the system by signing a challenge — no password is ever
    created, so none exists to steal.
 

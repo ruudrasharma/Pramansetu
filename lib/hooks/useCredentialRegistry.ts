@@ -4,13 +4,38 @@
  * React hooks for CredentialRegistry — issuing, checking, and revoking VCs.
  */
 
+import { useMemo } from "react";
+import { decodeEventLog, keccak256, toBytes } from "viem";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { CredentialRegistryAbi } from "@/lib/abis";
 import { contractAddresses } from "@/lib/wagmi";
 
 const address = contractAddresses.credentialRegistry;
 
+/**
+ * CredentialRegistry is its own standalone `AccessControl` contract (not
+ * `TimeBoundAccessControl`) — `ISSUER_ROLE` here is a completely separate grant from the 5 roles
+ * `lib/hooks/useAccessControl.ts` checks against the main RBAC engine (see
+ * `scripts/postDeploySetup.ts`'s `credRegistry.grantRole(ISSUER_ROLE, issuerWallet.address)`,
+ * a different contract call from every `TimeBoundAccessControl` grant). Don't reuse
+ * `useAccessControl.ts`'s `useHasRole`/`ROLE.ISSUER_ROLE` for this — it reads the wrong contract.
+ */
+export const ISSUER_ROLE = keccak256(toBytes("ISSUER_ROLE"));
+
 // ── Read hooks ──────────────────────────────────────────────────────────────
+
+/**
+ * Check if an account holds ISSUER_ROLE on CredentialRegistry specifically (see note above).
+ */
+export function useHasIssuerRole(account: `0x${string}` | undefined) {
+  return useReadContract({
+    address,
+    abi: CredentialRegistryAbi,
+    functionName: "hasRole",
+    args: account ? [ISSUER_ROLE, account] : undefined,
+    query: { enabled: !!account && !!address },
+  });
+}
 
 /**
  * isValid — check whether a VC is currently valid (exists, not revoked, not expired).
@@ -48,7 +73,7 @@ export function useGetCredential(vcId: `0x${string}` | undefined) {
  */
 export function useIssueCredential() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   function issueCredential({
     subjectDid,
@@ -72,7 +97,25 @@ export function useIssueCredential() {
     });
   }
 
-  return { issueCredential, hash, isPending: isPending || isConfirming, isSuccess, error };
+  // Decode the real vcId from the mined transaction's CredentialIssued log — same pattern as
+  // useAssetRegistry's useProposeMint decoding requestId, never guessed at the call site.
+  const vcId = useMemo(() => {
+    if (!receipt || !address) return undefined;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== address.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({ abi: CredentialRegistryAbi, data: log.data, topics: log.topics });
+        if (decoded.eventName === "CredentialIssued") {
+          return (decoded.args as { vcId: `0x${string}` }).vcId;
+        }
+      } catch {
+        // not a CredentialIssued log — skip
+      }
+    }
+    return undefined;
+  }, [receipt, address]);
+
+  return { issueCredential, hash, vcId, isPending: isPending || isConfirming, isSuccess, error };
 }
 
 /**

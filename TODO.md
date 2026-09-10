@@ -125,6 +125,27 @@ mode's auth flow is actually usable end-to-end.
   regex-matching `"#<tokenId>"` against the free-text `summary` field, honest but fragile enough
   that it's worth building deliberately rather than guessing at a call site that doesn't exist yet.
 
+### T-051 ✅ closed 2026-09-10 — Verifiable-Credential issuance had no UI anywhere (audit §4.1)
+`lib/hooks/useCredentialRegistry.ts`'s `issueCredential` hook was fully built but had zero callers in
+`app/`/`components/` — once a real DID existed on Sepolia, there was no way through the product itself
+to issue it a credential (someone would have to call the contract directly). Built
+`app/(app)/identity/issue/page.tsx` (ISSUER_ROLE-gated — note ISSUER_ROLE lives on `CredentialRegistry`
+itself, a separate `AccessControl` instance from `TimeBoundAccessControl`'s 5-role hierarchy, so a new
+`useHasIssuerRole` hook was needed rather than reusing `useAccessControl.ts`'s `useHasRole`), wired
+through a new `didService.issueCredential` method (mock branch pushes a real `Credential` into the
+mock store; onchain branch submits a real transaction with a `vcHash` genuinely computed from the
+credential's actual subject/issuer/role/validUntil fields, and decodes the real resulting `vcId` from
+the transaction's `CredentialIssued` log, same pattern as `assetService`'s `useProposeMint`). Linked
+from `/identity`'s header (shown only to issuers). Updated `docs/USER_FLOWS.md` step 5 and
+`docs/FEATURES.md` F1.2 (revised its UI description — no DID directory/detail-panel exists yet to hang
+a panel off of, so this ships as a standalone route instead, and flagged that the "already has a
+non-expired credential of this role" edge case isn't checked yet — see **T-052**).
+
+### T-052 — `/identity/issue` doesn't warn when the subject already holds a non-expired credential
+`docs/FEATURES.md` F1.2's edge-case spec says the UI should warn (contract still allows it — most
+recent `validUntil` governs). Not built in the T-051 pass; the page always proposes a fresh issuance
+with no pre-check against the subject's existing credentials.
+
 ### `lib/services/governanceService.ts`
 - **T-032** `getProposals` / `getDisputes` — both return mock fixture arrays. Needs subgraph queries
   over `GovernanceTx`/`PlatformAction` entities.
@@ -172,6 +193,23 @@ mode's auth flow is actually usable end-to-end.
   `subscribeToEvents` anywhere in the app. Documented explicitly in a code comment
   (`lib/services/auditService.ts`) and in `docs/API_SPEC.md` — the onchain branch now throws a clear
   error naming this decision instead of silently no-op-ing (same pattern as T-027/T-043's stopgaps).
+
+### T-050 🔴 — The configured live subgraph deployment currently returns "Not found"
+Found 2026-09-10 while smoke-testing the T-036/T-037 fixes end-to-end against real onchain mode
+(`NEXT_PUBLIC_DATA_MODE=onchain` is set in this machine's `.env.local`, pointed at
+`NEXT_PUBLIC_SUBGRAPH_URL=https://api.studio.thegraph.com/query/1758953/praman-setu/v3` — the exact
+URL this file's "Already done, verified live on-chain" section above claims is "deployed to Graph
+Studio and indexing with zero errors"). Querying that URL directly (`curl -X POST ... -d
+'{"query":"{ _meta { block { number } } }"}'`) returns `HTTP 200 {"message":"Not found"}` — not a
+network/timeout error, a real "this path doesn't exist" from Graph Studio's API. Every onchain-mode
+page that depends on the subgraph (`/dashboard`, `/audit`, `/audit/anomalies`, `/identity` credential
+lookups, `/roles`, `/assets`, governance) is affected — confirmed `GET /api/audit/anomalies` 500s with
+this exact cause when actually run. This blocks live verification of every subgraph-backed onchain
+fix in this session (T-036–T-038, T-047, and the governanceService/didService work below) — all of it
+was verified by direct source reading and `tsc`/`next build`/lint, the same limitation the 2026-09-10
+audit itself flagged for contract compilation, not by exercising it against real indexed data. Needs
+a redeploy of `subgraph/` to Graph Studio (or a corrected URL, if the subgraph is alive under a
+different version tag) before treating onchain mode as demo-ready.
 
 ### T-049 — No frontend/API-route test framework exists anywhere in this repo
 Found while closing T-036 (2026-09-10). `docs/TESTING.md` §2–4 (Frontend Unit Tests, Integration

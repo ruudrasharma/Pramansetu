@@ -13,6 +13,7 @@ import { useAppStore } from "@/lib/store/appStore";
 import { ROLE_LABEL } from "@/lib/mock/fixtures";
 import { useDidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
+import { useHasIssuerRole } from "@/lib/hooks/useCredentialRegistry";
 import { dataMode } from "@/lib/services/dataMode";
 
 function CreateIdentityCard({ onCreate }: { onCreate: (input: { name: string; department: string }) => void | Promise<void> }) {
@@ -66,11 +67,13 @@ function CreateIdentityCard({ onCreate }: { onCreate: (input: { name: string; de
 
 export default function IdentityPage() {
   const activeRole = useAppStore((s) => s.activeRole);
-  const { did: myDid, isResolving: isResolvingMe, hasNoDid } = useCurrentIdentity();
+  const { did: myDid, address: myAddress, isResolving: isResolvingMe, hasNoDid } = useCurrentIdentity();
   const didService = useDidService(myDid);
   const me = didService.resolveDID();
   const credentials = didService.listCredentials();
   const guardianSet = didService.getGuardians();
+  const { data: hasIssuerRoleOnchain } = useHasIssuerRole(myAddress);
+  const isIssuer = dataMode === "onchain" ? !!hasIssuerRoleOnchain : activeRole === "ADMIN" || activeRole === "SUPER_ADMIN";
 
   const [zkState, setZkState] = useState<"idle" | "proving" | "proved">("idle");
 
@@ -115,9 +118,16 @@ export default function IdentityPage() {
             master identity database.
           </p>
         </div>
-        <Link href="/identity/recovery">
-          <Button variant="secondary">Guardian recovery</Button>
-        </Link>
+        <div className="flex gap-2">
+          {isIssuer && (
+            <Link href="/identity/issue">
+              <Button variant="secondary">Issue credential</Button>
+            </Link>
+          )}
+          <Link href="/identity/recovery">
+            <Button variant="secondary">Guardian recovery</Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="mb-5">

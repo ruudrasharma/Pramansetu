@@ -17,9 +17,17 @@ call(s) behind it, the UI surface, and the edge cases it must handle.
 - **Behavior:** An `ISSUER_ROLE` holder signs a VC binding a DID to a role/department; hash + revocation
   entry go on-chain, full VC handed to the user's wallet off-chain.
 - **Contract:** `CredentialRegistry.issueCredential`
-- **UI:** Identity screen → DID detail panel → "Issue Credential" (Admin/HR only)
+- **UI:** `/identity/issue` — a standalone ISSUER_ROLE-gated route, linked from the Identity screen's
+  header (shown only to issuers). This revises the doc's earlier "DID detail panel" description: no DID
+  directory/detail-panel view exists yet in this build to hang a panel off of (`/identity` shows only
+  the connected wallet's own identity), so a dedicated route is the honest current implementation. Note
+  `ISSUER_ROLE` lives on `CredentialRegistry` itself (a separate `AccessControl` instance), not on
+  `TimeBoundAccessControl`'s 5-role RBAC hierarchy — see `lib/hooks/useCredentialRegistry.ts`.
 - **Edge cases:** issuing a credential to a DID that already holds a non-expired credential of the same
-  role (UI warns, contract allows — most recent `validUntil` governs authorization checks).
+  role (UI warns, contract allows — most recent `validUntil` governs authorization checks). **Not yet
+  handled**: the current `/identity/issue` UI doesn't check for or warn about an existing non-expired
+  credential before submitting — it always proposes issuing a new one. Flagged as a follow-up, not
+  fixed in this pass.
 
 ### F1.3 Guardian Registration & Social Recovery
 - **Behavior:** User selects 3–5 guardian DIDs and a signature threshold; a lost key is recovered via

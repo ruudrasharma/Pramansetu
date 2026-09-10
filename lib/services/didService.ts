@@ -12,6 +12,7 @@
  * loss of capability, just an honest reflection of how the real reads actually work.
  */
 
+import { useState } from "react";
 import { dataMode } from "./dataMode";
 import { useMockDataStore } from "@/lib/store/mockDataStore";
 import { credentialForDid, guardianSetFor, findIdentity, type Identity, type Credential, type GuardianSet, type Role } from "@/lib/mock/fixtures";
@@ -23,10 +24,12 @@ import {
   useSignRecovery as useSignRecoveryOnchain,
   useFinalizeRecovery as useFinalizeRecoveryOnchain,
 } from "@/lib/hooks/useGuardianRecovery";
+import { useIssueCredential as useIssueCredentialOnchain } from "@/lib/hooks/useCredentialRegistry";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
 import { GET_CREDENTIALS_BY_SUBJECT } from "@/lib/queries";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { keccak256, encodePacked } from "viem";
 import { adaptCredentials, deriveCredentialStatus, type RawCredential } from "@/lib/services/shared/credentials";
 
 export interface DidService {
@@ -40,6 +43,15 @@ export interface DidService {
   signRecovery: (did: string, guardianDid: string) => void;
   /** Not implemented in onchain mode yet — see TODO.md T-039. Throws there. */
   finalizeRecovery: (did: string) => void;
+  /** Issue a Verifiable Credential to `subjectDid`, signed as the issuer this service was
+   * instantiated for (the `did` passed into `useDidService`). Requires ISSUER_ROLE on
+   * CredentialRegistry in onchain mode — checked by the caller UI via `useHasIssuerRole`, not
+   * re-checked here (the contract itself is the real enforcement boundary either way). */
+  issueCredential: (input: { subjectDid: string; role: Role; validUntil: number }) => void;
+  /** The real vcId from the last issueCredential call — resolves instantly in mock mode, only
+   * once the real transaction confirms onchain (decoded from the CredentialIssued log). */
+  lastIssuedVcId: string | undefined;
+  isIssueConfirmed: boolean;
   isPending: boolean;
   /** True while a real onchain read backing resolveDID/listCredentials/getGuardians is still
    * in flight — lets callers show a loading state instead of misreading "still loading" as
@@ -49,6 +61,7 @@ export interface DidService {
 
 function useMockDidService(did: string | undefined): DidService {
   const store = useMockDataStore();
+  const [lastIssuedVcId, setLastIssuedVcId] = useState<string | undefined>(undefined);
 
   return {
     resolveDID: () => (did ? findIdentity(did) : undefined),
@@ -64,6 +77,12 @@ function useMockDidService(did: string | undefined): DidService {
     initiateRecovery: store.initiateRecovery,
     signRecovery: store.signRecovery,
     finalizeRecovery: store.finalizeRecovery,
+    issueCredential: ({ subjectDid, role, validUntil }) => {
+      const credential = store.issueCredential({ subjectDid, issuerDid: did ?? "unknown-issuer", role, validUntil });
+      setLastIssuedVcId(credential.vcId);
+    },
+    lastIssuedVcId,
+    isIssueConfirmed: lastIssuedVcId !== undefined,
     isPending: false,
     isResolving: false,
   };
@@ -111,6 +130,7 @@ function useOnchainDidService(did: string | undefined): DidService {
   const { isPending: isInitiating } = useInitiateRecoveryOnchain();
   const { isPending: isSigning } = useSignRecoveryOnchain();
   const { isPending: isFinalizing } = useFinalizeRecoveryOnchain();
+  const { issueCredential: issueCredentialOnchain, vcId: lastIssuedVcId, isSuccess: isIssueConfirmed, isPending: isIssuing } = useIssueCredentialOnchain();
 
   return {
     resolveDID: () => {
@@ -185,7 +205,33 @@ function useOnchainDidService(did: string | undefined): DidService {
     finalizeRecovery: () => {
       throw new Error("finalizeRecovery is not implemented in onchain mode yet — see TODO.md T-039.");
     },
-    isPending: isCreating || isInitiating || isSigning || isFinalizing,
+    issueCredential: ({ subjectDid, role, validUntil }) => {
+      if (!did) {
+        throw new Error("issueCredential requires a resolved issuer DID — connect a wallet with a registered identity first.");
+      }
+      const validUntilSeconds = BigInt(Math.floor(validUntil / 1000));
+      // vcHash is a commitment to the real fields being issued (T-036/T-037's neighbor, F1.2's
+      // "hash + revocation entry go on-chain, full VC handed to the user's wallet off-chain") —
+      // genuinely derived from this credential's actual subject/issuer/role/expiry, not a
+      // placeholder. A production issuer would hash the full signed VC document instead; this
+      // prototype has no VC-document format to hash yet, so the on-chain-relevant fields stand in.
+      const vcHash = keccak256(
+        encodePacked(
+          ["bytes32", "bytes32", "string", "uint256"],
+          [subjectDid as `0x${string}`, did as `0x${string}`, role, validUntilSeconds]
+        )
+      );
+      issueCredentialOnchain({
+        subjectDid: subjectDid as `0x${string}`,
+        issuerDid: did as `0x${string}`,
+        vcHash,
+        role,
+        validUntil: validUntilSeconds,
+      });
+    },
+    lastIssuedVcId,
+    isIssueConfirmed,
+    isPending: isCreating || isInitiating || isSigning || isFinalizing || isIssuing,
     isResolving: isLoadingDoc || credentialsQuery.isLoading || guardiansQuery.isLoading,
   };
 }

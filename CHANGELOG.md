@@ -6,6 +6,40 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.9] — 2026-09-10 — Gap audit fixes, batch 6: Verifiable-Credential issuance UI (T-051)
+
+Closes T-051 (audit §4.1) — the last unimplemented step of the onboarding workflow.
+
+### Added
+- `app/(app)/identity/issue/page.tsx`: ISSUER_ROLE-gated form to issue a real Verifiable Credential
+  (subject DID, role, validity period). Linked from `/identity`'s header, shown only to issuers.
+- `lib/hooks/useCredentialRegistry.ts`: `useHasIssuerRole` (ISSUER_ROLE lives on `CredentialRegistry`
+  itself, a separate `AccessControl` instance — not `TimeBoundAccessControl`'s 5-role hierarchy, so the
+  existing `useHasRole` would have checked the wrong contract). `useIssueCredential` now also decodes
+  the real `vcId` from the transaction's `CredentialIssued` log (same pattern as `useProposeMint`).
+- `lib/services/didService.ts`: new `issueCredential` method plus `lastIssuedVcId`/`isIssueConfirmed`
+  reactive fields. Onchain branch computes a real `vcHash` commitment from the credential's actual
+  subject/issuer/role/validUntil fields (not a placeholder). Mock branch pushes a real `Credential`
+  into the mock store via a new `lib/store/mockDataStore.ts` `issueCredential` action.
+
+### Changed
+- `docs/USER_FLOWS.md` step 5, `docs/FEATURES.md` F1.2: updated to name the real UI surface and note
+  it's a standalone route (no DID directory/detail-panel exists yet to hang a panel off of, revising
+  the doc's earlier description).
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-052**: the new page doesn't warn when a subject already holds a non-expired credential of the
+  same role, per `docs/FEATURES.md` F1.2's edge-case spec.
+- **T-050** 🔴: smoke-testing this against the live deployment (`NEXT_PUBLIC_DATA_MODE=onchain` in this
+  machine's `.env.local`) surfaced that the configured subgraph URL
+  (`https://api.studio.thegraph.com/query/1758953/praman-setu/v3`) returns `{"message":"Not found"}` —
+  not a network error, a real dead endpoint. This blocks live verification of every subgraph-backed
+  onchain-mode feature in this session (this one included) against real data; everything was verified
+  by source reading + `tsc`/`next build`/lint instead, same limitation the original audit hit for
+  contract compilation.
+
+---
+
 ## [0.10.8] — 2026-09-10 — Gap audit fixes, batch 5: auditService onchain wiring (T-036, T-037)
 
 Closes T-036 and T-037.
