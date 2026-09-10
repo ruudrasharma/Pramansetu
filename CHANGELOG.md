@@ -6,6 +6,20 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.13.1] — 2026-09-11 — Grant SUPER_ADMIN_ROLE to two real addresses (live deployment change)
+
+Not a code change — a real on-chain state change to the live Sepolia deployment, per explicit user
+request. See TODO.md's T-020 note for full detail.
+
+### Changed (live Sepolia contract state, not this repo's code)
+- Granted `SUPER_ADMIN_ROLE` on `TimeBoundAccessControl` (1-year `validUntil`, via `grantTimedRole`
+  from the deployer's `DEFAULT_ADMIN_ROLE`) to `0xD9Bd20FDC3A25C1e4C612cB44BF85C7CD6B5a5ED` and
+  `0x38c10EAEb7BF06ECC0c5273533465E85717C3E38` — confirmed transactions, confirmed via `hasRole` after.
+  Three real addresses now hold `SUPER_ADMIN_ROLE` (these two plus the pre-existing
+  `mockWallets.secondSuperAdmin`), restoring real 2-of-N multisig headroom.
+
+---
+
 ## [0.13.0] — 2026-09-11 — Real guardian-actor UI + subgraph support (T-039, T-023, T-025, T-046)
 
 Closes T-039, T-023, T-025, T-046.
