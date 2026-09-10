@@ -27,8 +27,12 @@ separate `__tests__/` tree.
 
 - Utility tests for: DID truncation/copy helper, CID validation, timestamp formatting — `lib/utils.test.ts`.
 - API-route tests for every route under `app/api/`, per `AI_DEVELOPMENT_RULES.md` §5 (happy path +
-  failure case) — `app/api/audit/anomalies/route.test.ts` covers `POST`; `GET`'s heuristics are not yet
-  covered (TODO.md T-058).
+  failure case) — `app/api/audit/anomalies/route.test.ts` covers both `GET` (subgraph-config-missing
+  failure, subgraph-request failure, and a happy path with `graphql-request` mocked) and `POST`.
+- Anomaly-detection heuristics (velocity check, emergency-pause detection) are pure functions in
+  `lib/server/anomalyDetection.ts`, unit-tested directly in `lib/server/anomalyDetection.test.ts`
+  rather than only indirectly through the route — the route handler has no branching logic of its own
+  left to hide a heuristic bug in.
 - Component-level tests (React Testing Library, not yet added — install alongside the first component
   test) for: role-expiry ring calculation, signer-chip fill logic, mint-flow stepper state machine,
   dispute countdown timer.

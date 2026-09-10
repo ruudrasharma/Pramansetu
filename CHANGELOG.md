@@ -6,6 +6,23 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.15.1] — 2026-09-11 — Test the anomaly-detection heuristics and the GET route directly (T-058)
+
+Closes T-058.
+
+### Added
+- `lib/server/anomalyDetection.ts` — the two anomaly heuristics (velocity check, emergency-pause
+  detection) extracted out of `app/api/audit/anomalies/route.ts`'s `GET` handler into a pure,
+  independently-testable `computeAnomalies(events)` function. No behavior change.
+- `lib/server/anomalyDetection.test.ts` — 13 cases covering both heuristics' edge cases.
+- 3 new cases in `app/api/audit/anomalies/route.test.ts` covering `GET` end-to-end (missing subgraph
+  config, upstream request failure, happy path with dismissed-alert overlay + riskScore sort), with
+  `graphql-request`'s `GraphQLClient` mocked.
+
+### Changed
+- `docs/TESTING.md` §2 updated to reflect both routes now being covered and the heuristics living in
+  their own testable module.
+
 ## [0.15.0] — 2026-09-11 — Add a real frontend/API-route test framework (T-049)
 
 Closes T-049. Flags T-058 (not fixed this pass).

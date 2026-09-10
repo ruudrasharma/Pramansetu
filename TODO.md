@@ -448,15 +448,29 @@ Wrote a proportionate first batch, matching `docs/TESTING.md` §2's own suggeste
 `npm run lint` (76 warnings, 0 errors — unchanged baseline), `npm run build` (succeeds), `npm run
 test:contracts` (90/90 passing, untouched by this change).
 
-### T-058 — `GET /api/audit/anomalies`'s heuristics have no test coverage
-Found while closing T-049 (2026-09-11). The route computes two real anomaly-detection heuristics
+### T-058 ✅ closed 2026-09-11 — `GET /api/audit/anomalies`'s heuristics now have real test coverage
+Found while closing T-049 (2026-09-11). The route computed two real anomaly-detection heuristics
 (velocity check across role-grant events, emergency-pause detection) inline inside the handler, driven
-by a live `GraphQLClient.request()` call against `NEXT_PUBLIC_SUBGRAPH_URL`. There's no seam to feed it
-a fixed set of fake subgraph events without either mocking `graphql-request` at the module level (brittle
-— couples the test to an implementation detail) or extracting the pure `events -> anomalies` computation
-into its own function that the route handler calls (the cleaner fix, but a real refactor of endpoint
-logic, not a drive-by addition to a test-framework-setup pass). Left open rather than either skipped
-silently or rushed into a refactor this pass.
+by a live `GraphQLClient.request()` call against `NEXT_PUBLIC_SUBGRAPH_URL`, with no seam to feed it a
+fixed set of fake subgraph events.
+
+Fixed by extracting the pure `events -> anomalies` computation into `lib/server/anomalyDetection.ts`
+(`computeAnomalies(events)`, same thresholds/output shape as before — a refactor, not a behavior
+change), which `route.ts`'s `GET` handler now calls instead of inlining the loop.
+`lib/server/anomalyDetection.test.ts` exercises it directly with fixed fake event arrays: empty input,
+no-match input, the emergency-pause rule (fires once even if the event repeats), the velocity rule
+(3-within-an-hour fires, 2-within-an-hour and 3-spread-beyond-an-hour don't, non-role event types are
+ignored, multiple offending actors are flagged independently), and both rules firing together. 13 cases.
+
+Also closed the adjacent gap this made visible: `GET`'s own route-level wiring (subgraph-config-missing
+failure, upstream-request-failure, and the happy path incl. the dismissed-alert overlay and riskScore
+sort) had no test either, only `POST` did. Added 3 more cases to
+`app/api/audit/anomalies/route.test.ts` mocking `graphql-request`'s `GraphQLClient` so no real network
+call happens.
+
+`npm run test`: 33/33 passing (was 20/20 after T-049). Full validation cycle also run clean: `tsc
+--noEmit` (0 errors), `npm run lint` (76 warnings, 0 errors — unchanged baseline), `npm run build`
+(succeeds, bundle sizes unchanged — pure refactor), `npm run test:contracts` (90/90, untouched).
 
 ### Audit event labeling
 - **T-038** ✅ closed 2026-09-10 — `KeyRotated` was missing from the `EventType` union in

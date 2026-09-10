@@ -1,13 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const dismissAlert = vi.fn();
+const getDismissedAlerts = vi.fn(async () => ({}) as Record<string, { reason: string; dismissedAt: number }>);
 
 vi.mock("@/lib/server/dismissedAlerts", () => ({
   dismissAlert: (...args: unknown[]) => dismissAlert(...args),
-  getDismissedAlerts: vi.fn(async () => ({})),
+  getDismissedAlerts: () => getDismissedAlerts(),
 }));
 
-import { POST } from "./route";
+const subgraphRequest = vi.fn();
+
+vi.mock("graphql-request", () => ({
+  GraphQLClient: class {
+    request = subgraphRequest;
+  },
+  gql: (strings: TemplateStringsArray) => strings.join(""),
+}));
+
+import { GET, POST } from "./route";
 
 function jsonRequest(body: unknown): Request {
   return new Request("http://localhost/api/audit/anomalies", {
@@ -16,6 +26,68 @@ function jsonRequest(body: unknown): Request {
     body: JSON.stringify(body),
   });
 }
+
+describe("GET /api/audit/anomalies", () => {
+  beforeEach(() => {
+    subgraphRequest.mockReset();
+    getDismissedAlerts.mockReset().mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns 500 without calling the subgraph when NEXT_PUBLIC_SUBGRAPH_URL is unset (failure case)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUBGRAPH_URL", "");
+
+    const response = await GET();
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "NEXT_PUBLIC_SUBGRAPH_URL is not configured — set it in .env.local (see docs/ENVIRONMENT.md).",
+    });
+    expect(subgraphRequest).not.toHaveBeenCalled();
+  });
+
+  it("computes anomalies from live events, overlays dismissed state, and sorts by riskScore desc (happy path)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUBGRAPH_URL", "https://example.test/subgraph");
+    subgraphRequest.mockResolvedValue({
+      auditEvents: [
+        { id: "e1", type: "EmergencyPaused", actorAddress: "0xSuperAdmin1", timestamp: "1700000000" },
+        { id: "e2", type: "RoleGranted", actorAddress: "0xactor", timestamp: "1700000000" },
+        { id: "e3", type: "RoleGranted", actorAddress: "0xactor", timestamp: "1700000100" },
+        { id: "e4", type: "RoleRevoked", actorAddress: "0xactor", timestamp: "1700000200" },
+      ],
+    });
+    getDismissedAlerts.mockResolvedValue({
+      "anomaly-velocity-0xactor-1700000200000": { reason: "False positive, verified", dismissedAt: 1700000300000 },
+    });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toHaveLength(2);
+    // Sorted descending by riskScore: emergency (90) before velocity (75).
+    expect(body[0]).toMatchObject({ rule: "Emergency Action", riskScore: 90, status: "open" });
+    expect(body[1]).toMatchObject({
+      rule: "Velocity Check: Rapid Role Grants",
+      riskScore: 75,
+      status: "dismissed",
+      dismissReason: "False positive, verified",
+    });
+  });
+
+  it("returns a handled 500 (not a crash) when the subgraph request fails", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUBGRAPH_URL", "https://example.test/subgraph");
+    subgraphRequest.mockRejectedValue(new Error("network error"));
+
+    const response = await GET();
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: "Failed to compute anomalies" });
+  });
+});
 
 describe("POST /api/audit/anomalies", () => {
   beforeEach(() => {
