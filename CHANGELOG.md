@@ -6,6 +6,19 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.4] — 2026-09-10 — Housekeeping: confirmed no stray `master` branch exists
+
+Per `Praman_Setu_Implementation_Gap_Audit.md` §6 item 3 (Phase 2 housekeeping) — the audit's own
+GitHub branch-API check was rate-limited and couldn't confirm this independently.
+
+### Verified (no code change)
+- `git branch -a` + `git ls-remote --heads origin`: no `master` branch exists, locally or on the
+  remote. The remote has only `main` and `feat/sepolia-migration-ui` (already merged into `main` per
+  the Phase 10 changelog entry). A local-only `dev` branch also exists, untouched — not named in the
+  audit's ask and not confirmed stale.
+
+---
+
 ## [0.11.3] — 2026-09-10 — Housekeeping: bump next to 14.2.35 (disclosed CVEs)
 
 Per `Praman_Setu_Implementation_Gap_Audit.md` §6 item 2 (Phase 2 housekeeping).
