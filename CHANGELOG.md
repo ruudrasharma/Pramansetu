@@ -6,6 +6,21 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.18.1] — 2026-09-11 — Fix /dashboard's hardcoded mock persona (T-064)
+
+Closes T-064. Found by clicking through the live Vercel deployment with a real wallet connected —
+the first real browser verification this session managed (Chrome extension wasn't connected for
+most of it). Every other "who am I" page (`/roles`, `/identity`, `/governance`) was already fixed to
+use the real connected identity in onchain mode; `/dashboard` was missed.
+
+### Fixed
+- `app/(app)/dashboard/page.tsx`: `const me = identityByRole[activeRole]` was unconditional —
+  showed a fabricated "Welcome back, Priya" / mock "Admin" badges regardless of `dataMode` or which
+  wallet was actually connected. Now derives `myRole`/`myCredentialStatus`/`myRoleExpiresAt`/
+  `myDisplayName` from `useCurrentIdentity()` + `didService.resolveDID()` in onchain mode, matching
+  `/roles/page.tsx`'s established pattern exactly. `myAssets` and `myApprovals`' signer match also
+  fixed to use the real address/DID as appropriate instead of the mock persona's.
+
 ## [0.18.0] — 2026-09-11 — Phase 3 deployed live to Sepolia; fixed a subgraph labeling bug found while verifying it
 
 Per explicit sign-off, `deploy.ts` then `postDeploySetup.ts` ran for real against Sepolia. All 6

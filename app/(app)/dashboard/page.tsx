@@ -17,7 +17,10 @@ import { useAuditService } from "@/lib/services/auditService";
 import { useAssetService } from "@/lib/services/assetService";
 import { useRbacService } from "@/lib/services/rbacService";
 import { useGovernanceService } from "@/lib/services/governanceService";
+import { useDidService } from "@/lib/services/didService";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { dataMode } from "@/lib/services/dataMode";
+import { truncateMiddle } from "@/lib/utils";
 
 const DAY_MS = 24 * 3_600_000;
 
@@ -34,20 +37,46 @@ function startOfDay(ts: number) {
  */
 export default function DashboardPage() {
   const activeRole = useAppStore((s) => s.activeRole);
-  const me = identityByRole[activeRole];
+  // Was unconditionally `identityByRole[activeRole]` (the mock role-switcher persona) regardless
+  // of dataMode — the one real page in this app never wired to the real connected wallet, unlike
+  // /roles, /identity, /governance (see those files for the same pattern followed here). In
+  // onchain mode this showed a fabricated "Welcome back, <mock name>" greeting and mock role
+  // gates no matter who was actually connected.
+  const { did: myDid, address: myAddress } = useCurrentIdentity();
+  const meMock = identityByRole[activeRole];
+  const me = dataMode === "onchain" ? { did: myDid ?? "" } : meMock;
+  const didService = useDidService(myDid);
+  const myRealIdentity = dataMode === "onchain" ? didService.resolveDID() : undefined;
+  const currentSignerId = dataMode === "onchain" ? (myAddress ?? "") : me.did;
+
+  // resolveDID()'s role is genuinely derived from real hasRole() checks (see didService.ts);
+  // credentialStatus likewise. name/roleExpiresAt are honestly left unpopulated onchain (no
+  // caller previously needed them) — falls back to the truncated address, matching TopBar.tsx's
+  // own onchain-mode identity display, rather than fabricating a name.
+  const myRole = dataMode === "onchain" ? (myRealIdentity?.role ?? "USER") : activeRole;
+  const myCredentialStatus = dataMode === "onchain" ? (myRealIdentity?.credentialStatus ?? "pending") : meMock.credentialStatus;
+  const myRoleExpiresAt = dataMode === "onchain" ? (myRealIdentity?.roleExpiresAt ?? 0) : meMock.roleExpiresAt;
+  const myDisplayName =
+    dataMode === "onchain" ? (myAddress ? truncateMiddle(myAddress, 6, 4) : "…") : meMock.name.split(" ")[0];
 
   const auditService = useAuditService();
   const assetService = useAssetService();
   const rbacService = useRbacService();
   const governanceService = useGovernanceService();
 
-  const myAssets = assetService.listAssets().filter((a) => a.ownerDid === me.did);
+  const myAssets = assetService
+    .listAssets()
+    .filter((a) =>
+      dataMode === "onchain"
+        ? !!myAddress && a.ownerAddress?.toLowerCase() === myAddress.toLowerCase()
+        : a.ownerDid === me.did
+    );
   const identities = rbacService.listIdentities();
   const expiringSoon = identities.filter((i) => i.roleExpiresAt - Date.now() < 48 * 3_600_000 && i.roleExpiresAt > Date.now());
   const openAlerts = auditService.getAnomalies().filter((a) => a.status === "open");
   const myApprovals = governanceService
     .getProposals()
-    .filter((p) => p.status === "queued" && !p.signers.some((s) => s.did === me.did && s.signed));
+    .filter((p) => p.status === "queued" && !p.signers.some((s) => s.did === currentSignerId && s.signed));
 
   const healthCards: Array<{
     label: string;
@@ -55,7 +84,7 @@ export default function DashboardPage() {
     icon: typeof Fingerprint;
     tone: "signal" | "sage" | "charcoal" | "alert";
   }> = [
-    { label: "My identity", value: me.credentialStatus, icon: Fingerprint, tone: "signal" },
+    { label: "My identity", value: myCredentialStatus, icon: Fingerprint, tone: "signal" },
     { label: "Roles expiring < 48h", value: expiringSoon.length, icon: Hourglass, tone: "alert" },
     { label: "Assets I own", value: myAssets.length, icon: Boxes, tone: "sage" },
     {
@@ -120,15 +149,15 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-[15px] font-medium text-ink-50">Welcome back, {me.name.split(" ")[0]}</h2>
+          <h2 className="text-[15px] font-medium text-ink-50">Welcome back, {myDisplayName}</h2>
           <div className="mt-1 flex items-center gap-2">
-            <Badge tone="neutral">{ROLE_LABEL[activeRole]}</Badge>
-            <RoleBadge role={me.role} expiresAt={me.roleExpiresAt} size="sm" />
+            <Badge tone="neutral">{ROLE_LABEL[myRole]}</Badge>
+            <RoleBadge role={myRole} expiresAt={myRoleExpiresAt} size="sm" />
           </div>
         </div>
       </div>
 
-      {openAlerts.length > 0 && (activeRole === "AUDITOR" || activeRole === "SUPER_ADMIN" || activeRole === "ADMIN") && (
+      {openAlerts.length > 0 && (myRole === "AUDITOR" || myRole === "SUPER_ADMIN" || myRole === "ADMIN") && (
         <div className="mb-5 flex items-center gap-2 rounded-xl border border-alert-500/25 bg-alert-500/[0.06] px-4 py-2.5 text-[13px] text-alert-400">
           <TriangleAlert size={15} />
           {openAlerts.length} open anomaly alert{openAlerts.length > 1 ? "s" : ""} awaiting review —{" "}
@@ -199,7 +228,7 @@ export default function DashboardPage() {
 
         {/* Right column */}
         <div className="flex flex-col gap-5">
-          {(activeRole === "SUPER_ADMIN" || activeRole === "ADMIN") && (
+          {(myRole === "SUPER_ADMIN" || myRole === "ADMIN") && (
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-[14px] font-medium text-ink-50">Pending approvals</h2>

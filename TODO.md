@@ -5,6 +5,33 @@ Completed items are moved to CHANGELOG.md.
 
 ---
 
+### T-064 ✅ closed 2026-09-11 — `/dashboard` was hardcoded to the mock persona in every data mode
+Found by actually clicking through the live Vercel deployment with a real wallet connected (Chrome
+extension), not from source reading — the first real browser verification this session managed to
+do. `app/(app)/dashboard/page.tsx` line 37 read `const me = identityByRole[activeRole]`
+unconditionally, regardless of `dataMode` — every other page that shows "who am I"
+(`/roles`, `/identity`, `/governance`) was fixed to use `useCurrentIdentity()`/`useDidService(...).resolveDID()`
+in earlier sessions (T-026, T-055, etc.); the Dashboard's own hero section was missed entirely from
+that wave. Live symptom: connecting a real wallet to the redeployed Sepolia site still showed
+"Welcome back, Priya" (a mock fixture name) with mock "Admin"/"Admin" badges, completely
+independent of the connected wallet or the real on-chain role — the flagship page fabricating an
+identity, the exact pattern this project's audits exist to catch, just never caught here because no
+prior session had real browser access to click through it with a wallet connected.
+
+Fixed to match the established pattern exactly (`/roles/page.tsx`'s `me`/`myRealIdentity` split):
+`myRole`/`myCredentialStatus`/`myRoleExpiresAt`/`myDisplayName` are now derived from
+`useCurrentIdentity()` + `didService.resolveDID()` in onchain mode (falling back to the truncated
+address for the greeting, matching `TopBar.tsx`'s own convention, since `resolveDID()` honestly
+leaves `name` unpopulated onchain — see T-021). `myAssets` now filters by real `ownerAddress` in
+onchain mode instead of a mock `ownerDid` comparison. `myApprovals`' signer match now uses
+`currentSignerId` (real address onchain, matching T-055's `governanceService` convention) instead
+of `me.did`. The "Pending approvals" card and the anomaly banner's role gate now check the real
+resolved role instead of the mock role-switcher's `activeRole`. `npx tsc --noEmit` clean, `npm run
+lint` unchanged baseline (0 errors), verified 200 locally; the live Vercel deployment still needs
+this redeployed to actually show the fix (code fix alone doesn't reach the deployed site).
+
+---
+
 ## ✅ Phase 3 — Contract-level fixes (audit §2.2/§2.3/§2.5): DEPLOYED LIVE to Sepolia 2026-09-11
 
 Per explicit sign-off from Rudra, `deploy.ts` then `postDeploySetup.ts` were run for real against
