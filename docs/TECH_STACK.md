@@ -28,7 +28,7 @@
 ## Frontend
 | Item | Choice | Version |
 |---|---|---|
-| Framework | Next.js (App Router) | `14.2.15` |
+| Framework | Next.js (App Router) | `14.2.35` |
 | Language | TypeScript | `^5.6.3` |
 | Styling | Tailwind CSS | `^3.4.14` |
 | Component base | shadcn/ui primitives (heavily customized — see UI_UX_SPEC.md) | — |

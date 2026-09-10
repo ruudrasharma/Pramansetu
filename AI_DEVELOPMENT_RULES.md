@@ -104,7 +104,7 @@ These come directly from `docs/SECURITY.md` and the Gap Analysis. An agent must 
 
 ## 8. Repository & Environment Context
 
-- Local working copy: `/Users/rudra/Development/SIH2026_Build`
+- Local working copy: `/Users/rudra/Development/Pramansetu`
 - Canonical remote: `https://github.com/ruudrasharma/Pramansetu`
 - Reference-only source material (not part of the build, do not commit): `original-docs/Problem_Gap_Analysis.pdf`, `original-docs/Complete_Solution_Document.pdf`, kept inside the repo per `original-docs/NOTE.md`.
 

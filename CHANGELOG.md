@@ -6,6 +6,42 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.3] — 2026-09-10 — Housekeeping: bump next to 14.2.35 (disclosed CVEs)
+
+Per `Praman_Setu_Implementation_Gap_Audit.md` §6 item 2 (Phase 2 housekeeping).
+
+### Changed
+- `package.json`/`package-lock.json`: `next` `14.2.15` → `14.2.35`, the latest 14.2.x patch — the
+  pinned `14.2.15` had disclosed, since-patched CVEs (`npm install` warns on it directly). Kept as an
+  exact pin (no `^` range), matching this dependency's existing convention (unlike most other
+  dependencies in this project, `next` is deliberately hard-pinned per
+  `docs/TECH_STACK.md`'s Version Pinning Rationale) — `npm install next@14.2.35` initially widened it
+  to `^14.2.35`, corrected back to an exact pin.
+- `docs/TECH_STACK.md`: updated the pinned version to match.
+
+### Verified
+- `tsc --noEmit`, `npm run lint`, `npm run build`: all clean.
+- `npm run test:contracts`: 90/90 Hardhat tests passing (unaffected by this frontend-only bump, run
+  anyway per the housekeeping instruction to run the full test suite after the version bump).
+
+---
+
+## [0.11.2] — 2026-09-10 — Housekeeping: remove stale CIPHERLOOM_STATE_AND_PLAN.md
+
+Per `Praman_Setu_Implementation_Gap_Audit.md` §6 item 1 (Phase 2 housekeeping).
+
+### Removed
+- `CIPHERLOOM_STATE_AND_PLAN.md` — a 20 KB pre-rename audit doc. Cross-checked every finding in it
+  against the current code before deleting: §0.1's anomalies fake-fallback (removed in Phase 8), §0.2's
+  IPFS Pinata env-var mismatch/client-exposed secret (fixed, moved server-side in Phase 8), and §0.4's
+  three subgraph mapping field-mismatch bugs (`asset-registry.ts`, `did-registry.ts`,
+  `credential-registry.ts` all now read real values via bound contract calls, not adjacent-field
+  workarounds) are all genuinely fixed in the current code, not just claimed fixed. §0.3's fabricated-
+  deployment concern is superseded by the real Phase 7 Sepolia deployment. Nothing unresolved found to
+  fold into `TODO.md` first.
+
+---
+
 ## [0.11.1] — 2026-09-10 — Gap audit fixes, batch 8: label /onboarding as a demo walkthrough (T-057)
 
 Closes T-057 (audit §3) — the last Phase 1 item from the 2026-09-10 gap audit.
