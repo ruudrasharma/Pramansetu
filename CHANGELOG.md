@@ -6,6 +6,28 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.4] — 2026-09-10 — Gap audit fixes, batch 1: fabrication gates (T-040, T-044)
+
+Closes T-040 and T-044 per Rule Zero, found respectively in the 2026-09-09 self-audit and the
+2026-09-10 `Praman_Setu_Implementation_Gap_Audit.md` (§2.4).
+
+### Changed
+- `app/auth/page.tsx`: the "Simulate (demo)" button (`handleSimulateResolve`, which fakes
+  wallet-signature authentication via `setTimeout`) is now gated behind `dataMode === "mock"` and
+  hidden entirely in onchain mode.
+- `app/(app)/dashboard/page.tsx`: the ledger stream's "Simulate" button (`simulateLiveEvent`, which
+  injected a synthetic on-chain event with a fabricated tx hash into the same list as real subgraph
+  events) is now gated the same way — previously it ran in *every* data mode, unlike the auth page's
+  equivalent button.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-045**: `app/auth/page.tsx`'s real (non-simulated) `handleSign` path never advances `step` past
+  `"resolving"` — no code anywhere resolves a real DID from the signature and reaches `"done"`. Gating
+  T-040's simulate button means onchain-mode users now have no way to complete sign-in through this
+  page until T-045 is fixed.
+
+---
+
 ## [0.10.3] — 2026-09-09 — Phase B.3: assetService wired to real onchain data
 
 Closes T-029/T-030, plus T-042 (found this pass, higher severity than a stub), per Rule Zero.

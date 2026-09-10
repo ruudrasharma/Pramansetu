@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { truncateMiddle } from "@/lib/utils";
+import { dataMode } from "@/lib/services/dataMode";
 
 type Step = "connect" | "sign" | "resolving" | "done";
 
@@ -107,9 +108,11 @@ export default function AuthPage() {
                 {isSigning ? <Loader2 size={14} className="animate-spin" /> : <PenLine size={14} />}
                 Sign challenge
               </Button>
-              <Button variant="secondary" onClick={handleSimulateResolve}>
-                Simulate (demo)
-              </Button>
+              {dataMode === "mock" && (
+                <Button variant="secondary" onClick={handleSimulateResolve}>
+                  Simulate (demo)
+                </Button>
+              )}
             </div>
           </div>
         )}

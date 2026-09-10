@@ -17,6 +17,7 @@ import { useAuditService } from "@/lib/services/auditService";
 import { useAssetService } from "@/lib/services/assetService";
 import { useRbacService } from "@/lib/services/rbacService";
 import { useGovernanceService } from "@/lib/services/governanceService";
+import { dataMode } from "@/lib/services/dataMode";
 
 const DAY_MS = 24 * 3_600_000;
 
@@ -148,14 +149,16 @@ export default function DashboardPage() {
             <h2 className="text-[14px] font-medium text-ink-50">Ledger stream</h2>
             <div className="flex items-center gap-3">
               <span className="hidden text-[12px] text-ink-600 sm:inline">Newest first · live from chain events</span>
-              <button
-                onClick={simulateLiveEvent}
-                title="Simulate incoming chain event"
-                className="flex items-center gap-1.5 rounded-full bg-graphite-700/50 px-2.5 py-1 text-[12px] text-ink-400 transition-colors hover:bg-graphite-700 hover:text-ink-200"
-              >
-                <RefreshCw size={11} strokeWidth={1.75} />
-                Simulate
-              </button>
+              {dataMode === "mock" && (
+                <button
+                  onClick={simulateLiveEvent}
+                  title="Simulate incoming chain event (mock mode only)"
+                  className="flex items-center gap-1.5 rounded-full bg-graphite-700/50 px-2.5 py-1 text-[12px] text-ink-400 transition-colors hover:bg-graphite-700 hover:text-ink-200"
+                >
+                  <RefreshCw size={11} strokeWidth={1.75} />
+                  Simulate
+                </button>
+              )}
             </div>
           </div>
           <DateStrip

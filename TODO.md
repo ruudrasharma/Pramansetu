@@ -47,15 +47,29 @@ only ever tracked a signature-count list). Needs a product decision on a genuine
 for someone else's recovery" flow (a different page, or a lookup-by-did console) before `initiateRecovery`/
 `signRecovery`/`finalizeRecovery` can be wired for real — not something to guess at unilaterally.
 
-### T-040 — `app/auth/page.tsx`'s "Simulate (demo)" button fakes wallet-signature authentication
-Found while auditing the connect/identity flow for B.1 (2026-09-09), not yet fixed — out of this
-session's `lib/services/*` scope, flagging so it doesn't get missed. `handleSimulateResolve` flips
-the UI through "resolving" → "done" via two `setTimeout`s and redirects to `/dashboard`, without
-ever calling `signMessage` or resolving anything real — a second, independent instance of the same
-fabricated-success pattern Rule Zero exists to catch. The real `handleSign` path (wallet-signed
-challenge) sits right next to it and is genuinely wired. Needs either removal of the simulate button
-or a clearly-labeled "demo shortcut, mock mode only" gate (`dataMode === "mock"`), same pattern as
-the role switcher above.
+### T-040 ✅ closed 2026-09-10 — `app/auth/page.tsx`'s "Simulate (demo)" button fakes wallet-signature authentication
+`handleSimulateResolve` flips the UI through "resolving" → "done" via two `setTimeout`s and redirects
+to `/dashboard`, without ever calling `signMessage` or resolving anything real. Fixed by gating the
+button behind `dataMode === "mock"` (hidden entirely in onchain mode), same pattern as the role
+switcher. See also **T-045** below — a real gap this fix surfaced, not fixed in this pass.
+
+### T-044 ✅ closed 2026-09-10 — Dashboard "Simulate" button fabricated live-looking chain events in *any* data mode
+Found in the 2026-09-10 gap audit (§2.4). `app/(app)/dashboard/page.tsx`'s `simulateLiveEvent()`
+injects a synthetic `AuditEvent` with a fabricated `0x####…####` tx hash straight into the same list
+used for real subgraph-indexed events, and — unlike T-040's button — it wasn't gated by `dataMode` at
+all, so it was live and fabricating in onchain mode too. Fixed with the same `dataMode === "mock"`
+gate as T-040.
+
+### T-045 — `app/auth/page.tsx`'s real (non-simulated) sign-in path dead-ends at "Resolving DID…"
+Found while fixing T-040 (2026-09-10), not fixed this pass — out of scope for the audit item that
+surfaced it. `handleSign`'s `onSuccess` callback sets `step` to `"resolving"`, but nothing in the
+component ever resolves a real DID from the signed message and advances `step` to `"done"` — there is
+no `useEffect` or callback watching the `"resolving"` state. In onchain mode, once the mock-only
+Simulate button is hidden (per T-040's fix), a real user who actually signs the challenge gets stuck
+on "Resolving DID from signature…" forever with no way to reach the dashboard through this page.
+Needs a real DID-resolution step wired to the `"resolving"` state (likely reusing
+`useCurrentIdentity()`'s address→DID lookup, the same hook `TopBar.tsx` already uses) before onchain
+mode's auth flow is actually usable end-to-end.
 
 ### `lib/services/rbacService.ts` — B.2, closed 2026-09-09 (T-026/T-028/T-041), stopgapped (T-027)
 - **T-026** ✅ `grantTimedRole` — resolves the target DID's real controller address via the new
