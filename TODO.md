@@ -148,16 +148,21 @@ mode's auth flow is actually usable end-to-end.
   `useWatchContractEvent` wired per relevant contract in the onchain branch.
 
 ### Audit event labeling
-- **T-038** `KeyRotated` is missing from the `EventType` union in `lib/mock/fixtures/auditEvents.ts`
-  — found while fixing `components/modules/EventRow.tsx`'s `eventMeta` record, which had a
-  `KeyRotated` entry that no longer type-checks against the current union. This undoes real work:
-  Phase 6 added `KeyRotated` as its own tracked event type, and Phase 8 fixed
-  `subgraph/src/did-registry.ts` specifically so `KeyRotated` events get their own label instead of
-  being lumped into `DIDCreated`. Somewhere in the Phase 10 refactor (fixtures split into
-  `lib/mock/fixtures/*`) the union lost that member, so a real `KeyRotated` audit event from the
-  subgraph now has no matching frontend type/icon/tone. Needs `KeyRotated` added back to `EventType`
-  and `eventMeta`, and the real subgraph `AuditEvent.type` values cross-checked against the union
-  to make sure nothing else silently dropped out the same way.
+- **T-038** ✅ closed 2026-09-10 — `KeyRotated` was missing from the `EventType` union in
+  `lib/mock/fixtures/auditEvents.ts`, so a real `KeyRotated` audit event from the subgraph had no
+  matching frontend type/icon/tone. Added back to `EventType`, `EventRow.tsx`'s `eventMeta` (new
+  `KeyRound` icon, `alert` tone), and `app/(app)/audit/page.tsx`'s filter dropdown (`eventTypes`),
+  which had also silently dropped it. Cross-checked every `audit.type = "..."` assignment across
+  `subgraph/src/*.ts` against the union — `KeyRotated` was the only value the subgraph emits that the
+  union was missing. See **T-046** below for the inverse gap this check surfaced.
+- **T-046** — `GuardianRegistered`/`RecoveryInitiated`/`RecoveryFinalized` are in the `EventType`
+  union but the subgraph never emits them: `subgraph/src/` has mapping files for `did-registry`,
+  `credential-registry`, `access-control`, `asset-registry`, and `governance-timelock`, but none for
+  `GuardianRecovery.sol` — so none of that contract's events (`GuardianRegistered`,
+  `RecoveryInitiated`, `RecoverySigned`, `RecoveryFinalized`) ever reach the audit trail in onchain
+  mode, even though the frontend has always been able to render them. Found while closing T-038, not
+  fixed in this pass (out of that item's scope — needs a new `subgraph/src/guardian-recovery.ts`
+  mapping + a manifest entry in `subgraph.yaml`, then a subgraph redeploy).
 
 ---
 

@@ -6,6 +6,25 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.5] — 2026-09-10 — Gap audit fixes, batch 2: restore `KeyRotated` event type (T-038)
+
+Closes T-038.
+
+### Fixed
+- `lib/mock/fixtures/auditEvents.ts`: added `KeyRotated` back to the `EventType` union — a real
+  `KeyRotated` event from the subgraph (`subgraph/src/did-registry.ts` has emitted it since Phase 8)
+  had no matching frontend type since some point in the Phase 10 fixture-file split.
+- `components/modules/EventRow.tsx`: added a `KeyRotated` entry to `eventMeta` (new `KeyRound` icon).
+- `app/(app)/audit/page.tsx`: added `KeyRotated` to the audit filter's `eventTypes` list, which had
+  also silently dropped it.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-046**: the subgraph has no mapping for `GuardianRecovery.sol` at all, so
+  `GuardianRegistered`/`RecoveryInitiated`/`RecoveryFinalized` — already valid `EventType` union
+  members — never actually reach the audit trail in onchain mode.
+
+---
+
 ## [0.10.4] — 2026-09-10 — Gap audit fixes, batch 1: fabrication gates (T-040, T-044)
 
 Closes T-040 and T-044 per Rule Zero, found respectively in the 2026-09-09 self-audit and the

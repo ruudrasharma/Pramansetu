@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import {
   Fingerprint,
+  KeyRound,
   BadgeCheck,
   ShieldCheck,
   Hourglass,
@@ -32,6 +33,7 @@ import { useDetailPanel } from "@/components/shell/DetailPanelContext";
 
 const eventMeta: Record<EventType, { icon: typeof Fingerprint; tone: string }> = {
   DIDCreated:         { icon: Fingerprint,     tone: "text-signal-400 bg-signal-500/10" },
+  KeyRotated:         { icon: KeyRound,        tone: "text-alert-400 bg-alert-500/10" },
   CredentialIssued:   { icon: BadgeCheck,      tone: "text-verified-400 bg-verified-500/10" },
   CredentialRevoked:  { icon: XCircle,         tone: "text-danger-400 bg-danger-500/10" },
   RoleGranted:        { icon: ShieldCheck,     tone: "text-signal-400 bg-signal-500/10" },

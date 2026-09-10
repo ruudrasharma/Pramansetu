@@ -12,6 +12,7 @@ const short = (did: string) => did.slice(0, 14) + "…";
 
 export type EventType =
   | "DIDCreated"
+  | "KeyRotated"
   | "CredentialIssued"
   | "CredentialRevoked"
   | "RoleGranted"

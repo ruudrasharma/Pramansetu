@@ -14,6 +14,7 @@ const DAY_MS = 24 * 3_600_000;
 
 const eventTypes: EventType[] = [
   "DIDCreated",
+  "KeyRotated",
   "CredentialIssued",
   "CredentialRevoked",
   "RoleGranted",
