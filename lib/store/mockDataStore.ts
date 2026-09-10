@@ -70,6 +70,7 @@ interface MockDataState {
   proposePlatformAction: (kind: "addAdmin" | "removeAdmin" | "upgrade" | "pause" | "unpause", title: string, proposedBy: string) => void;
   coSignPlatformAction: (proposalId: string, signer: string) => void;
 
+  registerGuardians: (did: string, guardians: string[], threshold: number) => void;
   initiateRecovery: (did: string, initiatedBy: string) => void;
   signRecovery: (did: string, guardianDid: string) => void;
   finalizeRecovery: (did: string) => void;
@@ -259,6 +260,19 @@ export const useMockDataStore = create<MockDataState>()((set, get) => ({
       if (justExecuted.kind === "pause") set({ platformPaused: true });
       if (justExecuted.kind === "unpause") set({ platformPaused: false });
     }
+  },
+
+  registerGuardians: (did, guardians, threshold) => {
+    set((s) => {
+      const existing = s.guardianSets.find((g) => g.did === did);
+      const updated: GuardianSet = existing
+        ? { ...existing, guardians, threshold }
+        : { did, guardians, threshold, activeRecovery: undefined };
+      return {
+        guardianSets: existing ? s.guardianSets.map((g) => (g.did === did ? updated : g)) : [...s.guardianSets, updated],
+      };
+    });
+    get().logEvent("GuardianRegistered", did, `${threshold}-of-${guardians.length} guardian set registered`);
   },
 
   initiateRecovery: (did, initiatedBy) => {

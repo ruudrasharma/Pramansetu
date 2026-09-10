@@ -2,19 +2,141 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Copy, ExternalLink, ShieldCheck, Lock, Loader2, CheckCircle2 } from "lucide-react";
+import { Copy, ExternalLink, ShieldCheck, Lock, Loader2, CheckCircle2, Check, Users } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { IconBadge } from "@/components/ui/IconBadge";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { CredentialCard } from "@/components/modules/CredentialCard";
-import { truncateMiddle } from "@/lib/utils";
+import { cn, truncateMiddle } from "@/lib/utils";
 import { useAppStore } from "@/lib/store/appStore";
-import { ROLE_LABEL } from "@/lib/mock/fixtures";
-import { useDidService } from "@/lib/services/didService";
+import { identities, ROLE_LABEL } from "@/lib/mock/fixtures";
+import { useDidService, type DidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { useHasIssuerRole } from "@/lib/hooks/useCredentialRegistry";
 import { dataMode } from "@/lib/services/dataMode";
+
+const candidateGuardians = identities.filter((i) => i.credentialStatus === "verified").slice(0, 8);
+
+function RegisterGuardiansCard({ myDid, didService }: { myDid: string; didService: DidService }) {
+  const [mockGuardianDids, setMockGuardianDids] = useState<string[]>([]);
+  const [onchainAddresses, setOnchainAddresses] = useState("");
+  const [threshold, setThreshold] = useState(3);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggleMockGuardian(did: string) {
+    setMockGuardianDids((prev) => (prev.includes(did) ? prev.filter((d) => d !== did) : prev.length < 5 ? [...prev, did] : prev));
+  }
+
+  const onchainGuardians = onchainAddresses
+    .split(/[\n,]/)
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const guardians = dataMode === "mock" ? mockGuardianDids : onchainGuardians;
+  const canSubmit = guardians.length >= 3 && guardians.length <= 5 && threshold >= 1 && threshold <= guardians.length;
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await didService.registerGuardians({ guardians, threshold });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to register guardians");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="mb-5">
+      <div className="mb-3 flex items-center gap-2">
+        <IconBadge icon={Users} tone="sage" />
+        <div>
+          <h3 className="text-[14px] font-medium text-ink-50">Register guardians</h3>
+          <p className="text-[12px] text-ink-400">
+            No guardian set configured for {truncateMiddle(myDid, 10, 4)} yet — 3–5 guardians who can jointly
+            recover this identity if the key is lost.
+          </p>
+        </div>
+      </div>
+
+      {dataMode === "mock" ? (
+        <div className="mb-4 grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+          {candidateGuardians
+            .filter((g) => g.did !== myDid)
+            .map((g) => {
+              const selected = mockGuardianDids.includes(g.did);
+              return (
+                <button
+                  key={g.did}
+                  type="button"
+                  onClick={() => toggleMockGuardian(g.did)}
+                  className={cn(
+                    "flex items-center justify-between rounded-2xl border px-3 py-2 text-left text-[12px] transition-colors",
+                    selected ? "border-signal-500/50 bg-signal-500/10" : "border-graphite-800 bg-graphite-900 hover:border-graphite-700"
+                  )}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-ink-200">{g.name}</p>
+                    <p className="truncate text-[11px] text-ink-600">{g.department}</p>
+                  </div>
+                  {selected && <Check size={14} className="shrink-0 text-signal-400" />}
+                </button>
+              );
+            })}
+        </div>
+      ) : (
+        <div className="mb-4">
+          <label className="mb-1.5 block text-[12px] text-ink-500">
+            Guardian wallet addresses (3–5, one per line or comma-separated)
+          </label>
+          <textarea
+            value={onchainAddresses}
+            onChange={(e) => setOnchainAddresses(e.target.value)}
+            placeholder={"0x...\n0x...\n0x..."}
+            rows={4}
+            className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value placeholder:text-ink-700 focus:border-signal-500 focus:outline-none"
+          />
+        </div>
+      )}
+
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex-1">
+          <label className="mb-1.5 block text-[12px] text-ink-500">Recovery threshold</label>
+          <Select value={String(threshold)} onValueChange={(v: string) => setThreshold(Number(v))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: Math.max(1, guardians.length) }, (_, i) => i + 1).map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n} of {guardians.length || "N"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="mono-value flex-1 text-[11px] text-ink-600">
+          {guardians.length}/5 selected (min. 3)
+        </p>
+      </div>
+
+      {error && <p className="mb-3 text-[12px] text-danger-400">{error}</p>}
+
+      <Button onClick={handleSubmit} disabled={!canSubmit || isSubmitting || didService.isPending}>
+        {(isSubmitting || didService.isPending) && <Loader2 size={14} className="animate-spin" />}
+        {isSubmitting || didService.isPending ? "Confirming transaction…" : "Register guardians"}
+      </Button>
+
+      {didService.isRegisterGuardiansConfirmed && (
+        <p className="mt-3 text-[12px] text-verified-400">Guardian set registered.</p>
+      )}
+    </Card>
+  );
+}
 
 function CreateIdentityCard({ onCreate }: { onCreate: (input: { name: string; department: string }) => void | Promise<void> }) {
   const [name, setName] = useState("");
@@ -127,6 +249,9 @@ export default function IdentityPage() {
           <Link href="/identity/recovery">
             <Button variant="secondary">Guardian recovery</Button>
           </Link>
+          <Link href="/identity/recovery/guardian">
+            <Button variant="secondary">Act as a guardian</Button>
+          </Link>
         </div>
       </div>
 
@@ -177,6 +302,8 @@ export default function IdentityPage() {
           View on-chain <ExternalLink size={12} />
         </a>
       </Card>
+
+      {!guardianSet && <RegisterGuardiansCard myDid={me.did} didService={didService} />}
 
       <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {credentials.length === 0 ? (

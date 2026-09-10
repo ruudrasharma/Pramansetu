@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { Users, ShieldAlert, Clock, Check, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -21,11 +23,22 @@ export default function GuardianRecoveryPage() {
   const didService = useDidService(myDid);
   const me = didService.resolveDID();
   const guardianSet = didService.getGuardians();
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const recovery = guardianSet?.activeRecovery;
   const signedCount = recovery?.signatures.length ?? 0;
   const threshold = guardianSet?.threshold ?? 0;
   const timelockMet = recovery ? Date.now() >= recovery.timelockEndsAt : false;
+
+  async function handleFinalize() {
+    if (!me) return;
+    setActionError(null);
+    try {
+      await didService.finalizeRecovery(me.did);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to finalize recovery");
+    }
+  }
 
   if (dataMode === "onchain" && (!myDid || !me)) {
     return (
@@ -64,6 +77,10 @@ export default function GuardianRecoveryPage() {
           guardians can jointly rotate a lost key after a 24h cooling-off window.
         </p>
       </div>
+
+      {actionError && (
+        <Card className="mb-5 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
+      )}
 
       {!guardianSet ? (
         <EmptyState
@@ -132,27 +149,35 @@ export default function GuardianRecoveryPage() {
                 </div>
               </div>
 
-              <Button disabled={signedCount < threshold || !timelockMet} className="w-full">
+              <Button
+                className="w-full"
+                disabled={signedCount < threshold || !timelockMet || didService.isPending}
+                onClick={handleFinalize}
+              >
+                {didService.isPending && <Loader2 size={14} className="animate-spin" />}
                 {signedCount < threshold
                   ? `Awaiting ${threshold - signedCount} more guardian signature(s)`
                   : !timelockMet
                     ? "Awaiting timelock…"
                     : "Finalize recovery — rotate key"}
               </Button>
+              {/* finalizeRecovery is permissionless once threshold + timelock are met — anyone,
+                  including the affected identity viewing this page, can legitimately call it. */}
             </Card>
           ) : (
             <Card className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-[14px] font-medium text-ink-50">Lost your device?</h3>
                 <p className="mt-1 max-w-md text-[13px] text-ink-400">
-                  Any guardian above can initiate recovery on your behalf. Once {guardianSet.threshold} of them
-                  sign and 24h elapse, your key rotates and all roles/assets stay intact.
+                  You can&apos;t initiate your own recovery — only a registered guardian&apos;s wallet can
+                  (GuardianRecovery.sol only allows a guardian to call this). Ask one of the guardians above
+                  to visit the guardian console and act on your behalf.
                 </p>
               </div>
               {dataMode === "onchain" ? (
-                <Badge tone="alert" className="shrink-0">
-                  Not available yet — see TODO.md T-039
-                </Badge>
+                <Link href="/identity/recovery/guardian" className="shrink-0">
+                  <Button variant="secondary">Guardian console</Button>
+                </Link>
               ) : (
                 <Button
                   variant="secondary"

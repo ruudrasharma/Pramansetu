@@ -4,7 +4,8 @@
 1. HR verifies the employee's real-world identity through BEL's existing internal process.
 2. Employee's wallet generates a key pair locally — the private key never leaves the device.
 3. Public key + metadata submitted via `DIDRegistry.createDID()` → `DIDCreated` event fires.
-4. Employee registers 3–5 guardian DIDs for future key recovery (Identity screen → "Register Guardians").
+4. Employee registers 3–5 guardians' wallet addresses for future key recovery (Identity screen →
+   "Register guardians", `/identity` — `GuardianRecovery.guardiansOf` stores addresses, not DIDs).
 5. An authorized HR-Issuer DID signs a Verifiable Credential stating role and department (Identity
    screen → "Issue credential", `/identity/issue` — ISSUER_ROLE-gated); the VC hash + revocation-
    registry entry is pushed on-chain, and the full VC is handed to the employee's wallet.
@@ -37,15 +38,20 @@
 4. Investigation proceeds off-chain; once resolved, the compromised DID's key is rotated via the
    guardian-recovery flow and the contract is unpaused by a fresh multisig vote.
 
-## 5. Lost Private Key Recovery
-1. Employee (or their manager, on their behalf) opens Identity → "Recover Identity."
-2. Employee's registered guardians are notified (off-chain, e.g. internal comms) to initiate/sign
-   recovery.
-3. Any guardian calls `initiateRecovery(did, newPubKey)`.
-4. Each subsequent registered guardian calls `signRecovery(did)` until the M-of-N threshold is met.
-5. After the threshold is met and the recovery time-lock window elapses, anyone can call
-   `finalizeRecovery(did)` — the DID's controlling key rotates to the new key; all linked roles/assets
-   remain intact.
+## 5. Lost Private Key Recovery (2026-09-11, T-039: real UI, not just the contract flow)
+1. Employee generates a fresh keypair on a new device (same client-side technique `createDID` uses) and
+   shares the resulting address + public key with their guardians **out-of-band** (phone, internal
+   comms) — this app has no mechanism for that hand-off itself, same as any real social-recovery scheme.
+2. Employee (or whoever's helping) opens Identity → "Guardian recovery" (`/identity/recovery`) to view
+   status — this is a *view*, not an action page: `initiateRecovery`/`signRecovery` can only be called
+   by a registered guardian's own wallet, never by the affected employee themselves.
+3. A guardian opens "Act as a guardian" (`/identity/recovery/guardian`), looks up the employee's DID, and
+   calls `initiateRecovery(did, newController, newPubKey)` with the address/pubkey from step 1.
+4. Each subsequent registered guardian visits the same console and calls `signRecovery(did)` until the
+   M-of-N threshold is met — real signer count comes from the subgraph's `Recovery` entity.
+5. After the threshold is met and the 24h recovery time-lock window elapses, anyone (including the
+   employee, back on `/identity/recovery`) can call `finalizeRecovery(did)` — the DID's controlling key
+   rotates to the new key; all linked roles/assets remain intact.
 
 ## 6. Raising and Resolving a Dispute
 1. A high-value asset transfer is queued via `GovernanceTimelock.queueTransaction()` and enters its

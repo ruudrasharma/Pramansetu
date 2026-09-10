@@ -6,6 +6,56 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.13.0] — 2026-09-11 — Real guardian-actor UI + subgraph support (T-039, T-023, T-025, T-046)
+
+Closes T-039, T-023, T-025, T-046.
+
+### Added
+- `app/(app)/identity/recovery/guardian/page.tsx` — the real guardian-actor console: look up any DID,
+  initiate recovery on its behalf (real `newController`/`newPubKey` inputs, communicated out-of-band
+  by the affected person), or sign an in-progress one. `/identity/recovery` (viewing "my own" status)
+  and this console are necessarily separate pages — `initiateRecovery`/`signRecovery` can only ever be
+  called by a registered guardian's own wallet, never the affected person's.
+- A "Register guardians" card on `/identity` (self-service, shown when none exist yet) — there was no
+  UI anywhere to register guardians at all before this; the Command Palette's "Register Guardians"
+  entry navigated to a query param `/identity/page.tsx` never read (a dead menu item).
+- `subgraph/src/guardian-recovery.ts` + a new `Recovery` schema entity + `subgraph.yaml` dataSource —
+  `GuardianRecovery.sol` had no subgraph mapping at all. Real signer count/initiator for a recovery
+  now come from this instead of being permanently `undefined` (`activeRecovery(did)`'s auto-generated
+  getter can't expose either). `graph codegen`/`graph build` verified clean.
+- `lib/services/didService.ts`: `registerGuardians` method; `initiateRecovery` extended to accept the
+  real `newIdentity` (controller + pubKey) input it always needed; `signRecovery`/`finalizeRecovery`
+  now submit real transactions in onchain mode instead of throwing.
+- `lib/hooks/useGuardianRecovery.ts`'s existing `useRegisterGuardians`/`useInitiateRecovery`/
+  `useSignRecovery`/`useFinalizeRecovery` hooks are now actually called (they were fully built, just
+  unused, since this session's earlier work).
+
+### Fixed — found while wiring this up
+- `didService.ts`'s mock branch read `getGuardians()`/`listCredentials()` from **static fixture
+  helpers**, not the reactive Zustand store mutations actually write to — the existing "Simulate
+  recovery" button on `/identity/recovery` has been silently non-functional in the UI as a result
+  (it mutated the store; the page always re-read the unmutated fixture). Fixed by reading from the
+  store instead.
+- `/identity/recovery/page.tsx`'s "Finalize recovery" button had no `onClick` handler — dead even
+  when correctly enabled. `finalizeRecovery` is genuinely permissionless (the affected person can
+  call it themselves once ready); now wired for real with error surfacing.
+
+### Attempted, blocked
+`graph deploy ... --version-label v6` (shipping the new `GuardianRecovery` support) failed with the
+same "Subgraph not found" as T-050 — the third confirmation of this across three separate redeploy
+attempts. Ready to ship the moment the Graph Studio slot exists.
+
+### Changed
+- `docs/FEATURES.md` F1.3, `docs/USER_FLOWS.md` §1/§5: corrected "guardian DIDs" to "guardian
+  addresses" (matches `guardiansOf`'s real return type) and rewritten to describe the real 3-page
+  flow instead of the old single-page framing.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- No UI flags an off-boarded guardian (their own DID/role later revoked) — `docs/FEATURES.md` F1.3's
+  edge case, tracked as a follow-up.
+
+---
+
 ## [0.12.0] — 2026-09-11 — Fix /auth's real sign-in dead-end (T-045)
 
 Closes T-045.

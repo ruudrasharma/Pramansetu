@@ -33,14 +33,30 @@ call(s) behind it, the UI surface, and the edge cases it must handle.
   redundant duplicate credentials, not because the contract would reject or auto-resolve a conflict.
 
 ### F1.3 Guardian Registration & Social Recovery
-- **Behavior:** User selects 3–5 guardian DIDs and a signature threshold; a lost key is recovered via
-  M-of-N guardian co-signature within a time-locked window.
+- **Behavior:** User selects 3–5 guardians and a signature threshold; a lost key is recovered via M-of-N
+  guardian co-signature within a 24h time-locked window. Guardians are identified by **wallet address**
+  on-chain (`GuardianRecovery.guardiansOf(did)` returns `address[]`, not DIDs) — the registering user
+  picks people, but what actually gets stored is their addresses.
 - **Contract:** `GuardianRecovery.registerGuardians / initiateRecovery / signRecovery / finalizeRecovery`
-- **UI:** Identity screen → "Register Guardians" / "Recover Identity" flows, live signature-progress chip
-  row
+- **UI (2026-09-11, T-039):** three real surfaces, not one — `initiateRecovery`/`signRecovery` can only
+  ever be called by a *registered guardian's own wallet*, never by the affected person (who by
+  definition has lost the device that would let them call anything), so "my own status" and "acting as
+  a guardian for someone else" are necessarily different pages:
+  - `/identity` — "Register guardians" card (self-service, shown when none exist yet).
+  - `/identity/recovery` — view *my own* guardian set and recovery progress; finalize once ready
+    (`finalizeRecovery` is genuinely permissionless — the affected person can call it themselves).
+  - `/identity/recovery/guardian` — the actual guardian-actor console: look up any DID, initiate
+    recovery on its behalf (providing the affected identity's new controller address + public key,
+    communicated out-of-band — this app has no mechanism for that hand-off), or sign an in-progress
+    one. The contract's own `NotAGuardian()` revert is the real check for whether the connected wallet
+    is actually entitled to act, same "frontend is UX only" principle as everywhere else in this app.
+  Real signer count / initiator now come from the subgraph's `Recovery` entity
+  (`subgraph/src/guardian-recovery.ts`, added this pass — `GuardianRecovery` had no subgraph mapping at
+  all before, see TODO.md T-046) since `activeRecovery(did)`'s auto-generated getter can't expose either.
 - **Edge cases:** a guardian is later off-boarded (their own DID/role revoked) — UI flags stale guardians
   and prompts re-registration; recovery threshold not met before a guardian withdraws consent (recovery
-  simply stalls, no partial state change).
+  simply stalls, no partial state change). **Not yet handled**: no UI flags an off-boarded guardian —
+  tracked as a follow-up, not built this pass.
 
 ### F1.4 Zero-Knowledge Role Proof — **Phase 4 roadmap, not shipped in this build**
 - **Status:** Not implemented. No `semaphore`/`snarkjs` dependency exists in `package.json`. The

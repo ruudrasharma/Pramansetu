@@ -129,6 +129,23 @@ type Dispute @entity {
   txHash: Bytes!
 }
 
+# GuardianRecovery.sol's activeRecovery(did) auto-generated getter omits the dynamic `signers`
+# array entirely (Solidity drops dynamic-array struct members from public-mapping getters) and
+# never stores `initiatedBy` at all (only emitted in the event) — T-023/T-039/T-046's flagged gap.
+# One entity per did, overwritten on each new RecoveryInitiated — matches the contract's own
+# activeRecovery[did] semantics (exactly one active/most-recent recovery per did at a time).
+type Recovery @entity {
+  id: ID!                          # did (bytes32 as hex string)
+  did: Bytes!
+  newController: Bytes!
+  initiatedBy: Bytes!
+  initiatedAt: BigInt!
+  signers: [Bytes!]!
+  finalized: Boolean!
+  finalizedAt: BigInt
+  txHash: Bytes!
+}
+
 # ── Unified audit log ────────────────────────────────────────────────────────
 # Every significant on-chain event lands here, in addition to its typed entity.
 # This powers the Overview ledger stream and Audit page table without a join.

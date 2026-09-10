@@ -12,40 +12,63 @@ Phase 10). `NEXT_PUBLIC_DATA_MODE` defaults to `mock` precisely because these ar
 `AI_DEVELOPMENT_RULES.md` Rule Zero, the default does not flip to `onchain` until every item below
 is either genuinely wired or explicitly gated to fail loudly instead of silently faking success.
 
-### `lib/services/didService.ts` — B.1, closed 2026-09-09 (T-021/T-022/T-024), partial (T-023), open (T-025)
+### `lib/services/didService.ts` — B.1, closed 2026-09-09 (T-021/T-022/T-024), fully closed 2026-09-11 (T-023/T-025)
 - **T-021** ✅ `resolveDID` — real `useResolveDID(did)` read, adapted to `Identity`. `name`/`department`
   are left as `""` (would need fetching `metadataURI`'s ipfs:// content — no current caller reads
   these two fields off `resolveDID`'s result, so this wasn't built; revisit if that changes).
   `role` is genuinely derived from 5 real `useHasRole` checks against the resolved controller.
 - **T-022** ✅ `listCredentials` — real subgraph query (`GET_CREDENTIALS_BY_SUBJECT`) filtered by subject.
-- **T-023** 🟡 `getGuardians` — `guardians`/`threshold` are real (`recoveryThreshold` +
-  `lib/hooks/useGuardianRecovery.ts`'s new `useGuardiansList`, which probes `guardiansOf(did, 0..4)`
-  since `GuardianRecovery.MAX_GUARDIANS` is a real contract constant). `activeRecovery` is always
-  `undefined` in onchain mode, not a stub oversight: confirmed against the compiled ABI that
-  `activeRecovery(did)`'s auto-generated getter omits the `signers` array entirely (Solidity drops
-  dynamic-array struct members from public-mapping getters), and `initiatedBy` is only ever emitted
-  in the `RecoveryInitiated` event, never stored. Signer count / initiator need an event or subgraph
-  source that doesn't exist yet — building it is pointless until T-039 exists anyway.
+- **T-023** ✅ closed 2026-09-11 — `getGuardians`'s `activeRecovery` now comes from the subgraph's real
+  `Recovery` entity (added for T-039, see below) instead of being left `undefined` — the missing
+  event/subgraph source this item was blocked on now exists.
 - **T-024** ✅ `createDID` — generates a real keypair client-side (`viem/accounts`), uploads real
   `{name, department}` metadata to IPFS via `/api/ipfs/upload` (loosened to accept any metadata
   shape with a `name`, not just asset metadata — see that route + `docs/API_SPEC.md`), and submits
   the real public key + real `ipfs://` metadataURI. The generated private key is stored in
   `localStorage` (prototype-grade only, per `docs/SECURITY.md` — not real custody).
-- **T-025** `initiateRecovery` — still throws in onchain mode. Blocked on **T-039** below, not a
-  simple wiring gap: fixing the hardcoded zero args isn't enough on its own.
+- **T-025** ✅ closed 2026-09-11 — `initiateRecovery` now submits a real transaction in onchain mode
+  (see T-039).
 
-### T-039 — Guardian recovery needs a guardian-actor UI, not just service fixes
-Found while implementing T-023/T-025 (2026-09-09). `GuardianRecovery.initiateRecovery`/`signRecovery`
-can only be called by a **registered guardian of the target DID** — never by the person who lost
-their device. The current `/identity/recovery` page is framed backwards for onchain mode: it renders
-*my own* recovery status and shows a "Simulate recovery" button as if a guardian clicked it on my
-behalf, but with the real connected-wallet model (see `lib/hooks/useCurrentIdentity.ts`), whoever's
-wallet is connected while viewing that button would need to *be* one of my guardians for the real
-transaction to succeed — which is never true when I'm looking at my own page. `initiateRecovery` also
-needs a real new-controller-address / new-pubkey input that no UI currently collects (the mock model
-only ever tracked a signature-count list). Needs a product decision on a genuine "act as a guardian
-for someone else's recovery" flow (a different page, or a lookup-by-did console) before `initiateRecovery`/
-`signRecovery`/`finalizeRecovery` can be wired for real — not something to guess at unilaterally.
+### T-039 ✅ closed 2026-09-11 — Built the real guardian-actor UI
+Design decision made (not escalated, per the reasoning below — this was dictated by how the contract
+actually works, not an arbitrary style choice): kept `/identity/recovery` as the "view my own status"
+page (it already worked correctly for this) and added a **separate** page,
+`/identity/recovery/guardian`, for "act as a guardian for someone else." These have to be different
+pages — `initiateRecovery`/`signRecovery` can only ever be called by a registered guardian's own
+wallet, never by the affected person's, so there is no single "my own did" framing that serves both.
+The new console takes an explicit target DID (mock: dropdown; onchain: bytes32 input) rather than
+assuming "my own" — the contract's own `NotAGuardian()` revert is the real check for whether the
+connected wallet is entitled to act, matching this app's "frontend is UX only" principle everywhere
+else. `initiateRecovery` now collects the real `newController`/`newPubKey` inputs it always needed
+(communicated to the guardian out-of-band by the affected person — this app has no mechanism for that
+hand-off, same as any real social-recovery scheme).
+
+**Also built, a genuine prerequisite this item's own text didn't call out**: there was no UI anywhere
+to actually *register* guardians in the first place (`useRegisterGuardians` existed, unused; the
+Command Palette's "Register Guardians" entry navigated to `/identity?action=guardians`, which
+`/identity/page.tsx` never read — a fully dead menu item). Added a "Register guardians" card to
+`/identity`, shown self-service when none exist yet.
+
+**Subgraph work required to show real signer counts, closes T-046 too**: `GuardianRecovery.sol` had
+no subgraph mapping at all. Added `subgraph/src/guardian-recovery.ts` + a new `Recovery` entity +
+`subgraph.yaml` dataSource, verified via `graph codegen`/`graph build`. Attempted a real redeploy
+(`--version-label v6`) — failed with the same "Subgraph not found" as T-050 (third confirmation now
+across three separate redeploy attempts this project); ready to ship the moment that's resolved.
+
+**Found and fixed along the way, not previously suspected**:
+- `lib/services/didService.ts`'s mock branch: `getGuardians()`/`listCredentials()` read from the
+  *static* fixture helpers (`guardianSetFor`/`credentialForDid`), not the reactive Zustand store
+  (`store.guardianSets`/`store.credentials`) that mutations actually write to. This meant the
+  existing "Simulate recovery" button (and, less visibly, T-051's `issueCredential` for any caller
+  other than the issuing page itself) never actually showed up in the UI in mock mode — a real,
+  user-visible bug, not just an onchain gap. Fixed by reading from the store instead.
+- `/identity/recovery/page.tsx`'s "Finalize recovery" button had no `onClick` handler at all — dead
+  even when enabled. `finalizeRecovery` is genuinely permissionless (anyone can call it once
+  threshold + timelock are met, including the affected person themselves), so this is now wired for
+  real with error surfacing, not left for the new guardian console to cover.
+
+**Not built this pass**: no UI flags an off-boarded guardian (their own DID/role later revoked) —
+`docs/FEATURES.md` F1.3's edge case, tracked as a follow-up.
 
 ### T-040 ✅ closed 2026-09-10 — `app/auth/page.tsx`'s "Simulate (demo)" button fakes wallet-signature authentication
 `handleSimulateResolve` flips the UI through "resolving" → "done" via two `setTimeout`s and redirects
@@ -350,6 +373,10 @@ v5` attempt (this time shipping the new `PendingGrant` entity/mappings) failed w
 "Subgraph not found", after another clean local `graph codegen`/`graph build` and a successful IPFS
 upload of the build artifacts. This isn't a one-off; the slot is genuinely absent every time.
 
+**2026-09-11 update, while closing T-039**: reconfirmed a third time — `--version-label v6` (shipping
+the new `GuardianRecovery`/`Recovery` entity/mappings) failed identically. Three separate redeploy
+attempts across two sessions, same manifest slot, same "Subgraph not found" every time.
+
 ### T-056 — `docs/DATABASE_SCHEMA.md` §2's subgraph schema sketch doesn't match `subgraph/schema.graphql`
 Found while writing `governanceService.ts`'s subgraph queries (2026-09-10). Nearly every entity in
 `DATABASE_SCHEMA.md`'s §2 GraphQL block differs from the real, buildable schema — wrong field names
@@ -387,14 +414,13 @@ decision, not a drive-by addition to one endpoint's fix.
   which had also silently dropped it. Cross-checked every `audit.type = "..."` assignment across
   `subgraph/src/*.ts` against the union — `KeyRotated` was the only value the subgraph emits that the
   union was missing. See **T-046** below for the inverse gap this check surfaced.
-- **T-046** — `GuardianRegistered`/`RecoveryInitiated`/`RecoveryFinalized` are in the `EventType`
-  union but the subgraph never emits them: `subgraph/src/` has mapping files for `did-registry`,
-  `credential-registry`, `access-control`, `asset-registry`, and `governance-timelock`, but none for
-  `GuardianRecovery.sol` — so none of that contract's events (`GuardianRegistered`,
-  `RecoveryInitiated`, `RecoverySigned`, `RecoveryFinalized`) ever reach the audit trail in onchain
-  mode, even though the frontend has always been able to render them. Found while closing T-038, not
-  fixed in this pass (out of that item's scope — needs a new `subgraph/src/guardian-recovery.ts`
-  mapping + a manifest entry in `subgraph.yaml`, then a subgraph redeploy).
+- **T-046** ✅ closed 2026-09-11 (while closing T-039) — `GuardianRegistered`/`RecoveryInitiated`/
+  `RecoveryFinalized` are in the `EventType` union but the subgraph never emitted them:
+  `subgraph/src/` had mapping files for every other contract but none for `GuardianRecovery.sol`.
+  Added `subgraph/src/guardian-recovery.ts` (`handleGuardiansRegistered`/`handleRecoveryInitiated`/
+  `handleRecoverySigned`/`handleRecoveryFinalized`) and the corresponding `subgraph.yaml`
+  `GuardianRecovery` dataSource — needed anyway for T-039's guardian console to show real signer
+  counts (see below), not built as a standalone fix.
 
 ---
 

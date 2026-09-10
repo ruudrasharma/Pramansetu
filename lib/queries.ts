@@ -158,6 +158,22 @@ export const GET_CREDENTIALS_BY_SUBJECT = gql`
   }
 `;
 
+export const GET_RECOVERY = gql`
+  query GetRecovery($did: String!) {
+    recovery(id: $did) {
+      id
+      did
+      newController
+      initiatedBy
+      initiatedAt
+      signers
+      finalized
+      finalizedAt
+      txHash
+    }
+  }
+`;
+
 export const GET_AUDIT_EVENTS = gql`
   query GetAuditEvents($first: Int = 20, $skip: Int = 0) {
     auditEvents(first: $first, skip: $skip, orderBy: timestamp, orderDirection: desc) {
