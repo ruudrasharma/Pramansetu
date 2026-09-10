@@ -6,6 +6,28 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.13.2] — 2026-09-11 — Sync docs/DATABASE_SCHEMA.md against the real schema/contracts (T-056)
+
+Closes T-056. Docs-only, no code changes.
+
+### Changed
+- `docs/DATABASE_SCHEMA.md` §2: replaced the stale, idealized GraphQL sketch with the real
+  `subgraph/schema.graphql` copied verbatim (11 entities — the old version had a `GovernanceAction`
+  entity that never existed and was missing `MintRequest`/`PendingGrant`/`Recovery` entirely). §3/§4
+  updated to match (no `Asset.ownerDid`/`RoleGrant.expiresAt` — real fields are `owner`/`validUntil`).
+- §1 and §5, verified directly against contract source in the same pass: `GovernanceTimelock` has no
+  separate `disputes[txId]` mapping (dispute fields live inside `queue[txId]`'s struct, alongside a
+  4-value `Status` enum, not a boolean); `grantTimedRole` doesn't check for a credential at all
+  (previously claimed it did); the mint dual-attestation check is in `coSignMint`, not a function
+  literally named `mint`.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **New**: `docs/API_SPEC.md`'s entire "Off-Chain Read API" section describes REST endpoints that
+  don't exist — only 2 real API routes exist in the repo. The frontend queries the subgraph directly
+  via GraphQL instead. Flagged for a decision, not fixed here.
+
+---
+
 ## [0.13.1] — 2026-09-11 — Grant SUPER_ADMIN_ROLE to two real addresses (live deployment change)
 
 Not a code change — a real on-chain state change to the live Sepolia deployment, per explicit user

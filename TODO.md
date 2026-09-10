@@ -377,14 +377,30 @@ upload of the build artifacts. This isn't a one-off; the slot is genuinely absen
 the new `GuardianRecovery`/`Recovery` entity/mappings) failed identically. Three separate redeploy
 attempts across two sessions, same manifest slot, same "Subgraph not found" every time.
 
-### T-056 — `docs/DATABASE_SCHEMA.md` §2's subgraph schema sketch doesn't match `subgraph/schema.graphql`
-Found while writing `governanceService.ts`'s subgraph queries (2026-09-10). Nearly every entity in
-`DATABASE_SCHEMA.md`'s §2 GraphQL block differs from the real, buildable schema — wrong field names
-throughout, and `GovernanceAction`/no `MintRequest` don't exist in the real schema at all (the real
-governance entities are `PlatformAction`, `GovernanceTx`, and `Dispute`). Flagged with a prominent note
-at the top of §2 pointing to `subgraph/schema.graphql` as ground truth, not fixed line-by-line this
-pass — the drift is pervasive enough (nearly every entity, not just governance) that it deserves a
-dedicated full-sync pass rather than a partial patch.
+### T-056 ✅ closed 2026-09-11 — `docs/DATABASE_SCHEMA.md` fully synced against the real schema/contracts
+Found while writing `governanceService.ts`'s subgraph queries (2026-09-10), fixed in a dedicated pass.
+§2's GraphQL block is now copied verbatim from the real, buildable `subgraph/schema.graphql` (11
+entities — `Identity`, `Credential`, `RoleGrant`, `Asset`, `MintRequest`, `PlatformAction`,
+`PendingGrant`, `GovernanceTx`, `Dispute`, `Recovery`, `AuditEvent` — the old sketch had a
+`GovernanceAction` entity that never existed and was missing `MintRequest`/`PendingGrant`/`Recovery`
+entirely). §3 (Relationships) and §4 (Indexes) updated to match (no `Asset.ownerDid`/`RoleGrant.expiresAt`
+— the real fields are `Asset.owner`/`RoleGrant.validUntil`).
+
+**Also verified and corrected §1 (on-chain storage) and §5 (constraints) directly against the contract
+source while doing this pass, not just §2**: `GovernanceTimelock` has no separate `disputes[txId]`
+mapping — dispute fields live inside the same `queue[txId]` struct alongside a 4-value `Status` enum,
+not a boolean `executed`. §5's claim that `TimeBoundAccessControl.grantTimedRole` checks for a valid
+credential was **false** — that function has no credential-related code path at all, verified directly
+against the source. §5's mint constraint pointed at a function literally named `mint`, which doesn't
+exist — it's enforced in `coSignMint` (`SameSignerNotAllowed()`).
+
+**New finding, out of this item's scope, not fixed**: `docs/API_SPEC.md` §2's entire "Off-Chain Read
+API" section describes REST endpoints (`GET /identities`, `GET /assets?ownerDid=`, `GET /role-grants`,
+`GET /governance/queue`, `GET /audit`) that don't exist as real routes — only `/api/audit/anomalies`
+and `/api/ipfs/upload` are real (`find app/api -type d` confirms). The frontend queries the subgraph
+directly via GraphQL (`lib/queries.ts`/`lib/graphql.ts`), bypassing this REST surface entirely. Whether
+this was a planned-then-abandoned design or is meant to be built later isn't something to guess at —
+flagging for a decision, not fixed here.
 
 ### T-053 ✅ closed 2026-09-11 — Added a real `executeTransaction` path
 Added `GovernanceService.executeTransaction(txId, executedBy)`: onchain, it wraps the
