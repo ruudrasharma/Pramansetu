@@ -155,12 +155,20 @@ export default function MintAssetPage() {
             <>
               <div>
                 <label className="mb-1.5 block text-[12px] text-ink-500">
-                  Recipient DID hash (bytes32) — <span className="text-ink-600">stored as `vcId` on-chain; see TODO.md T-019</span>
+                  Recipient&apos;s credential (vcId, bytes32) —{" "}
+                  <span className="text-ink-600">
+                    a real{" "}
+                    <span className="mono-value">CredentialRegistry.issueCredential</span> id, not a
+                    DID hash — transfers revert if this doesn&apos;t gate a valid, non-revoked credential.{" "}
+                  </span>
+                  <Link href="/identity/issue" className="text-signal-400 underline underline-offset-2 hover:text-signal-300">
+                    Issue one first →
+                  </Link>
                 </label>
                 <input
                   value={vcId}
                   onChange={(e) => setVcId(e.target.value)}
-                  placeholder="0x..."
+                  placeholder="0x... (from Issue credential's confirmation)"
                   className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
                 />
               </div>

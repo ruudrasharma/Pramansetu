@@ -6,6 +6,26 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.5] — 2026-09-10 — Phase 3 §3.1(a): fix the mint page's vcId/DID mixup, no contract change (T-019)
+
+Closes the functional half of T-019, per explicit sign-off on the gap audit's §2.1 plan, option (a).
+
+### Changed
+- `app/(app)/assets/mint/page.tsx`: the onchain mint form's recipient-credential field previously
+  asked the operator for a "Recipient DID hash (bytes32)" and fed it straight into `proposeMint`'s
+  `vcId` argument — since a DID hash was never registered as a credential, `_update()`'s
+  `credentialRegistry.isValid(vcIdOf[tokenId])` check would revert on essentially every real
+  transfer. The field now asks for a real `vcId` and links directly to `/identity/issue` (T-051) to
+  issue one. No contract change — `AssetRegistry.proposeMint`/`_update()` were already correct; the
+  bug was entirely in what the frontend asked the operator to type in.
+
+### Not changed (approved scope was frontend-only)
+- The contract's parameter is still named `recipientDid` internally — a naming-clarity issue, not a
+  functional one, now that the frontend supplies the right value. A rename/gating-model-change option
+  was drafted in this session's Phase 3 plans but not approved.
+
+---
+
 ## [0.11.4] — 2026-09-10 — Housekeeping: confirmed no stray `master` branch exists
 
 Per `Praman_Setu_Implementation_Gap_Audit.md` §6 item 3 (Phase 2 housekeeping) — the audit's own

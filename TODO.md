@@ -381,15 +381,25 @@ doesn't depend on `DEFAULT_ADMIN_ROLE`. Until one of those happens, treat this a
 tracked trade-off, not a forgotten checklist item — don't "fix" it again without doing one of those
 first.
 
-### T-019 (contract-level, not fixed): `AssetRegistry.vcIdOf[tokenId]` stores a DID, not a VC id
-`proposeMint`'s second parameter is named `recipientDid` in the contract (not `vcId` as
-`docs/API_SPEC.md` describes), and `coSignMint` stores that DID hash directly into
-`vcIdOf[tokenId]`. So the "credential gating transfers" mechanism (`docs/FEATURES.md` F3.2,
-`docs/SECURITY.md` §5.1) is checking a DID hash against `CredentialRegistry`, which will almost
-always look invalid since a DID hash isn't a real `vcId`. This is a contract bug, not a subgraph
-bug — the subgraph fix in this session (Phase 0) faithfully indexes whatever `vcIdOf` actually
-holds on-chain, it doesn't correct the underlying value. Fixing it means changing already-deployed
-contract logic — flagged per `AI_DEVELOPMENT_RULES.md` §9, not touched without sign-off.
+### T-019 ✅ functional impact closed 2026-09-10 (frontend-only, §3.1(a)); contract naming itself untouched
+`proposeMint`'s second parameter is still literally named `recipientDid` in the deployed contract (not
+`vcId` as `docs/API_SPEC.md` describes), and `coSignMint` still stores whatever bytes32 it's given
+directly into `vcIdOf[tokenId]` — the contract itself doesn't know or care whether that value is a real
+`vcId` or a DID hash; both are just `bytes32`. The bug was never really "the contract checks the wrong
+thing" — `_update()`'s `credentialRegistry.isValid(vcIdOf[tokenId])` check is correct as written. The
+actual bug was **`app/(app)/assets/mint/page.tsx` asking the operator to type in a DID hash** instead of
+a real `vcId` from `CredentialRegistry.issueCredential` (which had no UI to call at all until T-051).
+Per the 2026-09-10 gap audit §2.1's plan and explicit sign-off (option (a), the frontend-only fix, no
+contract change): the mint page's field now clearly asks for a real `vcId`, links to `/identity/issue`
+(T-051) to get one, and its help text no longer suggests entering a DID hash. Any *asset minted before
+this fix* through the real UI (there are none yet on the live Sepolia deployment — confirmed via
+`ownerOf`/event queries, zero tokens minted) would still be stuck with a DID hash in `vcIdOf`, since
+this is a workflow fix, not a data migration. The contract's parameter is still misleadingly named
+`recipientDid` — that remains a pure code-clarity issue now, not a functional one, and doesn't block
+anything. A contract-level rename option (renaming the param/storage to match reality, or changing the
+transfer-gating check to be DID-based instead of VC-based) was drafted as part of this session's Phase 3
+contract-change plans but not approved or implemented — ask for that plan to be regenerated if the
+rename is ever wanted for its own sake.
 
 ---
 
