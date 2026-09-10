@@ -19,9 +19,19 @@ modules where a missed branch = a security bypass), ≥90% overall.
 
 ## 2. Frontend Unit Tests
 
-- Component-level tests (React Testing Library) for: role-expiry ring calculation, signer-chip fill
-  logic, mint-flow stepper state machine, dispute countdown timer.
-- Utility tests for: DID truncation/copy helper, CID validation, timestamp formatting.
+**Runner:** [Vitest](https://vitest.dev) (`npm run test` / `npm run test:watch`), config in
+`vitest.config.mts`. Chosen 2026-09-11 (T-049) as the ESM-native standard for a Next.js 14 App Router +
+TypeScript stack — no separate transform config needed, shares the Vite resolver/alias setup with the
+rest of the toolchain. Test files live next to the code they cover (`*.test.ts`/`*.test.tsx`), not in a
+separate `__tests__/` tree.
+
+- Utility tests for: DID truncation/copy helper, CID validation, timestamp formatting — `lib/utils.test.ts`.
+- API-route tests for every route under `app/api/`, per `AI_DEVELOPMENT_RULES.md` §5 (happy path +
+  failure case) — `app/api/audit/anomalies/route.test.ts` covers `POST`; `GET`'s heuristics are not yet
+  covered (TODO.md T-058).
+- Component-level tests (React Testing Library, not yet added — install alongside the first component
+  test) for: role-expiry ring calculation, signer-chip fill logic, mint-flow stepper state machine,
+  dispute countdown timer.
 
 ## 3. Integration Tests
 
@@ -61,6 +71,6 @@ modules where a missed branch = a security bypass), ≥90% overall.
 
 ## 7. CI Gate
 
-Every PR must pass: `npm run typecheck`, `npm run lint`, `npm run test:contracts` (with coverage
-threshold), and the Playwright smoke suite, before merge to `main`. See DEPLOYMENT.md for the pipeline
-definition.
+Every PR must pass: `npm run typecheck`, `npm run lint`, `npm run test` (Vitest — frontend/API-route
+unit tests), `npm run test:contracts` (with coverage threshold), and the Playwright smoke suite, before
+merge to `main`. See DEPLOYMENT.md for the pipeline definition.

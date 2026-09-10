@@ -6,6 +6,25 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.15.0] — 2026-09-11 — Add a real frontend/API-route test framework (T-049)
+
+Closes T-049. Flags T-058 (not fixed this pass).
+
+### Added
+- Vitest as the frontend/API-route test runner — `vitest.config.mts` (`@/*` alias matching
+  `tsconfig.json`, `environment: "node"`, excludes the pre-existing Hardhat `test/` suite), new
+  `npm run test` / `npm run test:watch` scripts.
+- `lib/utils.test.ts` — 16 cases covering `truncateMiddle`, `formatRelativeTime`, `formatCountdown`,
+  `expiryLevel`, and `cn`.
+- `app/api/audit/anomalies/route.test.ts` — 4 cases for `POST /api/audit/anomalies` (happy path, two
+  validation-failure cases, malformed-JSON handling), satisfying `AI_DEVELOPMENT_RULES.md` §5's
+  per-endpoint testing requirement retroactively for the endpoint T-036 added untested.
+
+### Found, not fixed this pass
+- **T-058** — `GET /api/audit/anomalies`'s anomaly-detection heuristics have no test coverage; the
+  computation is inline in the route handler with no seam to inject fake subgraph data short of a
+  refactor. Left open, not rushed.
+
 ## [0.14.0] — 2026-09-11 — Delete stale docs/ duplicates; fix two real bugs found while checking them (T-048)
 
 Closes T-048.

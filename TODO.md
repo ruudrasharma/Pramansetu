@@ -412,15 +412,51 @@ both sides) that mirrors the real contract's preconditions (queued status, `eta`
 "Execute" button on `/governance/disputes`' queued-tx row, visible once a live-ticking clock shows
 `eta` has passed — no role gate, matching `executeTransaction`'s real permissionless access control.
 
-### T-049 — No frontend/API-route test framework exists anywhere in this repo
+### T-049 ✅ closed 2026-09-11 — Wired up a real frontend/API-route test framework
 Found while closing T-036 (2026-09-10). `docs/TESTING.md` §2–4 (Frontend Unit Tests, Integration
-Tests, End-to-End Tests) describe a testing plan, but `package.json` has no Jest/Vitest/Playwright/
+Tests, End-to-End Tests) describe a testing plan, but `package.json` had no Jest/Vitest/Playwright/
 React Testing Library dependency and no `test`-equivalent script beyond `test:contracts` (Hardhat).
-The new `POST /api/audit/anomalies` endpoint (T-036) has no automated test as a result, same as every
-other existing API route (`/api/ipfs/upload`, `GET /api/audit/anomalies`). Per
-`AI_DEVELOPMENT_RULES.md` §5, new endpoints need a happy-path + auth-failure test; closing that gap
-means picking and wiring up a real frontend test framework first, which is a deliberate infrastructure
-decision, not a drive-by addition to one endpoint's fix.
+
+Picked **Vitest** — `docs/TECH_STACK.md`/`docs/TESTING.md` name React Testing Library for future
+component tests but don't pin a runner, and Vitest is the ESM-native standard for a Next.js 14 App
+Router + TypeScript stack (no separate ts-jest/babel transform config needed, shares Vite's resolver).
+Added `vitest.config.mts` (`.mts` so the native Vite config loader doesn't warn about ESM-in-CJS; the
+project's `package.json` has no `"type": "module"`) with a `@/*` path alias matching `tsconfig.json`,
+`environment: "node"` (no DOM tests exist yet — switch a file to `"jsdom"` per-test via a docblock, or
+the global config, whenever the first component test is added), and excludes `test/` (the pre-existing
+Hardhat contract suite, which must stay on `hardhat test`/Mocha, not Vitest). New `package.json`
+scripts: `test` (`vitest run`, CI-style single pass) and `test:watch`.
+
+Wrote a proportionate first batch, matching `docs/TESTING.md` §2's own suggested scope plus
+`AI_DEVELOPMENT_RULES.md` §5's requirement for new endpoints:
+- `lib/utils.test.ts` — all four exported helpers (`truncateMiddle`, `formatRelativeTime`,
+  `formatCountdown`, `expiryLevel`) across their branch boundaries, plus `cn`'s Tailwind-merge/falsy
+  behavior. 16 cases.
+- `app/api/audit/anomalies/route.test.ts` — `POST /api/audit/anomalies` (the endpoint T-036 added with
+  no test at the time): happy path (valid `id`+`reason` dismisses and returns `{ok:true}`), two
+  validation-failure cases (missing `id`, missing `reason`, both 400 without touching the store), and a
+  malformed-JSON-body case (handled 500, not a crash). `dismissAlert`/`getDismissedAlerts` are mocked
+  via `vi.mock` so the test doesn't depend on real filesystem state in `data/`. 4 cases.
+  Note: this endpoint has no auth check of its own (nothing in the codebase gates it), so "auth-failure"
+  from §5 doesn't apply literally here — validation-failure is the closest real analog and is covered.
+  `GET /api/audit/anomalies` is not covered by this pass: it makes a live `GraphQLClient` call against
+  `NEXT_PUBLIC_SUBGRAPH_URL` with no seam to inject a fake response without a larger refactor (e.g.
+  extracting the anomaly-computation logic from the route handler) — flagging as a **follow-up**, not
+  fixing here as a drive-by.
+
+20/20 tests pass (`npm run test`). Full validation cycle also run clean: `tsc --noEmit` (0 errors),
+`npm run lint` (76 warnings, 0 errors — unchanged baseline), `npm run build` (succeeds), `npm run
+test:contracts` (90/90 passing, untouched by this change).
+
+### T-058 — `GET /api/audit/anomalies`'s heuristics have no test coverage
+Found while closing T-049 (2026-09-11). The route computes two real anomaly-detection heuristics
+(velocity check across role-grant events, emergency-pause detection) inline inside the handler, driven
+by a live `GraphQLClient.request()` call against `NEXT_PUBLIC_SUBGRAPH_URL`. There's no seam to feed it
+a fixed set of fake subgraph events without either mocking `graphql-request` at the module level (brittle
+— couples the test to an implementation detail) or extracting the pure `events -> anomalies` computation
+into its own function that the route handler calls (the cleaner fix, but a real refactor of endpoint
+logic, not a drive-by addition to a test-framework-setup pass). Left open rather than either skipped
+silently or rushed into a refactor this pass.
 
 ### Audit event labeling
 - **T-038** ✅ closed 2026-09-10 — `KeyRotated` was missing from the `EventType` union in
