@@ -152,7 +152,14 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
         return super._update(to, tokenId, auth);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal view override {
-        require(accessControl.hasRole(accessControl.SUPER_ADMIN_ROLE(), msg.sender), "not authorized");
+    /// @notice Replaces the previous single-signer `hasRole(SUPER_ADMIN_ROLE, msg.sender)` gate
+    ///         (audit §2.2) — routes through the same 2-of-N co-signed approval as
+    ///         TimeBoundAccessControl's own upgrade authorization (proposePlatformAction(4, ...) /
+    ///         coSignPlatformAction there sets accessControl.upgradeAuthorized(newImplementation)),
+    ///         rather than a second, parallel multisig mechanism. Not `view` anymore — consuming the
+    ///         approval on use requires a state-changing external call.
+    function _authorizeUpgrade(address newImplementation) internal override {
+        require(accessControl.upgradeAuthorized(newImplementation), "upgrade not authorized");
+        accessControl.consumeUpgradeAuthorization(newImplementation);
     }
 }

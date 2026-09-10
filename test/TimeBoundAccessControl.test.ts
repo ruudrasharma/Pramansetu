@@ -183,8 +183,10 @@ describe("TimeBoundAccessControl", function () {
       await expect(
         ac.connect(superAdmin).proposePlatformAction(0, ethers.ZeroHash, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(ac, "InvalidActionType");
+      // 4 (authorizeUpgrade, T-3.1), 5/6 (DIDRegistry owner-equivalent actions, T-3.2) are valid
+      // now — 7 is the first invalid value.
       await expect(
-        ac.connect(superAdmin).proposePlatformAction(4, ethers.ZeroHash, ethers.ZeroAddress)
+        ac.connect(superAdmin).proposePlatformAction(7, ethers.ZeroHash, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(ac, "InvalidActionType");
     });
 
@@ -267,22 +269,123 @@ describe("TimeBoundAccessControl", function () {
     });
   });
 
-  // ── UUPS upgrade auth ────────────────────────────────────────────────────
+  // ── UUPS upgrade auth — 2-of-N via proposePlatformAction(4,...)/coSignPlatformAction ────
+  // Audit §2.2 / TODO.md §3.1: _authorizeUpgrade used to be onlyRole(SUPER_ADMIN_ROLE) — one
+  // signer. These tests cover the fix and, specifically, the failure mode it closes: a single
+  // SUPER_ADMIN alone can no longer push an upgrade.
 
-  describe("UUPS upgrade", () => {
-    it("SUPER_ADMIN can upgrade implementation", async () => {
+  describe("UUPS upgrade authorization (2-of-N)", () => {
+    async function deployNewImplementation() {
       const Factory = await ethers.getContractFactory("TimeBoundAccessControl");
-      // Should not revert
+      const impl = await Factory.deploy();
+      await impl.waitForDeployment();
+      return impl.getAddress();
+    }
+
+    async function proposeAndApprove(newImpl: string) {
+      const tx = await ac.connect(superAdmin).proposePlatformAction(4, ethers.ZeroHash, newImpl);
+      const r = await tx.wait();
+      const ev = r!.logs
+        .map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+    }
+
+    it("closes the single-signer hole: one SUPER_ADMIN alone can no longer authorize an upgrade", async () => {
+      const newImpl = await deployNewImplementation();
+      // No proposePlatformAction(4,...)/coSign at all — a lone SUPER_ADMIN calling the real
+      // UUPS entry point directly must now be rejected, where the old onlyRole(SUPER_ADMIN_ROLE)
+      // gate would have let this through.
       await expect(
-        upgrades.upgradeProxy(await ac.getAddress(), Factory.connect(superAdmin))
-      ).to.not.be.reverted;
+        ac.connect(superAdmin).upgradeToAndCall(newImpl, "0x")
+      ).to.be.revertedWithCustomError(ac, "UpgradeNotAuthorized");
     });
 
-    it("non-SUPER_ADMIN cannot authorize upgrade", async () => {
-      const Factory = await ethers.getContractFactory("TimeBoundAccessControl");
+    it("sets upgradeAuthorized once 2 distinct SUPER_ADMINs propose+co-sign actionType=4", async () => {
+      const newImpl = await deployNewImplementation();
+      expect(await ac.upgradeAuthorized(newImpl)).to.be.false;
+      await proposeAndApprove(newImpl);
+      expect(await ac.upgradeAuthorized(newImpl)).to.be.true;
+    });
+
+    it("upgrade succeeds once the exact implementation address has 2-of-N approval", async () => {
+      const newImpl = await deployNewImplementation();
+      await proposeAndApprove(newImpl);
+      await expect(ac.connect(superAdmin).upgradeToAndCall(newImpl, "0x")).to.not.be.reverted;
+    });
+
+    it("execution is permissionless once approved, matching this app's own approve-then-anyone-executes pattern", async () => {
+      const newImpl = await deployNewImplementation();
+      await proposeAndApprove(newImpl);
+      await expect(ac.connect(stranger).upgradeToAndCall(newImpl, "0x")).to.not.be.reverted;
+    });
+
+    it("consumes the approval on use — the same implementation address needs fresh approval to be re-authorized", async () => {
+      const newImpl = await deployNewImplementation();
+      await proposeAndApprove(newImpl);
+      await ac.connect(superAdmin).upgradeToAndCall(newImpl, "0x");
+      expect(await ac.upgradeAuthorized(newImpl)).to.be.false;
+
       await expect(
-        upgrades.upgradeProxy(await ac.getAddress(), Factory.connect(stranger))
-      ).to.be.reverted;
+        ac.connect(superAdmin).upgradeToAndCall(newImpl, "0x")
+      ).to.be.revertedWithCustomError(ac, "UpgradeNotAuthorized");
+    });
+
+    it("consumeUpgradeAuthorization lets anyone clear a pending approval (documented griefing tradeoff, not a privilege escalation)", async () => {
+      const newImpl = await deployNewImplementation();
+      await proposeAndApprove(newImpl);
+      expect(await ac.upgradeAuthorized(newImpl)).to.be.true;
+
+      await ac.connect(stranger).consumeUpgradeAuthorization(newImpl);
+      expect(await ac.upgradeAuthorized(newImpl)).to.be.false;
+
+      await expect(
+        ac.connect(superAdmin).upgradeToAndCall(newImpl, "0x")
+      ).to.be.revertedWithCustomError(ac, "UpgradeNotAuthorized");
+    });
+  });
+
+  // ── DIDRegistry owner-equivalent authorization (actionType 5/6, T-3.2) ─────
+  // audit §2.3 / TODO.md §3.2: DIDRegistry.setSignatureVerifier/setGuardianRecoveryContract used
+  // to be gated by a bare `owner` address. This contract now stages that approval the same way
+  // it stages upgrade authorization — DIDRegistry itself (test/DIDRegistry.test.ts) checks and
+  // consumes these flags; these tests cover the staging half that lives here.
+
+  describe("DIDRegistry owner-equivalent authorization (actionType 5/6)", () => {
+    async function proposeAndApprove(actionType: 5 | 6, target: string) {
+      const tx = await ac.connect(superAdmin).proposePlatformAction(actionType, ethers.ZeroHash, target);
+      const r = await tx.wait();
+      const ev = r!.logs
+        .map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+    }
+
+    it("actionType=5 sets didSignatureVerifierAuthorized once 2-of-N approve", async () => {
+      const verifier = ethers.Wallet.createRandom().address;
+      expect(await ac.didSignatureVerifierAuthorized(verifier)).to.be.false;
+      await proposeAndApprove(5, verifier);
+      expect(await ac.didSignatureVerifierAuthorized(verifier)).to.be.true;
+    });
+
+    it("actionType=6 sets didGuardianRecoveryAuthorized once 2-of-N approve", async () => {
+      const recovery = ethers.Wallet.createRandom().address;
+      expect(await ac.didGuardianRecoveryAuthorized(recovery)).to.be.false;
+      await proposeAndApprove(6, recovery);
+      expect(await ac.didGuardianRecoveryAuthorized(recovery)).to.be.true;
+    });
+
+    it("consumeDIDSignatureVerifierAuthorization/consumeDIDGuardianRecoveryAuthorization clear the flags", async () => {
+      const verifier = ethers.Wallet.createRandom().address;
+      const recovery = ethers.Wallet.createRandom().address;
+      await proposeAndApprove(5, verifier);
+      await proposeAndApprove(6, recovery);
+
+      await ac.connect(stranger).consumeDIDSignatureVerifierAuthorization(verifier);
+      await ac.connect(stranger).consumeDIDGuardianRecoveryAuthorization(recovery);
+
+      expect(await ac.didSignatureVerifierAuthorized(verifier)).to.be.false;
+      expect(await ac.didGuardianRecoveryAuthorized(recovery)).to.be.false;
     });
   });
 });

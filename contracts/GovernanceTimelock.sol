@@ -25,9 +25,33 @@ contract GovernanceTimelock {
         string disputeReason;
     }
 
-    mapping(uint256 => QueuedTx) public queue;
-    uint256 public nextTxId;
+    /// @notice 2-of-N SUPER_ADMIN_ROLE staging for queueTransaction (audit §2.5, TODO.md §3.3) —
+    ///         replaces the previous single-signer `onlySuperAdmin` gate directly on
+    ///         queueTransaction, which the docstring already (aspirationally, not actually)
+    ///         described as multisig-gated. `data` is arbitrary-length calldata, so this can't
+    ///         reuse TimeBoundAccessControl's fixed-shape PendingAction (role/account only, no
+    ///         bytes field) the way 3.1/3.2 did — it needs its own staging struct, mirroring the
+    ///         same propose/co-sign idiom (proposer auto-signs, DuplicateSigner/AlreadyExecuted
+    ///         checks, ACTION_THRESHOLD-equivalent) TimeBoundAccessControl already established,
+    ///         scoped to the contract that actually owns this data.
+    struct PendingQueue {
+        address target;
+        bytes data;
+        uint256 delay;
+        address proposer;
+        address[] signers;
+        bool executed;
+    }
 
+    uint8 public constant QUEUE_THRESHOLD = 2;
+
+    mapping(uint256 => QueuedTx) public queue;
+    mapping(uint256 => PendingQueue) public pendingQueues;
+    uint256 public nextTxId;
+    uint256 public nextPendingQueueId;
+
+    event QueueProposed(uint256 indexed pendingId, address target, uint256 delay, address proposer);
+    event QueueCoSigned(uint256 indexed pendingId, address signer, uint256 signatureCount);
     event TransactionQueued(uint256 indexed txId, address target, uint256 eta);
     event TransactionExecuted(uint256 indexed txId);
     event DisputeRaised(uint256 indexed txId, address indexed raisedBy, string reason);
@@ -39,6 +63,8 @@ contract GovernanceTimelock {
     error TransactionDisputed();
     error ExecutionFailed();
     error NotDisputed();
+    error DuplicateSigner();
+    error PendingAlreadyExecuted();
 
     constructor(address accessControlAddr) {
         accessControl = TimeBoundAccessControl(accessControlAddr);
@@ -54,24 +80,56 @@ contract GovernanceTimelock {
         _;
     }
 
-    /// @notice Queues a high-value action (e.g. large asset transfer, contract upgrade) behind a
-    ///         cooling-off window. Requires Super Admin multisig approval upstream in practice.
-    function queueTransaction(address target, bytes calldata data, uint256 delay)
+    /// @notice Step 1: propose queuing a high-value action (e.g. large asset transfer, contract
+    ///         upgrade) behind a cooling-off window. Requires a second SUPER_ADMIN to co-sign
+    ///         (coSignQueueTransaction, QUEUE_THRESHOLD) before it actually enters `queue` — real
+    ///         multisig now, not just a docstring claim (audit §2.5, TODO.md §3.3).
+    function proposeQueueTransaction(address target, bytes calldata data, uint256 delay)
+        external
+        onlySuperAdmin
+        returns (uint256 pendingId)
+    {
+        if (delay < MIN_DELAY || delay > MAX_DELAY) revert DelayOutOfRange();
+        pendingId = nextPendingQueueId++;
+        PendingQueue storage p = pendingQueues[pendingId];
+        p.target = target;
+        p.data = data;
+        p.delay = delay;
+        p.proposer = msg.sender;
+        p.signers.push(msg.sender);
+        emit QueueProposed(pendingId, target, delay, msg.sender);
+    }
+
+    /// @notice Step 2: co-sign a pending queue proposal. Enters the real `queue` (and becomes
+    ///         subject to `eta`/dispute/execute exactly as before) automatically once
+    ///         QUEUE_THRESHOLD distinct SUPER_ADMINs have signed.
+    function coSignQueueTransaction(uint256 pendingId)
         external
         onlySuperAdmin
         returns (uint256 txId)
     {
-        if (delay < MIN_DELAY || delay > MAX_DELAY) revert DelayOutOfRange();
-        txId = nextTxId++;
-        queue[txId] = QueuedTx({
-            target: target,
-            data: data,
-            eta: block.timestamp + delay,
-            status: Status.Queued,
-            raisedBy: address(0),
-            disputeReason: ""
-        });
-        emit TransactionQueued(txId, target, block.timestamp + delay);
+        PendingQueue storage p = pendingQueues[pendingId];
+        if (p.executed) revert PendingAlreadyExecuted();
+        for (uint256 i = 0; i < p.signers.length; i++) {
+            if (p.signers[i] == msg.sender) revert DuplicateSigner();
+        }
+        p.signers.push(msg.sender);
+        emit QueueCoSigned(pendingId, msg.sender, p.signers.length);
+
+        if (p.signers.length >= QUEUE_THRESHOLD) {
+            p.executed = true;
+            txId = nextTxId++;
+            uint256 eta = block.timestamp + p.delay;
+            queue[txId] = QueuedTx({
+                target: p.target,
+                data: p.data,
+                eta: eta,
+                status: Status.Queued,
+                raisedBy: address(0),
+                disputeReason: ""
+            });
+            emit TransactionQueued(txId, p.target, eta);
+        }
     }
 
     /// @notice Any Auditor-role DID can freeze a queued action during its cooling-off window —

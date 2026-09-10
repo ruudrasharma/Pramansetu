@@ -36,12 +36,15 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
         bool executed;
     }
 
-    /// @dev Generic pending action used for emergencyRevoke, pause, unpause.
-    ///      actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause
+    /// @dev Generic pending action used for emergencyRevoke, pause, unpause, authorizeUpgrade, and
+    ///      DIDRegistry's owner-equivalent actions.
+    ///      actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause, 4 = authorizeUpgrade,
+    ///                  5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery
     struct PendingAction {
         uint8 actionType;
         bytes32 role;       // used by emergencyRevoke
-        address account;    // used by emergencyRevoke
+        address account;    // used by emergencyRevoke; holds the pending target address for
+                             // actionType == 4/5/6 — same field, no new slot
         address proposer;
         address[] signers;
         bool executed;
@@ -52,6 +55,17 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     mapping(uint256 => PendingAction) public pendingActions;
     uint256 public nextGrantId;
     uint256 public nextActionId;
+    /// @notice Set true once a 2-of-N SUPER_ADMIN_ROLE-approved actionType==4 (authorizeUpgrade)
+    ///         PendingAction reaches threshold for this exact implementation address — checked (and
+    ///         consumed) by _authorizeUpgrade below. Appended after the existing state variables so
+    ///         the upgrade that introduces it stays storage-layout-safe (TODO.md §3.1).
+    mapping(address => bool) public upgradeAuthorized;
+    /// @notice Same pattern as upgradeAuthorized, for DIDRegistry's owner-equivalent actions
+    ///         (audit §2.3, TODO.md §3.2) — DIDRegistry has no upgrade proxy of its own, but its
+    ///         setSignatureVerifier/setGuardianRecoveryContract functions delegate their
+    ///         authorization check here instead of a bare `onlyOwner`. Also append-only.
+    mapping(address => bool) public didSignatureVerifierAuthorized;
+    mapping(address => bool) public didGuardianRecoveryAuthorized;
 
     event TimedRoleGranted(bytes32 indexed role, address indexed account, uint256 validUntil);
     event GrantProposed(uint256 indexed grantId, bytes32 role, address account, address proposer);
@@ -67,6 +81,7 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     error ThresholdNotMet();
     error OnlyDistinctSigner();
     error InvalidActionType();
+    error UpgradeNotAuthorized();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -150,15 +165,19 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
         return super.hasRole(role, account) && block.timestamp < roleExpiry[role][account];
     }
 
-    /// @notice Step 1: Propose an emergencyRevoke, pause, or unpause action.
-    ///         Requires a second SUPER_ADMIN to co-sign (ACTION_THRESHOLD) before execution.
-    ///         actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause
+    /// @notice Step 1: Propose an emergencyRevoke, pause, unpause, authorizeUpgrade, or
+    ///         DIDRegistry owner-equivalent action. Requires a second SUPER_ADMIN to co-sign
+    ///         (ACTION_THRESHOLD) before execution.
+    ///         actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause, 4 = authorizeUpgrade,
+    ///                     5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery
+    ///         (for actionType 4/5/6, pass the pending target address as `account`; `role` is
+    ///         unused, pass bytes32(0))
     function proposePlatformAction(
         uint8 actionType,
         bytes32 role,
         address account
     ) external onlyRole(SUPER_ADMIN_ROLE) returns (uint256 actionId) {
-        if (actionType < 1 || actionType > 3) revert InvalidActionType();
+        if (actionType < 1 || actionType > 6) revert InvalidActionType();
         actionId = nextActionId++;
         PendingAction storage a = pendingActions[actionId];
         a.actionType = actionType;
@@ -189,9 +208,52 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
                 _pause();
             } else if (a.actionType == 3) {
                 _unpause();
+            } else if (a.actionType == 4) {
+                upgradeAuthorized[a.account] = true;
+            } else if (a.actionType == 5) {
+                didSignatureVerifierAuthorized[a.account] = true;
+            } else if (a.actionType == 6) {
+                didGuardianRecoveryAuthorized[a.account] = true;
             }
         }
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(SUPER_ADMIN_ROLE) {}
+    /// @notice Replaces the previous single-signer `onlyRole(SUPER_ADMIN_ROLE)` gate (audit §2.2) —
+    ///         an upgrade now requires the same 2-of-N SUPER_ADMIN_ROLE co-signature as every other
+    ///         privileged action, via proposePlatformAction(4, ...)/coSignPlatformAction, rather than
+    ///         a parallel mechanism. The approval is consumed on use (one authorization, one upgrade)
+    ///         rather than left standing indefinitely — see consumeUpgradeAuthorization's note on why
+    ///         that matters.
+    function _authorizeUpgrade(address newImplementation) internal override {
+        if (!upgradeAuthorized[newImplementation]) revert UpgradeNotAuthorized();
+        upgradeAuthorized[newImplementation] = false;
+    }
+
+    /// @notice Lets another UUPS contract that delegates its own upgrade authorization to this
+    ///         contract's 2-of-N approval (see AssetRegistry._authorizeUpgrade) consume its
+    ///         approval on use. Intentionally permissionless rather than restricted to a registered
+    ///         caller — restricting it would mean either a new trusted-address registry (its own
+    ///         single-point-of-trust setter) or a reverse dependency from this contract onto
+    ///         AssetRegistry, both disproportionate to what this fixes. The tradeoff: anyone can
+    ///         grief a pending approval by consuming it before the real upgrade call lands, forcing
+    ///         a re-propose+re-co-sign — a denial-of-service nuisance, not a privilege escalation
+    ///         (no unauthorized upgrade can ever succeed this way). Not consuming at all would be
+    ///         worse: without this, an old, since-superseded implementation address would stay
+    ///         permanently "authorized," letting anyone call the proxy's public `upgradeToAndCall`
+    ///         to silently revert AssetRegistry to old (possibly vulnerable) code with no fresh
+    ///         approval — a real downgrade-replay hole, not just a nuisance.
+    function consumeUpgradeAuthorization(address newImplementation) external {
+        upgradeAuthorized[newImplementation] = false;
+    }
+
+    /// @notice Same pattern and same documented permissionless-consumption tradeoff as
+    ///         consumeUpgradeAuthorization above, for DIDRegistry.setSignatureVerifier/
+    ///         setGuardianRecoveryContract (audit §2.3, TODO.md §3.2).
+    function consumeDIDSignatureVerifierAuthorization(address verifier) external {
+        didSignatureVerifierAuthorized[verifier] = false;
+    }
+
+    function consumeDIDGuardianRecoveryAuthorization(address recovery) external {
+        didGuardianRecoveryAuthorized[recovery] = false;
+    }
 }

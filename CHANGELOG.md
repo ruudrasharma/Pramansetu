@@ -6,6 +6,50 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.17.0] — 2026-09-11 — Phase 3 contract-level fixes: designed, written, tested — NOT deployed
+
+Per `AI_DEVELOPMENT_RULES.md` §2.5/§9, contract/access-control changes require explicit sign-off
+before deploying. This release is code + tests only — `deploy.ts`/`postDeploySetup.ts` were not run.
+Full detail (redeploy costs, cascades, deploy-script bootstrapping runbook) in `TODO.md`'s new
+"Phase 3" section.
+
+### Changed (contracts — not deployed)
+- `contracts/TimeBoundAccessControl.sol`: `_authorizeUpgrade` routed through a new 2-of-N
+  `actionType == 4` (`authorizeUpgrade`) via `proposePlatformAction`/`coSignPlatformAction`, replacing
+  the previous single-signer `onlyRole(SUPER_ADMIN_ROLE)` gate (audit §2.2). Also extended with
+  actionType 5/6 (`authorizeDIDSignatureVerifier`/`authorizeDIDGuardianRecovery`) for `DIDRegistry`'s
+  fix below. New `upgradeAuthorized`/`didSignatureVerifierAuthorized`/`didGuardianRecoveryAuthorized`
+  mappings and three `consume*` functions, all appended (storage-layout-safe).
+- `contracts/AssetRegistry.sol`: `_authorizeUpgrade` now delegates to
+  `accessControl.upgradeAuthorized`/`consumeUpgradeAuthorization` instead of a bare `hasRole` check
+  (audit §2.2).
+- `contracts/DIDRegistry.sol`: removed `owner`/`onlyOwner` entirely — constructor now takes
+  `accessControlAddr`, and `setSignatureVerifier`/`setGuardianRecoveryContract` require 2-of-N
+  `SUPER_ADMIN_ROLE` approval via `TimeBoundAccessControl` (audit §2.3). **Not upgrade-safe by
+  design — requires a fresh deployment** (`DIDRegistry` is intentionally non-upgradeable); cascades
+  to `GuardianRecovery` (immutable `didRegistry` reference). Verified directly against Sepolia that
+  no DID has ever been created on the live deployment, so nothing real would be lost.
+- `contracts/GovernanceTimelock.sol`: `queueTransaction` replaced by
+  `proposeQueueTransaction`/`coSignQueueTransaction` (new native 2-of-N staging, `QUEUE_THRESHOLD = 2`)
+  — the docstring already claimed multisig approval "upstream in practice"; now actually enforced
+  (audit §2.5). **Not upgrade-safe by design — requires a fresh deployment**; verified nothing else
+  holds an immutable reference to this contract, and `nextTxId() == 0` live, so the blast radius is
+  just this one contract.
+- Skipped 3.4 (`AssetRegistry`'s `recipientDid`→`vcId` param rename) — genuinely optional per the
+  original scoping instruction, and a real rename cascades into subgraph codegen/redeploy, out of
+  proportion to a pure naming fix with no remaining functional gap (T-019 already closed that half).
+
+### Added — tests (all passing, 0 regressions)
+- `test/TimeBoundAccessControl.test.ts`: 9 new cases (6 for upgrade auth, 3 for actionType 5/6).
+- `test/AssetRegistry.test.ts`: 3 new cases for its delegated upgrade auth.
+- `test/DIDRegistry.test.ts`, `test/GuardianRecovery.test.ts`, `test/Upgrade.test.ts`,
+  `test/GovernanceTimelock.test.ts`: updated in place for the new constructor/authorization flows,
+  plus new cases covering each fix's closed failure mode (a lone signer can no longer authorize an
+  upgrade / DID owner action / queue a transaction).
+
+`npm run test:contracts`: **105 passing, 0 failing** (was 90). `npx tsc --noEmit` clean. `npm run
+lint`: unchanged baseline (76 warnings, 0 errors).
+
 ## [0.16.2] — 2026-09-11 — Derive real "transferred" asset status (T-031/T-063)
 
 Closes T-063, fully closes T-031.

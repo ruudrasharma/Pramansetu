@@ -5,6 +5,166 @@ Completed items are moved to CHANGELOG.md.
 
 ---
 
+## 🔒 Phase 3 — Contract-level fixes (audit §2.2/§2.3/§2.5): designed, written, tested — NOT deployed
+
+Per `AI_DEVELOPMENT_RULES.md` §2.5/§9, these are contract-level/access-control changes and stay
+gated behind explicit sign-off before any deploy script runs. This section is what Rudra reviews
+to decide what (if anything) actually gets deployed, and when. **Nothing below has touched Sepolia
+— `deploy.ts`/`postDeploySetup.ts` were not run for any of this.**
+
+### 3.1 ✅ Single-signer UUPS upgrade authorization (audit §2.2)
+**Files/functions**: `contracts/TimeBoundAccessControl.sol` (`_authorizeUpgrade`, new
+`upgradeAuthorized` mapping + `consumeUpgradeAuthorization`, `proposePlatformAction`/
+`coSignPlatformAction` extended with actionType 4), `contracts/AssetRegistry.sol`
+(`_authorizeUpgrade`). Both `_authorizeUpgrade` overrides previously reduced to a single
+`onlyRole(SUPER_ADMIN_ROLE)`/`hasRole(...)` check — one compromised key could push any upgrade.
+
+**Design**: routed through the existing `proposePlatformAction`/`coSignPlatformAction` 2-of-N
+pattern rather than a parallel mechanism, exactly as instructed — new `actionType == 4`
+(`authorizeUpgrade`) reuses `PendingAction.account` to hold the pending implementation address (no
+new struct field). `AssetRegistry` delegates to `TimeBoundAccessControl.upgradeAuthorized(...)` /
+`consumeUpgradeAuthorization(...)` rather than duplicating its own 2-of-N staging, since it already
+holds an `accessControl` reference. The approval is **consumed on use** (not left standing) — see
+the code comment on `consumeUpgradeAuthorization` for why leaving it un-consumed would be a real
+downgrade-replay hole, not just tidiness. `consumeUpgradeAuthorization` is intentionally
+permissionless (anyone can clear a pending approval) — a documented low-severity griefing/DoS
+tradeoff (forces a re-propose+re-co-sign), never a privilege escalation, explained in the code
+comment; restricting it would need either a new trusted-caller registry or a reverse dependency
+from `TimeBoundAccessControl` onto `AssetRegistry`, both disproportionate here.
+
+**Upgrade-safety**: both contracts are UUPS-upgradeable. `upgradeAuthorized` (and the two mappings
+added for 3.2 below) are appended after all existing state variables — nothing reordered or
+removed. `AssetRegistry`'s `_authorizeUpgrade` changed from `view` to non-`view` (it now makes a
+state-changing external call to consume the approval) — a visibility/mutability change only, not a
+storage-layout change, so still upgrade-safe.
+
+**Tests**: `test/TimeBoundAccessControl.test.ts` (6 new cases: closes the single-signer hole,
+`upgradeAuthorized` set on 2-of-N, upgrade succeeds once approved, execution is permissionless once
+approved, approval consumed on use, `consumeUpgradeAuthorization` works), `test/AssetRegistry.test.ts`
+(3 new cases, same shape), `test/Upgrade.test.ts` (existing storage-layout-safety suite updated to
+go through the new 2-of-N flow instead of a bare `upgradeProxy` call — this is what actually
+exercises the "no reordering" storage-layout check end-to-end, not just the new tests in isolation).
+
+### 3.2 ✅ `DIDRegistry.owner` → routed through `TimeBoundAccessControl` (audit §2.3)
+**Files/functions**: `contracts/DIDRegistry.sol` (`owner`/`onlyOwner` removed, constructor now
+takes `accessControlAddr`, `setSignatureVerifier`/`setGuardianRecoveryContract` check+consume a
+2-of-N approval instead of a bare-address gate), `contracts/TimeBoundAccessControl.sol` (extended
+further: actionType 5 = `authorizeDIDSignatureVerifier`, 6 = `authorizeDIDGuardianRecovery`, two
+new mappings + two new consume functions, same pattern as 3.1's `upgradeAuthorized`).
+
+**Design**: same propose/co-sign pattern as 3.1, generalized — `DIDRegistry` no longer holds any
+bare-address authority at all, only a reference to `TimeBoundAccessControl`.
+
+**Not upgrade-safe by design — requires a fresh deployment.** `DIDRegistry` is intentionally
+non-upgradeable (`docs/DATABASE_SCHEMA.md`/`docs/SECURITY.md` treat its storage as a security
+boundary). Changing its constructor signature and removing `owner` means the *contract itself* is
+different code at a new address — there is no "upgrade" path for it, by design, before or after
+this fix.
+
+**What's live on the current `DIDRegistry` right now (verified directly against Sepolia this
+session, not assumed)**: `didOf()` returns zero for every address this session holds a key for or
+has interacted with, and — independent of any address-specific check — `nextTokenId`/`nextRequestId`
+on `AssetRegistry` and `nextTxId` on `GovernanceTimelock` are all `0`. Combined with the subgraph's
+own `identities: []` (verified in T-050/T-059's redeploy), there is no real evidence any DID has
+ever been created through the live deployment. A redeploy loses nothing real today, but this was
+checked, not assumed.
+
+**What cascades (per `GuardianRecovery.didRegistry` being `immutable`)**: `GuardianRecovery` holds
+an immutable reference to a specific `DIDRegistry` address set at its own construction — a fresh
+`DIDRegistry` deploy means `GuardianRecovery` must also be freshly deployed pointing at the new
+address (its own storage — `guardiansOf`/`recoveryThreshold`/`activeRecovery`, also empty per the
+same zero-DID finding above — would be abandoned, same as the old contract). Nothing else in the
+codebase holds an immutable reference to `DIDRegistry` (checked via
+`grep -n immutable contracts/*.sol`).
+
+**Deploy-script bootstrapping note, not yet implemented**: `scripts/deploy.ts` currently deploys
+`DIDRegistry` *before* `TimeBoundAccessControl` (step 1 vs. step 3) — this fix requires reordering
+so `TimeBoundAccessControl` exists first. It also creates a chicken-and-egg problem for
+`setGuardianRecoveryContract`: that call now needs 2-of-N `SUPER_ADMIN_ROLE` approval, but at that
+point in a fresh deploy only the deployer holds the role. The real sequence needed: (1) deploy
+`TimeBoundAccessControl`, (2) deployer uses its still-held `DEFAULT_ADMIN_ROLE` to `grantTimedRole`
+a second `SUPER_ADMIN_ROLE` holder directly — the same single-signer bootstrap `DEFAULT_ADMIN_ROLE`
+path T-020 already used live, not a new pattern — (3) deploy `DIDRegistry(accessControlAddr)`, (4)
+deploy `GuardianRecovery(didRegistryAddr)`, (5) *now* propose+co-sign actionType 6 with the two real
+Super Admins and call `setGuardianRecoveryContract`, (6) same propose+co-sign dance (actionType 5)
+for `setSignatureVerifier` once `ECDSASignatureVerifier` is deployed.
+`scripts/postDeploySetup.ts`'s existing `setSignatureVerifier` call (line ~75) happens *after* the
+deployer's `SUPER_ADMIN_ROLE` is revoked in that same script — the authorization step would need to
+move earlier, using `secondAdmin` (who still holds the role at that point) instead. **Not
+implemented in this pass** — editing untested deploy-script changes ahead of an actual approved
+redeploy risked presenting speculative script edits as more validated than the Solidity/test work
+actually is; this paragraph is the precise runbook for whoever does the real redeploy.
+`lib/hooks/useGovernanceTimelock.ts`'s `useQueueTransaction`/DIDRegistry ABI consumers would need
+matching updates at that time too (checked: zero real UI callers of either today, so nothing live
+breaks by deferring this).
+
+**Tests**: `test/DIDRegistry.test.ts` (rewritten `beforeEach` to deploy `TimeBoundAccessControl`
+first; 3 new/changed cases on `setSignatureVerifier` covering the 2-of-N approval, the closed
+single-signer hole, and approval consumption), `test/GuardianRecovery.test.ts` (`beforeEach`
+updated to the new `DIDRegistry` constructor + authorized `setGuardianRecoveryContract` call — all
+15 existing cases still pass unmodified otherwise), `test/TimeBoundAccessControl.test.ts` (3 new
+cases for actionType 5/6 staging).
+
+### 3.3 ✅ `GovernanceTimelock.queueTransaction` single-signer despite its own "multisig" docstring (audit §2.5)
+**Files/functions**: `contracts/GovernanceTimelock.sol` — `queueTransaction` (`onlySuperAdmin`,
+single signer) replaced by `proposeQueueTransaction`/`coSignQueueTransaction` (new `PendingQueue`
+struct/mapping, `QUEUE_THRESHOLD = 2`).
+
+**Design decision, stated explicitly (`AI_DEVELOPMENT_RULES.md` §7)**: unlike 3.1/3.2, this does
+**not** reuse `TimeBoundAccessControl.proposePlatformAction`'s `PendingAction` struct — that struct
+has no field that can hold arbitrary-length `bytes calldata data`, only a fixed `bytes32 role` +
+`address account` pair, and hashing/committing `data` for a later reveal would be a materially
+different (and more complex) design than what 3.1/3.2 needed. Instead, `GovernanceTimelock` gained
+its own native propose/co-sign staging, deliberately mirroring the exact idiom
+`TimeBoundAccessControl` already established elsewhere (proposer auto-signs, `DuplicateSigner`/
+already-executed checks, 2-of-N threshold) — the same *pattern*, scoped to the contract that
+actually owns this data, rather than forcing a parallel-but-incompatible reuse.
+
+**Not upgrade-safe by design — requires a fresh deployment.** `GovernanceTimelock` is
+non-upgradeable by the same design choice as `DIDRegistry`. **Cascade check**: nothing in the
+codebase holds an immutable reference to `GovernanceTimelock`'s address (`grep -n immutable
+contracts/*.sol` — only `GuardianRecovery.didRegistry` and each contract's own `accessControl`
+reference exist as immutables; nothing points at `GovernanceTimelock`), so this redeploy's blast
+radius is just the one contract. **What's live today**: `nextTxId() == 0` on the current deployment
+(verified directly against Sepolia this session) — no transaction has ever been queued, so nothing
+real is lost by a redeploy.
+
+**Breaking interface change**: `queueTransaction(address,bytes,uint256)` no longer exists — replaced
+by the two-step `proposeQueueTransaction`/`coSignQueueTransaction`. `lib/hooks/useGovernanceTimelock.ts`'s
+`useQueueTransaction` hook (checked: zero real callers anywhere in `app/`/`lib/services/*` today) would
+need updating to the two-step call at actual cutover — not done in this pass, not blocking anything live.
+
+**Tests**: `test/GovernanceTimelock.test.ts` — `queueNoOp` test helper (used throughout the file's
+`executeTransaction`/`raiseDispute`/`resolveDispute` suites) rewritten to the 2-step flow; the old
+`queueTransaction` describe block replaced with 7 cases covering the new flow, including the closed
+failure mode (a lone `SUPER_ADMIN` proposing alone never populates `queue`) and duplicate/already-
+executed edge cases. All 4 downstream describe blocks that depend on `queueNoOp` still pass
+unmodified.
+
+### 3.4 — Optional, skipped this pass (audit §2.1 / T-019's naming half)
+`AssetRegistry.proposeMint`'s `recipientDid` parameter (which actually holds a `vcId` — T-019's
+functional bug was already closed frontend-only) is genuinely optional per the original instruction
+("only do this one if 3.1–3.3 are already fully written up"). Not done: a real rename touches the
+`MintProposed`/`AssetMinted` event parameter names too, which cascades into
+`subgraph/generated/AssetRegistry/AssetRegistry.ts`'s auto-generated bindings and
+`subgraph/src/asset-registry.ts`'s `.recipientDid` usage — meaning a full rename needs its own
+`graph codegen`/`graph build`/redeploy cycle to actually verify, not just a Hardhat-test-level diff.
+Disproportionate for a pure code-clarity fix with no functional gap remaining. Ask for this to be
+picked up as its own item if wanted.
+
+### Full test-suite output (this session, after 3.1–3.3)
+```
+npm run test:contracts
+  105 passing (2s)
+```
+90 pre-existing tests + 15 new (6 for 3.1's `TimeBoundAccessControl` cases, 3 for 3.1's
+`AssetRegistry` cases, 3 for 3.2's actionType 5/6 staging, plus `test/DIDRegistry.test.ts`/
+`test/GuardianRecovery.test.ts`/`test/Upgrade.test.ts`/`test/GovernanceTimelock.test.ts` updated
+in place rather than net-new) — **0 failing**. `npx tsc --noEmit` clean, `npm run lint` unchanged
+baseline (76 warnings, 0 errors).
+
+---
+
 ## 🔴 High Priority — T-021–T-037: Phase 10 onchain-mode stubs
 
 Catalogued 2026-09-09 during the post-Phase-10 audit (see `CHANGELOG.md`'s "Corrected" note under

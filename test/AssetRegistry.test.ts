@@ -268,4 +268,52 @@ describe("AssetRegistry", function () {
       ).to.be.revertedWith("AssetRegistry: platform paused");
     });
   });
+
+  // ── UUPS upgrade auth — routed through TimeBoundAccessControl's 2-of-N (audit §2.2, TODO.md §3.1) ──
+  // _authorizeUpgrade used to be a single onlyRole(SUPER_ADMIN_ROLE)-equivalent hasRole check here.
+  // It now delegates to accessControl.upgradeAuthorized(newImplementation), set true by the same
+  // proposePlatformAction(4,...)/coSignPlatformAction flow TimeBoundAccessControl.test.ts covers.
+
+  describe("UUPS upgrade authorization (2-of-N via TimeBoundAccessControl)", () => {
+    async function deployNewImplementation() {
+      const Factory = await ethers.getContractFactory("AssetRegistry");
+      const impl = await Factory.deploy();
+      await impl.waitForDeployment();
+      return impl.getAddress();
+    }
+
+    async function proposeAndApprove(newImpl: string) {
+      const tx = await ac.connect(superAdmin).proposePlatformAction(4, ethers.ZeroHash, newImpl);
+      const r = await tx.wait();
+      const ev = r!.logs
+        .map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+    }
+
+    it("closes the single-signer hole: a lone SUPER_ADMIN can no longer authorize an AssetRegistry upgrade", async () => {
+      const newImpl = await deployNewImplementation();
+      // Old behavior: hasRole(SUPER_ADMIN_ROLE, superAdmin) alone would have passed here.
+      await expect(
+        assetRegistry.connect(superAdmin).upgradeToAndCall(newImpl, "0x")
+      ).to.be.revertedWith("upgrade not authorized");
+    });
+
+    it("succeeds once the implementation has 2-of-N approval on TimeBoundAccessControl", async () => {
+      const newImpl = await deployNewImplementation();
+      await proposeAndApprove(newImpl);
+      await expect(assetRegistry.connect(stranger).upgradeToAndCall(newImpl, "0x")).to.not.be.reverted;
+    });
+
+    it("consumes the approval on use — same address needs fresh approval to be reused", async () => {
+      const newImpl = await deployNewImplementation();
+      await proposeAndApprove(newImpl);
+      await assetRegistry.connect(superAdmin).upgradeToAndCall(newImpl, "0x");
+      expect(await ac.upgradeAuthorized(newImpl)).to.be.false;
+
+      await expect(
+        assetRegistry.connect(superAdmin).upgradeToAndCall(newImpl, "0x")
+      ).to.be.revertedWith("upgrade not authorized");
+    });
+  });
 });

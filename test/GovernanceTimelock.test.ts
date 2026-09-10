@@ -14,6 +14,7 @@ describe("GovernanceTimelock", function () {
   let ac: TimeBoundAccessControl;
 
   let superAdmin: SignerWithAddress;
+  let superAdmin2: SignerWithAddress;
   let auditor: SignerWithAddress;
   let stranger: SignerWithAddress;
   let target: SignerWithAddress; // address to call
@@ -25,7 +26,7 @@ describe("GovernanceTimelock", function () {
   const MAX_DELAY = 48 * 3600;
 
   beforeEach(async () => {
-    [superAdmin, auditor, stranger, target] = await ethers.getSigners();
+    [superAdmin, superAdmin2, auditor, stranger, target] = await ethers.getSigners();
 
     const ACFactory = await ethers.getContractFactory("TimeBoundAccessControl");
     ac = (await upgrades.deployProxy(ACFactory, [superAdmin.address], { kind: "uups" })) as unknown as TimeBoundAccessControl;
@@ -34,6 +35,7 @@ describe("GovernanceTimelock", function () {
     // set expiry for superAdmin + auditor so hasRole override works
     const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
     await ac.connect(superAdmin).grantTimedRole(SUPER_ADMIN_ROLE, superAdmin.address, ts + 999999);
+    await ac.connect(superAdmin).grantTimedRole(SUPER_ADMIN_ROLE, superAdmin2.address, ts + 999999);
     await ac.connect(superAdmin).grantTimedRole(AUDITOR_ROLE, auditor.address, ts + 999999);
 
     const TLFactory = await ethers.getContractFactory("GovernanceTimelock");
@@ -41,44 +43,89 @@ describe("GovernanceTimelock", function () {
     await timelock.waitForDeployment();
   });
 
-  // helper: queue a no-op tx
+  /** Proposes + co-signs (2-of-N SUPER_ADMIN_ROLE, T-3.3 / audit §2.5) a no-op queue entry and
+   *  returns the resulting real txId — replaces the old single-signer queueTransaction() helper. */
   async function queueNoOp(delay = MIN_DELAY): Promise<bigint> {
-    const tx = await timelock.connect(superAdmin).queueTransaction(
-      target.address,
-      "0x", // no-op calldata — target ignores it
-      delay
-    );
-    const receipt = await tx.wait();
-    const event = receipt!.logs
+    const proposeTx = await timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", delay);
+    const proposeReceipt = await proposeTx.wait();
+    const proposeEvent = proposeReceipt!.logs
+      .map((l) => { try { return timelock.interface.parseLog(l as any); } catch { return null; } })
+      .find((e) => e?.name === "QueueProposed");
+    const pendingId = proposeEvent!.args.pendingId;
+
+    const coSignTx = await timelock.connect(superAdmin2).coSignQueueTransaction(pendingId);
+    const coSignReceipt = await coSignTx.wait();
+    const queuedEvent = coSignReceipt!.logs
       .map((l) => { try { return timelock.interface.parseLog(l as any); } catch { return null; } })
       .find((e) => e?.name === "TransactionQueued");
-    return event!.args.txId;
+    return queuedEvent!.args.txId;
   }
 
-  // ── queueTransaction ──────────────────────────────────────────────────────
+  // ── proposeQueueTransaction / coSignQueueTransaction (2-of-N, T-3.3) ───────
+  // Audit §2.5 / TODO.md §3.3: queueTransaction used to be onlySuperAdmin — one signer, despite
+  // its own docstring claiming multisig approval upstream. These cover the fix and the failure
+  // mode it closes: a single SUPER_ADMIN alone can no longer queue a transaction.
 
-  describe("queueTransaction", () => {
-    it("SUPER_ADMIN can queue a transaction and emits TransactionQueued", async () => {
-      await expect(
-        timelock.connect(superAdmin).queueTransaction(target.address, "0x", MIN_DELAY)
-      ).to.emit(timelock, "TransactionQueued");
+  describe("proposeQueueTransaction / coSignQueueTransaction", () => {
+    it("closes the single-signer hole: a lone SUPER_ADMIN proposing alone never queues anything", async () => {
+      await timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", MIN_DELAY);
+      // Old behavior: this alone would have populated `queue` and emitted TransactionQueued.
+      // New behavior: nothing is queued yet — nextTxId stays 0 until a second signer co-signs.
+      expect(await timelock.nextTxId()).to.equal(0);
     });
 
-    it("non-SUPER_ADMIN cannot queue (not SUPER_ADMIN_ROLE)", async () => {
+    it("emits QueueProposed on step 1, TransactionQueued only once QUEUE_THRESHOLD co-signs on step 2", async () => {
+      const tx = await timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", MIN_DELAY);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return timelock.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "QueueProposed");
+
       await expect(
-        timelock.connect(stranger).queueTransaction(target.address, "0x", MIN_DELAY)
+        timelock.connect(superAdmin2).coSignQueueTransaction(ev!.args.pendingId)
+      ).to.emit(timelock, "TransactionQueued");
+      expect(await timelock.nextTxId()).to.equal(1);
+    });
+
+    it("non-SUPER_ADMIN cannot propose (not SUPER_ADMIN_ROLE)", async () => {
+      await expect(
+        timelock.connect(stranger).proposeQueueTransaction(target.address, "0x", MIN_DELAY)
       ).to.be.revertedWith("not SUPER_ADMIN_ROLE");
     });
 
-    it("delay < MIN_DELAY reverts DelayOutOfRange", async () => {
+    it("rejects duplicate signer on coSign", async () => {
+      const tx = await timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", MIN_DELAY);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return timelock.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "QueueProposed");
       await expect(
-        timelock.connect(superAdmin).queueTransaction(target.address, "0x", MIN_DELAY - 1)
+        timelock.connect(superAdmin).coSignQueueTransaction(ev!.args.pendingId)
+      ).to.be.revertedWithCustomError(timelock, "DuplicateSigner");
+    });
+
+    it("rejects a third co-sign after threshold already met (PendingAlreadyExecuted)", async () => {
+      const tx = await timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", MIN_DELAY);
+      const r = await tx.wait();
+      const ev = r!.logs.map((l) => { try { return timelock.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "QueueProposed");
+      await timelock.connect(superAdmin2).coSignQueueTransaction(ev!.args.pendingId);
+
+      const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
+      const [,,,,,extra] = await ethers.getSigners();
+      await ac.connect(superAdmin).grantTimedRole(SUPER_ADMIN_ROLE, extra.address, ts + 999999);
+      await expect(
+        timelock.connect(extra).coSignQueueTransaction(ev!.args.pendingId)
+      ).to.be.revertedWithCustomError(timelock, "PendingAlreadyExecuted");
+    });
+
+    it("delay < MIN_DELAY reverts DelayOutOfRange on propose", async () => {
+      await expect(
+        timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", MIN_DELAY - 1)
       ).to.be.revertedWithCustomError(timelock, "DelayOutOfRange");
     });
 
-    it("delay > MAX_DELAY reverts DelayOutOfRange", async () => {
+    it("delay > MAX_DELAY reverts DelayOutOfRange on propose", async () => {
       await expect(
-        timelock.connect(superAdmin).queueTransaction(target.address, "0x", MAX_DELAY + 1)
+        timelock.connect(superAdmin).proposeQueueTransaction(target.address, "0x", MAX_DELAY + 1)
       ).to.be.revertedWithCustomError(timelock, "DelayOutOfRange");
     });
   });

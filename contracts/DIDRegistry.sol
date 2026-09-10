@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ISignatureVerifier} from "./interfaces/ISignatureVerifier.sol";
+import {TimeBoundAccessControl} from "./TimeBoundAccessControl.sol";
 
 /// @title DIDRegistry
 /// @notice W3C-style DID registry. Replaces the centralized identity database entirely (PS 26125,
@@ -21,7 +22,12 @@ contract DIDRegistry {
     mapping(bytes32 => DIDDocument) private _documents;
     mapping(address => bytes32) public didOf;          // reverse lookup: controller -> DID
     address public guardianRecoveryContract;            // only this contract may force-rotate a key
-    address public immutable owner;
+    /// @notice Owner-equivalent authority for setSignatureVerifier/setGuardianRecoveryContract now
+    ///         routes through this contract's own 2-of-N SUPER_ADMIN_ROLE propose/co-sign flow
+    ///         (proposePlatformAction(5|6,...)/coSignPlatformAction) instead of a single bare
+    ///         `owner` address (audit §2.3, TODO.md §3.2) — replaces the previous
+    ///         `address public immutable owner`.
+    TimeBoundAccessControl public immutable accessControl;
     /// @notice Pluggable signature verifier — swap this address to migrate from ECDSA to Dilithium
     ///         without touching any other contract (SECURITY.md §6, audit item A8).
     ///         Zero address = no on-chain signature verification (acceptable during migration window).
@@ -36,25 +42,31 @@ contract DIDRegistry {
     error NotController();
     error NotAuthorized();
 
-    modifier onlyOwner() {
-        if (msg.sender != owner) revert NotAuthorized();
-        _;
+    constructor(address accessControlAddr) {
+        accessControl = TimeBoundAccessControl(accessControlAddr);
     }
 
-    constructor() {
-        owner = msg.sender;
-    }
-
-    function setGuardianRecoveryContract(address recovery) external onlyOwner {
+    /// @notice Requires 2-of-N SUPER_ADMIN_ROLE approval via
+    ///         accessControl.proposePlatformAction(6, bytes32(0), recovery)/coSignPlatformAction —
+    ///         replaces the previous single-signer `onlyOwner` gate.
+    function setGuardianRecoveryContract(address recovery) external {
         if (recovery == address(0)) revert("Zero address not allowed");
+        if (!accessControl.didGuardianRecoveryAuthorized(recovery)) revert NotAuthorized();
+        accessControl.consumeDIDGuardianRecoveryAuthorization(recovery);
         guardianRecoveryContract = recovery;
     }
 
     /// @notice Swap in a new signature verifier (e.g., ECDSASignatureVerifier → DilithiumVerifier).
     ///         This is the only function that needs to be called for a full post-quantum migration.
-    ///         Emits an auditable event so BEL security ops can track the changeover.
-    function setSignatureVerifier(address verifier) external onlyOwner {
+    ///         Emits an auditable event so BEL security ops can track the changeover. Requires 2-of-N
+    ///         SUPER_ADMIN_ROLE approval via accessControl.proposePlatformAction(5, bytes32(0),
+    ///         verifier)/coSignPlatformAction — replaces the previous single-signer `onlyOwner` gate;
+    ///         a post-quantum migration is exactly the kind of high-consequence action that shouldn't
+    ///         depend on one key (audit §2.3).
+    function setSignatureVerifier(address verifier) external {
         if (verifier == address(0)) revert("Zero address not allowed");
+        if (!accessControl.didSignatureVerifierAuthorized(verifier)) revert NotAuthorized();
+        accessControl.consumeDIDSignatureVerifierAuthorization(verifier);
         address old = address(signatureVerifier);
         signatureVerifier = ISignatureVerifier(verifier);
         emit SignatureVerifierUpdated(old, verifier);

@@ -1,6 +1,6 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { GuardianRecovery, DIDRegistry } from "../typechain-types";
+import { ethers, upgrades } from "hardhat";
+import { GuardianRecovery, DIDRegistry, TimeBoundAccessControl } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 /**
@@ -12,6 +12,7 @@ import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 describe("GuardianRecovery", function () {
   let didRegistry: DIDRegistry;
   let guardianRecovery: GuardianRecovery;
+  let accessControl: TimeBoundAccessControl;
 
   let controller: SignerWithAddress;
   let guardian1: SignerWithAddress;
@@ -22,23 +23,42 @@ describe("GuardianRecovery", function () {
   let stranger: SignerWithAddress;
   let newController: SignerWithAddress;
   let mockRecovery: SignerWithAddress;
+  let superAdmin2: SignerWithAddress;
 
   let subjectDid: string;
 
+  const SUPER_ADMIN_ROLE = ethers.keccak256(ethers.toUtf8Bytes("SUPER_ADMIN_ROLE"));
+
   beforeEach(async () => {
-    [controller, guardian1, guardian2, guardian3, guardian4, guardian5, stranger, newController, mockRecovery] =
+    [controller, guardian1, guardian2, guardian3, guardian4, guardian5, stranger, newController, mockRecovery, superAdmin2] =
       await ethers.getSigners();
 
+    // DIDRegistry's constructor now takes a TimeBoundAccessControl address (T-3.2, audit §2.3) —
+    // deploy that first, controller acts as the bootstrap SUPER_ADMIN/DEFAULT_ADMIN.
+    const ACFactory = await ethers.getContractFactory("TimeBoundAccessControl");
+    accessControl = (await upgrades.deployProxy(ACFactory, [controller.address], { kind: "uups" })) as unknown as TimeBoundAccessControl;
+    await accessControl.waitForDeployment();
+    const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
+    await accessControl.connect(controller).grantTimedRole(SUPER_ADMIN_ROLE, superAdmin2.address, ts + 999999);
+
     const DIDRegistryFactory = await ethers.getContractFactory("DIDRegistry");
-    didRegistry = (await DIDRegistryFactory.deploy()) as DIDRegistry;
+    didRegistry = (await DIDRegistryFactory.deploy(await accessControl.getAddress())) as DIDRegistry;
     await didRegistry.waitForDeployment();
 
     const GRFactory = await ethers.getContractFactory("GuardianRecovery");
     guardianRecovery = (await GRFactory.deploy(await didRegistry.getAddress())) as GuardianRecovery;
     await guardianRecovery.waitForDeployment();
 
-    // wire GuardianRecovery into DIDRegistry
-    await didRegistry.setGuardianRecoveryContract(await guardianRecovery.getAddress());
+    // wire GuardianRecovery into DIDRegistry — now requires 2-of-N SUPER_ADMIN_ROLE approval
+    // (actionType 6) instead of a single-signer `onlyOwner` call.
+    const grAddr = await guardianRecovery.getAddress();
+    const authTx = await accessControl.connect(controller).proposePlatformAction(6, ethers.ZeroHash, grAddr);
+    const authReceipt = await authTx.wait();
+    const authEvent = authReceipt!.logs
+      .map((l) => { try { return accessControl.interface.parseLog(l as any); } catch { return null; } })
+      .find((e) => e?.name === "ActionProposed");
+    await accessControl.connect(superAdmin2).coSignPlatformAction(authEvent!.args.actionId);
+    await didRegistry.setGuardianRecoveryContract(grAddr);
 
     // controller creates a DID
     const pubKey = ethers.randomBytes(64);

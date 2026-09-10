@@ -1,26 +1,53 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { DIDRegistry } from "../typechain-types";
+import { ethers, upgrades } from "hardhat";
+import { DIDRegistry, TimeBoundAccessControl } from "../typechain-types";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 /**
  * DIDRegistry tests — TESTING.md §1 "DIDRegistry.test.ts"
  * Covers: create/resolve/rotate DID; reject duplicate; only-controller rotation;
- *         forceRotateKey only by guardianRecovery contract; reverse lookup consistency.
+ *         forceRotateKey only by guardianRecovery contract; reverse lookup consistency;
+ *         2-of-N SUPER_ADMIN_ROLE authorization on setSignatureVerifier/setGuardianRecoveryContract
+ *         (audit §2.3, TODO.md §3.2 — replaces the previous single-signer `owner`).
  */
 describe("DIDRegistry", function () {
   let didRegistry: DIDRegistry;
+  let accessControl: TimeBoundAccessControl;
   let owner: SignerWithAddress;
+  let superAdmin2: SignerWithAddress;
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
   let mockRecovery: SignerWithAddress;
 
+  const SUPER_ADMIN_ROLE = ethers.keccak256(ethers.toUtf8Bytes("SUPER_ADMIN_ROLE"));
+
+  /** Proposes + co-signs a 2-of-N DIDRegistry owner-equivalent action (actionType 5 or 6) and
+   *  returns once threshold is met — the real path setSignatureVerifier/setGuardianRecoveryContract
+   *  now require instead of the old single-signer `onlyOwner`. */
+  async function authorizeDIDAction(actionType: 5 | 6, target: string) {
+    const tx = await accessControl.connect(owner).proposePlatformAction(actionType, ethers.ZeroHash, target);
+    const r = await tx.wait();
+    const ev = r!.logs
+      .map((l) => { try { return accessControl.interface.parseLog(l as any); } catch { return null; } })
+      .find((e) => e?.name === "ActionProposed");
+    await accessControl.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+  }
+
   beforeEach(async () => {
-    [owner, alice, bob, mockRecovery] = await ethers.getSigners();
+    [owner, superAdmin2, alice, bob, mockRecovery] = await ethers.getSigners();
+
+    const ACFactory = await ethers.getContractFactory("TimeBoundAccessControl");
+    accessControl = (await upgrades.deployProxy(ACFactory, [owner.address], { kind: "uups" })) as unknown as TimeBoundAccessControl;
+    await accessControl.waitForDeployment();
+    const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
+    await accessControl.connect(owner).grantTimedRole(SUPER_ADMIN_ROLE, superAdmin2.address, ts + 999999);
+
     const DIDRegistryFactory = await ethers.getContractFactory("DIDRegistry");
-    didRegistry = (await DIDRegistryFactory.deploy()) as DIDRegistry;
+    didRegistry = (await DIDRegistryFactory.deploy(await accessControl.getAddress())) as DIDRegistry;
     await didRegistry.waitForDeployment();
-    // wire mock recovery contract
+
+    // wire mock recovery contract — now requires 2-of-N SUPER_ADMIN_ROLE approval first.
+    await authorizeDIDAction(6, mockRecovery.address);
     await didRegistry.setGuardianRecoveryContract(mockRecovery.address);
   });
 
@@ -128,8 +155,9 @@ describe("DIDRegistry", function () {
       expect(doc.keyType).to.equal("DILITHIUM3");
     });
 
-    it("setSignatureVerifier emits SignatureVerifierUpdated", async () => {
+    it("setSignatureVerifier emits SignatureVerifierUpdated once 2-of-N SUPER_ADMIN_ROLE approves", async () => {
       const fakeVerifier = ethers.Wallet.createRandom().address;
+      await authorizeDIDAction(5, fakeVerifier);
       await expect(
         didRegistry.connect(owner).setSignatureVerifier(fakeVerifier)
       ).to.emit(didRegistry, "SignatureVerifierUpdated")
@@ -137,9 +165,19 @@ describe("DIDRegistry", function () {
       expect(await didRegistry.signatureVerifier()).to.equal(fakeVerifier);
     });
 
-    it("non-owner cannot setSignatureVerifier", async () => {
+    it("closes the single-signer hole: setSignatureVerifier reverts without prior 2-of-N approval, even for the deployer", async () => {
       await expect(
-        didRegistry.connect(alice).setSignatureVerifier(ethers.Wallet.createRandom().address)
+        didRegistry.connect(owner).setSignatureVerifier(ethers.Wallet.createRandom().address)
+      ).to.be.revertedWithCustomError(didRegistry, "NotAuthorized");
+    });
+
+    it("consumes the approval on use — the same verifier address needs fresh approval to be reused", async () => {
+      const fakeVerifier = ethers.Wallet.createRandom().address;
+      await authorizeDIDAction(5, fakeVerifier);
+      await didRegistry.connect(owner).setSignatureVerifier(fakeVerifier);
+
+      await expect(
+        didRegistry.connect(owner).setSignatureVerifier(fakeVerifier)
       ).to.be.revertedWithCustomError(didRegistry, "NotAuthorized");
     });
   });
