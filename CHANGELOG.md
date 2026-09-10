@@ -6,6 +6,26 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.9] — 2026-09-11 — Warn on duplicate credential issuance (T-052)
+
+Closes T-052.
+
+### Added
+- `app/(app)/identity/issue/page.tsx`: a warning banner (non-blocking — the contract allows it) when
+  the selected subject already holds a valid, non-expired, non-revoked credential of the selected
+  role, naming its `vcId` and expiry. Reads the subject's credentials via a second, independent
+  `useDidService(subjectDid)` call alongside the existing issuer-scoped one.
+
+### Corrected
+- `docs/FEATURES.md` F1.2's edge-case note claimed "most recent `validUntil` governs authorization
+  checks" — checked `CredentialRegistry.issueCredential` and that's not how it works. Each `vcId` is an
+  independently keyed `Credential` struct; issuing a new one doesn't revoke or supersede an older one
+  for the same subject+role, both stay independently valid, and whichever specific `vcId` a consumer
+  references is what's actually checked. Reworded to match — the new warning is an anti-duplicate
+  nudge, not a reflection of any real conflict-resolution the contract performs.
+
+---
+
 ## [0.11.8] — 2026-09-11 — Fix proposedBy/raisedBy/resolvedBy/executedBy's DID leftover (T-055 follow-up)
 
 Closes the address-vs-DID leftover flagged in T-055's closing note.

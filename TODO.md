@@ -141,10 +141,20 @@ from `/identity`'s header (shown only to issuers). Updated `docs/USER_FLOWS.md` 
 a panel off of, so this ships as a standalone route instead, and flagged that the "already has a
 non-expired credential of this role" edge case isn't checked yet — see **T-052**).
 
-### T-052 — `/identity/issue` doesn't warn when the subject already holds a non-expired credential
-`docs/FEATURES.md` F1.2's edge-case spec says the UI should warn (contract still allows it — most
-recent `validUntil` governs). Not built in the T-051 pass; the page always proposes a fresh issuance
-with no pre-check against the subject's existing credentials.
+### T-052 ✅ closed 2026-09-11 — `/identity/issue` now warns on an existing non-expired credential
+Added a second `useDidService(subjectDid)` instance (distinct from the issuer's own, already used for
+`issueCredential`) to read the subject's existing credentials, and a warning banner (shown, not
+blocking — the contract allows it) when one already exists for the selected role, non-expired and
+non-revoked, naming its `vcId` and expiry.
+
+**Corrected `docs/FEATURES.md` F1.2 while implementing this**: its edge-case note said "most recent
+`validUntil` governs authorization checks" — checked the contract and that's not accurate.
+`CredentialRegistry.issueCredential` keys each `Credential` by an independent `vcId`
+(`keccak256(subjectDid, issuerDid, vcHash, block.timestamp)`); issuing a new credential doesn't revoke
+or supersede an older one for the same subject+role — both stay independently valid, and whichever
+specific `vcId` a consumer (e.g. `AssetRegistry.vcIdOf[tokenId]`) references is what's actually
+checked, not "the newest one for this subject." The warning is purely an anti-duplicate nudge for the
+issuer, not a reflection of any conflict-resolution the contract performs.
 
 ### `lib/services/governanceService.ts` — closed 2026-09-10 (T-032–T-035), with major adjacent findings
 - **T-032** ✅ `getProposals`/`getDisputes` now query real subgraph entities (`GET_PLATFORM_ACTIONS`

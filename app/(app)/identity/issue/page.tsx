@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UserPlus, Loader2, CheckCircle2 } from "lucide-react";
+import { UserPlus, Loader2, CheckCircle2, TriangleAlert } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
@@ -12,6 +12,7 @@ import { useDidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { useHasIssuerRole } from "@/lib/hooks/useCredentialRegistry";
 import { dataMode } from "@/lib/services/dataMode";
+import { formatRelativeTime, truncateMiddle } from "@/lib/utils";
 
 const issuableRoles: Role[] = ["USER", "AUDITOR", "MANAGER", "ADMIN"];
 
@@ -44,6 +45,17 @@ export default function IssueCredentialPage() {
   const [validityMs, setValidityMs] = useState(validityOptions[1]!.ms);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // T-052: warn (don't block — the contract allows it) when the subject already holds a
+  // non-expired, non-revoked credential of the selected role. Each vcId is an independent
+  // Credential struct on CredentialRegistry (keyed by keccak256(subjectDid, issuerDid, vcHash,
+  // timestamp)) — issuing a new one does not revoke or supersede the old one; both stay
+  // independently valid until their own expiry/revocation, so this is purely an operator heads-up
+  // against accidental duplicates, not a real conflict the contract would reject.
+  const subjectDidService = useDidService(subjectDid || undefined);
+  const existingCredential = subjectDidService
+    .listCredentials()
+    .find((c) => c.role === role && !c.revoked && c.validUntil > Date.now());
 
   async function handleSubmit() {
     if (!subjectDid) return;
@@ -154,6 +166,19 @@ export default function IssueCredentialPage() {
             </Select>
           </div>
         </div>
+
+        {existingCredential && (
+          <div className="mb-3 flex items-start gap-2 rounded-2xl border border-alert-500/25 bg-alert-500/[0.06] px-3 py-2 text-[12px] text-alert-400">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+            <span>
+              This identity already holds a valid {ROLE_LABEL[role]} credential (
+              <span className="mono-value">{truncateMiddle(existingCredential.vcId, 8, 4)}</span>, expires{" "}
+              {formatRelativeTime(existingCredential.validUntil)}). Issuing another doesn&apos;t revoke or
+              replace it — both stay independently valid. The contract allows this; proceed only if that&apos;s
+              intended.
+            </span>
+          </div>
+        )}
 
         {actionError && <p className="mb-3 text-[12px] text-danger-400">{actionError}</p>}
 
