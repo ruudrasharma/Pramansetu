@@ -24,7 +24,7 @@ const statusTone = { queued: "signal", disputed: "danger", executed: "verified",
 
 export default function DisputesPage() {
   const activeRole = useAppStore((s) => s.activeRole);
-  const { did: myDid } = useCurrentIdentity();
+  const { did: myDid, address: myAddress } = useCurrentIdentity();
   const meMock = identityByRole[activeRole];
   const me = dataMode === "onchain" ? { did: myDid ?? "" } : meMock;
   const didService = useDidService(myDid);
@@ -34,6 +34,11 @@ export default function DisputesPage() {
 
   const canRaise = dataMode === "onchain" ? myRealIdentity?.role === "AUDITOR" : activeRole === "AUDITOR";
   const canResolve = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" : activeRole === "SUPER_ADMIN";
+  // The real per-mode actor identifier: an address onchain (the real caller of raiseDispute/
+  // resolveDispute/executeTransaction is always msg.sender), a DID in mock mode. These service
+  // calls' raisedBy/resolvedBy/executedBy arguments are ignored by the onchain implementations
+  // today, but this stays the semantically correct value to pass regardless.
+  const currentActorId = dataMode === "onchain" ? (myAddress ?? "") : me.did;
 
   const [disputeTarget, setDisputeTarget] = useState<TimelockTransaction | null>(null);
   const [reason, setReason] = useState("");
@@ -52,7 +57,7 @@ export default function DisputesPage() {
     if (!disputeTarget || !reason) return;
     setActionError(null);
     try {
-      await governanceService.raiseDispute(disputeTarget.txId, reason, me.did);
+      await governanceService.raiseDispute(disputeTarget.txId, reason, currentActorId);
       setDisputeTarget(null);
       setReason("");
     } catch (err) {
@@ -63,7 +68,7 @@ export default function DisputesPage() {
   async function handleResolve(txId: number, proceed: boolean) {
     setActionError(null);
     try {
-      await governanceService.resolveDispute(txId, proceed, me.did);
+      await governanceService.resolveDispute(txId, proceed, currentActorId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to resolve dispute");
     }
@@ -72,7 +77,7 @@ export default function DisputesPage() {
   async function handleExecute(txId: number) {
     setActionError(null);
     try {
-      await governanceService.executeTransaction(txId, me.did);
+      await governanceService.executeTransaction(txId, currentActorId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to execute transaction");
     }

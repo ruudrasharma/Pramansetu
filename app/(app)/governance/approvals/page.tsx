@@ -17,16 +17,18 @@ export default function MultisigApprovalsPage() {
   const governanceService = useGovernanceService();
   const proposals = governanceService.getProposals().filter((p) => p.status === "queued");
 
-  // Onchain multisig signers are keyed by wallet address, not DID — see governanceService.ts's
-  // getProposals adapter.
-  const currentSignerId = dataMode === "onchain" ? myAddress : me.did;
+  // The real per-mode actor identifier: an address onchain (multisig co-signing on
+  // TimeBoundAccessControl is by msg.sender, not DID — MultisigApprovalWidget's "already signed"
+  // check needs this to match), a DID in mock mode. approveProposal's signer argument is ignored
+  // by the onchain service today, but this stays the semantically correct value regardless.
+  const currentSignerId = dataMode === "onchain" ? (myAddress ?? "") : me.did;
 
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function handleApprove(id: string) {
     setActionError(null);
     try {
-      await governanceService.approveProposal(id, me.did);
+      await governanceService.approveProposal(id, currentSignerId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to approve proposal");
     }

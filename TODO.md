@@ -251,13 +251,20 @@ instead of the mock-only demo role switcher. `currentSignerDid` passed into `Mul
 now uses the real connected **address** in onchain mode (not DID) — matching T-032's onchain
 `getProposals()` adapter, which keys `signers[].did` by address since multisig co-signing on
 `TimeBoundAccessControl` is by `msg.sender`, not DID — so the "already signed" check now actually
-matches a real signer. `proposedBy`/`raisedBy`/`resolvedBy` arguments still pass `me.did`
-unconditionally: confirmed these are ignored by every onchain service implementation already (the
-real actor is always `msg.sender`), so which identifier shape is passed there doesn't affect behavior,
-only the mock-mode audit log's cosmetic actor label. All three pages' write actions (`pause`/
-`unpause`/`approveProposal`/`raiseDispute`/`resolveDispute`/`executeTransaction`) are now awaited with
-real error surfacing (`actionError` state), matching the `/roles` convention, instead of
-firing-and-forgetting.
+matches a real signer. All three pages' write actions (`pause`/`unpause`/`approveProposal`/
+`raiseDispute`/`resolveDispute`/`executeTransaction`) are now awaited with real error surfacing
+(`actionError` state), matching the `/roles` convention, instead of firing-and-forgetting.
+
+**2026-09-11 follow-up — closed the `proposedBy`/`raisedBy`/`resolvedBy`/`executedBy` leftover**: all
+three pages previously passed `me.did` unconditionally into these arguments, even in onchain mode where
+`me.did` is a DID and the real per-mode actor identifier should be an address (same reasoning as
+`currentSignerDid` above). This was functionally harmless *today* — confirmed every onchain service
+implementation ignores these arguments, the real actor is always `msg.sender` — but was still wrong to
+leave: it read as if DID were the correct shape everywhere, and would silently regress the moment any
+of these arguments became load-bearing (e.g. if a future audit-log/analytics layer started using them).
+Introduced a `currentSignerId`/`currentActorId` value per page (address onchain, DID in mock, same
+pattern as the `MultisigApprovalWidget` fix), coalesced to `""` rather than `undefined` to match
+`me.did`'s existing safety pattern, and replaced every `me.did` passed as an actor argument with it.
 
 ### `lib/services/auditService.ts`
 - **T-036** ✅ closed 2026-09-10 — `dismissAlert` was a no-op in onchain mode; the dismissal was

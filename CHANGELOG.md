@@ -6,6 +6,21 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.8] — 2026-09-11 — Fix proposedBy/raisedBy/resolvedBy/executedBy's DID leftover (T-055 follow-up)
+
+Closes the address-vs-DID leftover flagged in T-055's closing note.
+
+### Changed
+- `/governance`, `/governance/approvals`, `/governance/disputes`: every governance write call
+  (`pause`/`unpause`/`approveProposal`/`raiseDispute`/`resolveDispute`/`executeTransaction`) now
+  passes a mode-aware actor identifier (`currentSignerId`/`currentActorId` — a real connected address
+  onchain, a DID in mock mode) instead of `me.did` unconditionally. Functionally inert today (every
+  onchain service implementation ignores these arguments — the real actor is always `msg.sender`), but
+  was wrong to leave: it read as if DID were correct everywhere, and would have silently regressed the
+  moment any of these arguments became load-bearing.
+
+---
+
 ## [0.11.7] — 2026-09-11 — "Propose Admin change" UI + PendingGrant subgraph support (T-054)
 
 Closes T-054.

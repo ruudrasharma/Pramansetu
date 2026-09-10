@@ -38,10 +38,13 @@ export default function GovernancePage() {
   const disputes = governanceService.getDisputes();
 
   const isSuperAdmin = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" : activeRole === "SUPER_ADMIN";
-  // Onchain multisig signers are keyed by wallet address, not DID (see governanceService.ts's
-  // getProposals adapter) — MultisigApprovalWidget's "already signed" check needs the matching
-  // identifier for whichever mode is active.
-  const currentSignerId = dataMode === "onchain" ? myAddress : me.did;
+  // The real per-mode actor identifier: an address onchain (multisig co-signing on
+  // TimeBoundAccessControl is by msg.sender, not DID — MultisigApprovalWidget's "already signed"
+  // check needs this to match), a DID in mock mode. Used both for that comparison and as the
+  // proposedBy/signer argument on every write call below — those args are ignored by the onchain
+  // service implementations today (the real actor is always msg.sender), but passing the
+  // semantically correct value rather than always `me.did` keeps this honest if that ever changes.
+  const currentSignerId = dataMode === "onchain" ? (myAddress ?? "") : me.did;
 
   const [confirmAction, setConfirmAction] = useState<"pause" | "unpause" | null>(null);
   const [confirmText, setConfirmText] = useState("");
@@ -57,8 +60,8 @@ export default function GovernancePage() {
   async function handleConfirm() {
     setActionError(null);
     try {
-      if (confirmAction === "pause") await governanceService.pause(me.did);
-      if (confirmAction === "unpause") await governanceService.unpause(me.did);
+      if (confirmAction === "pause") await governanceService.pause(currentSignerId);
+      if (confirmAction === "unpause") await governanceService.unpause(currentSignerId);
       setConfirmAction(null);
       setConfirmText("");
     } catch (err) {
@@ -69,7 +72,7 @@ export default function GovernancePage() {
   async function handleApprove(id: string) {
     setActionError(null);
     try {
-      await governanceService.approveProposal(id, me.did);
+      await governanceService.approveProposal(id, currentSignerId);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to approve proposal");
     }
@@ -83,7 +86,7 @@ export default function GovernancePage() {
       const targetName = dataMode === "mock" ? findIdentity(targetDid)?.name ?? targetDid : targetDid;
       const title = proposeKind === "addAdmin" ? `Add ${targetName} as Admin` : `Remove Admin: ${targetName}`;
       const account = dataMode === "onchain" ? await resolveControllerAddress(targetDid as `0x${string}`) : targetDid;
-      await governanceService.proposeAction(proposeKind, title, me.did, {
+      await governanceService.proposeAction(proposeKind, title, currentSignerId, {
         account,
         validUntil: proposeKind === "addAdmin" ? Date.now() + validityMs : undefined,
       });
