@@ -6,6 +6,27 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.12.0] — 2026-09-11 — Fix /auth's real sign-in dead-end (T-045)
+
+Closes T-045.
+
+### Fixed
+- `app/auth/page.tsx`: `handleSign`'s real (non-simulated) path set `step` to `"resolving"` but
+  nothing ever advanced it — a real user who actually signed the challenge got stuck on "Resolving
+  DID from signature…" forever, with no way to reach the dashboard through this page. Added a
+  `useEffect` watching `useCurrentIdentity()` (the same address→DID hook `TopBar.tsx` uses): once
+  resolved with a real DID, advances to `"done"` and redirects, matching the existing UX. Mode-aware
+  for free (mock personas resolve instantly by construction) — this also fixes the same dead-end in
+  mock mode when signing for real instead of clicking "Simulate (demo)".
+
+### Added
+- A real, honest "Signature verified, but no DID is registered for this wallet yet" state (with a
+  link to `/identity`'s real `createDID` flow) for a connected wallet with no registered identity —
+  previously unreachable code path that would have hit the same infinite spinner; never silently
+  claims "Authenticated" for a wallet with no DID to authenticate as.
+
+---
+
 ## [0.11.9] — 2026-09-11 — Warn on duplicate credential issuance (T-052)
 
 Closes T-052.

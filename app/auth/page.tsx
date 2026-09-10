@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAccount, useSignMessage } from "wagmi";
-import { KeyRound, Wallet, PenLine, Fingerprint, CheckCircle2, Loader2 } from "lucide-react";
+import { KeyRound, Wallet, PenLine, Fingerprint, CheckCircle2, Loader2, UserPlus } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { truncateMiddle } from "@/lib/utils";
 import { dataMode } from "@/lib/services/dataMode";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 
 type Step = "connect" | "sign" | "resolving" | "done";
 
@@ -28,12 +30,26 @@ export default function AuthPage() {
     mutation: { onSuccess: () => setStep("resolving") },
   });
   const [step, setStep] = useState<Step>("connect");
+  // T-045: this is what actually resolves the "resolving" step — didOf(address) only needs the
+  // connected address (not the signature itself; there's no on-chain/server-side signature
+  // verification anywhere in this flow, matching how the rest of the app treats a connected
+  // wallet as proof of key control). Mode-aware for free: mock personas resolve instantly with
+  // isResolving=false/hasNoDid=false by construction, so this same effect closes the dead-end in
+  // both data modes, not just onchain.
+  const { did: myDid, isResolving: isResolvingIdentity, hasNoDid } = useCurrentIdentity();
 
   const currentIndex = steps.findIndex((s) => s.key === step);
 
   function handleSign() {
     signMessage({ message: CHALLENGE });
   }
+
+  useEffect(() => {
+    if (step !== "resolving" || isResolvingIdentity || !myDid) return;
+    setStep("done");
+    const t = setTimeout(() => router.push("/dashboard"), 900);
+    return () => clearTimeout(t);
+  }, [step, isResolvingIdentity, myDid, router]);
 
   function handleSimulateResolve() {
     setStep("resolving");
@@ -119,8 +135,26 @@ export default function AuthPage() {
 
         {step === "resolving" && (
           <div className="flex flex-col items-center gap-3 py-8">
-            <Loader2 size={22} className="animate-spin text-signal-400" />
-            <p className="text-[13px] text-ink-400">Resolving DID from signature…</p>
+            {hasNoDid ? (
+              <>
+                <Fingerprint size={22} className="text-alert-400" />
+                <p className="text-center text-[13px] text-ink-200">
+                  Signature verified, but no DID is registered for{" "}
+                  <span className="mono-value">{address ? truncateMiddle(address, 8, 4) : "this wallet"}</span> yet —
+                  there&apos;s no identity document to authenticate against.
+                </p>
+                <Link href="/identity">
+                  <Button className="mt-1">
+                    <UserPlus size={14} /> Create your identity
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Loader2 size={22} className="animate-spin text-signal-400" />
+                <p className="text-[13px] text-ink-400">Resolving DID from signature…</p>
+              </>
+            )}
           </div>
         )}
 

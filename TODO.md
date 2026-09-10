@@ -60,16 +60,25 @@ used for real subgraph-indexed events, and — unlike T-040's button — it wasn
 all, so it was live and fabricating in onchain mode too. Fixed with the same `dataMode === "mock"`
 gate as T-040.
 
-### T-045 — `app/auth/page.tsx`'s real (non-simulated) sign-in path dead-ends at "Resolving DID…"
-Found while fixing T-040 (2026-09-10), not fixed this pass — out of scope for the audit item that
-surfaced it. `handleSign`'s `onSuccess` callback sets `step` to `"resolving"`, but nothing in the
-component ever resolves a real DID from the signed message and advances `step` to `"done"` — there is
-no `useEffect` or callback watching the `"resolving"` state. In onchain mode, once the mock-only
-Simulate button is hidden (per T-040's fix), a real user who actually signs the challenge gets stuck
-on "Resolving DID from signature…" forever with no way to reach the dashboard through this page.
-Needs a real DID-resolution step wired to the `"resolving"` state (likely reusing
-`useCurrentIdentity()`'s address→DID lookup, the same hook `TopBar.tsx` already uses) before onchain
-mode's auth flow is actually usable end-to-end.
+### T-045 ✅ closed 2026-09-11 — `app/auth/page.tsx`'s real sign-in path now resolves for real
+Added a `useEffect` watching `step === "resolving"` against `useCurrentIdentity()` (the same
+address→DID hook `TopBar.tsx` already uses): once resolution finishes and a real DID exists, it
+advances to `"done"` and redirects to `/dashboard`, same as before. `didOf(address)` only needs the
+connected address, not the signature itself — there's no on-chain/server-side signature verification
+anywhere in this flow (the signed challenge is discarded after `onSuccess`, same as before this fix;
+a connected wallet is already treated as proof of key control everywhere else in the app, e.g.
+`useCurrentIdentity` itself). This makes the fix mode-aware for free: mock personas resolve instantly
+(`isResolving=false`, `hasNoDid=false` by construction), so the same effect closes the dead-end in
+mock mode too, not just onchain — previously, actually signing for real (rather than clicking
+"Simulate (demo)") dead-ended in mock mode as well, just usually unnoticed since Simulate was always
+available there.
+
+**New case handled, not previously possible to reach**: a real wallet with a valid signature but no
+registered DID (`hasNoDid`). Previously this would have hit the same infinite spinner forever (worse
+than before T-040's fix, since Simulate is now hidden in onchain mode). Now shows an honest "Signature
+verified, but no DID is registered for this wallet yet" state with a link to `/identity` (which already
+has the real `createDID` flow) — never silently claims "Authenticated" for a wallet with no identity
+to authenticate as.
 
 ### `lib/services/rbacService.ts` — B.2, closed 2026-09-09 (T-026/T-028/T-041), stopgapped (T-027)
 - **T-026** ✅ `grantTimedRole` — resolves the target DID's real controller address via the new
