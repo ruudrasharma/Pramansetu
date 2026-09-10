@@ -400,6 +400,30 @@ T-017/T-018 incident. `identities`/`credentials`/`assets`/`mintRequests`/`pendin
 `governanceTxes`/`disputes`/`recoveries` are all genuinely empty — no DID has ever been created and no
 asset ever minted through the real UI yet, consistent with T-019's existing note, not a bug.
 
+### T-060 ✅ closed 2026-09-11 — `governanceTxs` was the wrong GraphQL field name (real, live query break)
+Found while re-verifying every onchain-mode subgraph query against the now-real `v9` endpoint (T-050's
+own text asked for this: "treat this as genuinely new verification work, not a formality"). Tested
+every named query in `lib/queries.ts` directly against the live subgraph — `GET_GOVERNANCE` and
+`GET_DASHBOARD_DATA` both failed with `"Type Query has no field governanceTxs"`. The Graph's
+auto-generated plural query field for the `GovernanceTx` entity is `governanceTxes` (its own
+pluralization convention for a name ending in `Tx`), not `governanceTxs` — confirmed by querying
+`governanceTxes` directly, which returns real data.
+
+`GET_DASHBOARD_DATA` has zero callers anywhere in the app (dead code, same category as T-027/T-043) —
+fixed for correctness/future-proofing but wasn't live-breaking anything. `GET_GOVERNANCE` **is** live:
+`governanceService.ts`'s `governanceQuery` backs `getDisputes()`, consumed by `/governance` and
+`/governance/disputes`. Because the broken query's result was accessed as
+`governanceQuery.data?.governanceTxes ?? []` (an `?? []` fallback with no error surfaced anywhere in
+the service's return object — no `disputesError` field exists), this failure was **completely silent**:
+every dispute, forever, would have rendered as "no disputes," indistinguishable from the real,
+honest empty state currently on-chain — the exact "fabricated success by omission" pattern this
+project's audits exist to catch, just newly discovered rather than previously flagged. Fixed by
+renaming the field in both queries (`lib/queries.ts`) and the two consuming references in
+`lib/services/governanceService.ts` (the typed `.request<{...}>()` call and the `.data?.` access).
+Re-verified directly against the live `v9` endpoint post-fix (`{"data":{"governanceTxes":[]}}`, no
+error) — genuinely empty right now (no governance transactions have been queued yet), not broken.
+`tsc --noEmit` clean after the fix.
+
 ### T-059 ✅ closed 2026-09-11 — `subgraph/subgraph.yaml`'s addresses were silently zeroed in T-039
 See T-050's closing note above for the full finding — recorded here as its own item since it's a
 distinct regression (a manifest-authoring mistake), not the Studio-access problem T-050 tracked.

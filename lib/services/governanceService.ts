@@ -144,7 +144,7 @@ function useOnchainGovernanceService(): GovernanceService {
 
   const governanceQuery = useQuery({
     queryKey: ["governanceTxs"],
-    queryFn: async () => getGraphQLClient().request<{ governanceTxs: RawGovernanceTx[] }>(GET_GOVERNANCE),
+    queryFn: async () => getGraphQLClient().request<{ governanceTxes: RawGovernanceTx[] }>(GET_GOVERNANCE),
     refetchInterval: 10000,
   });
 
@@ -198,7 +198,7 @@ function useOnchainGovernanceService(): GovernanceService {
     (a, b) => b.proposedAt - a.proposedAt
   );
 
-  const disputes: TimelockTransaction[] = (governanceQuery.data?.governanceTxs ?? []).map((tx) => {
+  const disputes: TimelockTransaction[] = (governanceQuery.data?.governanceTxes ?? []).map((tx) => {
     const d = tx.dispute;
     const status: TimelockTransaction["status"] =
       d && !d.resolved ? "disputed" : d?.resolved && d.proceeded === false ? "cancelled" : tx.executed ? "executed" : "queued";

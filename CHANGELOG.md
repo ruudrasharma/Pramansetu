@@ -6,9 +6,9 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
-## [0.16.0] — 2026-09-11 — Real subgraph redeploy; found and fixed a zeroed-address regression (T-050, T-059)
+## [0.16.0] — 2026-09-11 — Real subgraph redeploy; found and fixed two live query bugs (T-050, T-059, T-060)
 
-Closes T-050. Closes T-059 (new finding this pass).
+Closes T-050. Closes T-059, T-060 (new findings this pass).
 
 ### Fixed
 - `subgraph/subgraph.yaml`: the `praman-setu` Graph Studio project slot was confirmed created by
@@ -35,6 +35,14 @@ Closes T-050. Closes T-059 (new finding this pass).
   on-chain" claim except one: the deployer's `SUPER_ADMIN_ROLE` was claimed "revoked" but is currently
   `true` — correct per T-020's later deliberate re-grant, but that TODO bullet had gone stale. Corrected
   in `TODO.md`.
+- Tested every named query in `lib/queries.ts` directly against the live `v9` endpoint (not just
+  `graph build`, which doesn't catch this class of bug): `GET_GOVERNANCE`/`GET_DASHBOARD_DATA` both
+  used `governanceTxs`, not the real auto-generated field `governanceTxes`. `GET_DASHBOARD_DATA` has
+  no callers (dead code); `GET_GOVERNANCE` backs the live `getDisputes()` used by `/governance` and
+  `/governance/disputes` — its failure was silently swallowed by an `?? []` fallback with no error
+  surfaced anywhere, so every dispute would have rendered as "no disputes" forever, indistinguishable
+  from the real empty state. Fixed in `lib/queries.ts` and `lib/services/governanceService.ts`;
+  re-verified against live data post-fix. `tsc --noEmit` clean.
 
 ## [0.15.1] — 2026-09-11 — Test the anomaly-detection heuristics and the GET route directly (T-058)
 

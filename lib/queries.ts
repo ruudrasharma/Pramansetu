@@ -35,7 +35,7 @@ export const GET_DASHBOARD_DATA = gql`
       txHash
       riskScore
     }
-    governanceTxs(first: 5, orderBy: queuedAt, orderDirection: desc) {
+    governanceTxes(first: 5, orderBy: queuedAt, orderDirection: desc) {
       id
       txId
       target
@@ -86,7 +86,7 @@ export const GET_ASSETS = gql`
 
 export const GET_GOVERNANCE = gql`
   query GetGovernance {
-    governanceTxs(first: 50, orderBy: queuedAt, orderDirection: desc) {
+    governanceTxes(first: 50, orderBy: queuedAt, orderDirection: desc) {
       id
       txId
       target
