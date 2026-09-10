@@ -142,10 +142,46 @@ mode's auth flow is actually usable end-to-end.
   `proceed`.
 
 ### `lib/services/auditService.ts`
-- **T-036** `dismissAlert` — no-op; the dismissal is silently dropped. Needs a real persistence layer
-  (a minimal server-side dismissed-ids store is sufficient).
-- **T-037** `subscribeToEvents` — no-op in both the mock and onchain branches. Needs `wagmi`'s
-  `useWatchContractEvent` wired per relevant contract in the onchain branch.
+- **T-036** ✅ closed 2026-09-10 — `dismissAlert` was a no-op in onchain mode; the dismissal was
+  silently dropped. Added a minimal server-side dismissed-ids store (`lib/server/dismissedAlerts.ts`,
+  a JSON file at `data/dismissed-alerts.json`, gitignored) plus a new `POST /api/audit/anomalies`
+  endpoint (documented in `docs/API_SPEC.md`, new state documented in `docs/DATABASE_SCHEMA.md` §4.1).
+  `GET /api/audit/anomalies` now overlays dismissed status/reason onto each freshly-recomputed
+  anomaly by its deterministic id. `app/(app)/audit/anomalies/page.tsx` now awaits the real call and
+  surfaces failures instead of firing-and-forgetting.
+  - **Found while fixing this**: the route's velocity-check anomaly used `status: "investigating"`,
+    which isn't a member of `AnomalyAlert.status`'s `"open" | "dismissed"` union — so it matched
+    neither the "Open alerts" nor "Resolved" filter on the anomalies page and silently never
+    rendered. Normalized to `"open"`. Also found: every anomaly object from this route was missing
+    `severity` and `actorDid`, both required, non-optional fields on `AnomalyAlert` — `AlertCard.tsx`
+    indexes `severityMeta[alert.severity]` unconditionally, so a real onchain anomaly would have
+    **crashed the anomalies page** (`Cannot read properties of undefined`) the first time this route
+    ever returned real data. Fixed by adding `severity` per rule (`critical` for emergency-pause,
+    `warning` for velocity) and `actorDid: event.actorAddress` (the raw address, not a resolved DID —
+    `findIdentity()` simply won't match it in onchain mode, which is an honest degrade, not a crash).
+  - **Not fixed this pass**: no frontend/API test framework exists anywhere in this repo (only
+    Hardhat contract tests — `docs/TESTING.md`'s Frontend/Integration/E2E sections describe a plan
+    with zero actual implementation, no test runner in `package.json`). `AI_DEVELOPMENT_RULES.md` §5
+    asks for a happy-path + auth-failure test on every new endpoint; introducing a whole test
+    framework (Vitest/Jest + route-handler testing) to satisfy that for one endpoint felt like a
+    bigger, separate infrastructure decision than this fix warranted — flagging as **T-049** rather
+    than deciding unilaterally.
+- **T-037** ✅ closed 2026-09-10 — `subscribeToEvents` was a no-op in both branches. Decision: kept
+  as polling rather than building real `wagmi` `useWatchContractEvent` wiring, since `getEvents()`/
+  `getAnomalies()` already poll live (5s/10s `refetchInterval`) and there are zero real callers of
+  `subscribeToEvents` anywhere in the app. Documented explicitly in a code comment
+  (`lib/services/auditService.ts`) and in `docs/API_SPEC.md` — the onchain branch now throws a clear
+  error naming this decision instead of silently no-op-ing (same pattern as T-027/T-043's stopgaps).
+
+### T-049 — No frontend/API-route test framework exists anywhere in this repo
+Found while closing T-036 (2026-09-10). `docs/TESTING.md` §2–4 (Frontend Unit Tests, Integration
+Tests, End-to-End Tests) describe a testing plan, but `package.json` has no Jest/Vitest/Playwright/
+React Testing Library dependency and no `test`-equivalent script beyond `test:contracts` (Hardhat).
+The new `POST /api/audit/anomalies` endpoint (T-036) has no automated test as a result, same as every
+other existing API route (`/api/ipfs/upload`, `GET /api/audit/anomalies`). Per
+`AI_DEVELOPMENT_RULES.md` §5, new endpoints need a happy-path + auth-failure test; closing that gap
+means picking and wiring up a real frontend test framework first, which is a deliberate infrastructure
+decision, not a drive-by addition to one endpoint's fix.
 
 ### Audit event labeling
 - **T-038** ✅ closed 2026-09-10 — `KeyRotated` was missing from the `EventType` union in

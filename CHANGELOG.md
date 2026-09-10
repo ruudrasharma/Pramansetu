@@ -6,6 +6,35 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.8] — 2026-09-10 — Gap audit fixes, batch 5: auditService onchain wiring (T-036, T-037)
+
+Closes T-036 and T-037.
+
+### Added
+- `lib/server/dismissedAlerts.ts`: minimal server-side JSON-file persistence for dismissed anomaly
+  alert ids (`data/dismissed-alerts.json`, gitignored — see `docs/DATABASE_SCHEMA.md` §4.1).
+- `POST /api/audit/anomalies`: dismisses an alert by id + reason (documented in `docs/API_SPEC.md`).
+
+### Changed
+- `app/api/audit/anomalies/route.ts` (`GET`): overlays dismissed status/`dismissReason` from the new
+  store onto each freshly-recomputed anomaly. Also fixed two latent bugs found while doing this:
+  the velocity-check anomaly's `status: "investigating"` wasn't a valid `AnomalyAlert.status` value
+  (normalized to `"open"`), and every emitted anomaly was missing the required `severity`/`actorDid`
+  fields — `AlertCard.tsx` indexes `severity` unconditionally, so this route returning real data would
+  have crashed the anomalies page on first use. Both fixed (severity by rule, `actorDid` = the real
+  actor address).
+- `lib/services/auditService.ts`: onchain `dismissAlert` now makes the real `POST` call and refetches;
+  `subscribeToEvents` now throws a clear error in onchain mode naming the T-037 decision (kept as
+  polling, not a push subscription — zero real callers exist) instead of silently no-op-ing.
+- `app/(app)/audit/anomalies/page.tsx`: dismiss action is now awaited with real error surfacing
+  instead of firing-and-forgetting.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-049**: no frontend/API-route test framework exists anywhere in this repo (only Hardhat contract
+  tests) — the new endpoint above has no automated test as a result, same as every pre-existing route.
+
+---
+
 ## [0.10.7] — 2026-09-10 — Gap audit fixes, batch 4: honest ZK proof labeling (T-015 partial)
 
 Closes the labeling half of T-015 per the 2026-09-10 audit §4.2. The actual Semaphore/snarkjs

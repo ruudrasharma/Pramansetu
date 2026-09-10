@@ -17,6 +17,16 @@ export default function AnomalyDashboardPage() {
   const auditService = useAuditService();
   const alerts = auditService.getAnomalies();
   const [selected, setSelected] = useState<AnomalyAlert | null>(null);
+  const [dismissError, setDismissError] = useState<string | null>(null);
+
+  async function handleDismiss(alertId: string, reason: string) {
+    setDismissError(null);
+    try {
+      await auditService.dismissAlert(alertId, reason);
+    } catch (err) {
+      setDismissError(err instanceof Error ? err.message : "Failed to dismiss alert");
+    }
+  }
 
   const chartData = [
     { severity: "Info", count: alerts.filter((a) => a.severity === "info").length, fill: "var(--ink-400)" },
@@ -62,12 +72,17 @@ export default function AnomalyDashboardPage() {
         <h3 className="text-[13px] font-medium text-ink-50">Open alerts</h3>
         <Badge tone="danger">{openAlerts.length}</Badge>
       </div>
+      {dismissError && (
+        <div className="mb-3 rounded-xl border border-danger-500/25 bg-danger-500/[0.06] px-3 py-2 text-[12px] text-danger-400">
+          {dismissError}
+        </div>
+      )}
       {openAlerts.length === 0 ? (
         <EmptyState title="No open alerts" description="Everything currently flagged has been reviewed." />
       ) : (
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {openAlerts.map((a) => (
-            <AlertCard key={a.id} alert={a} onDismiss={auditService.dismissAlert} onOpen={setSelected} />
+            <AlertCard key={a.id} alert={a} onDismiss={handleDismiss} onOpen={setSelected} />
           ))}
         </div>
       )}

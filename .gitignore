@@ -21,6 +21,12 @@ coverage.json
 subgraph/build/
 subgraph/generated/
 
+# ─── Server runtime state (not source, not deploy artifacts) ────────────────
+# JSON-file-backed application state written by API routes at runtime (e.g. dismissed
+# anomaly-alert ids — see lib/server/dismissedAlerts.ts / TODO.md T-036). Regenerated on
+# first write; never a source of truth for anything derivable from the chain.
+/data/
+
 # ─── Environment & Secrets ───────────────────────────────────────────────────
 # NEVER commit real keys or addresses. .env.example is committed, .env.local is not.
 .env

@@ -128,6 +128,18 @@ GovernanceAction * ── 1 AuditEvent (governance actions are also audit events
 - `AuditEvent.timestamp` — for the ledger stream and date-range filters
 - `Asset.ownerDid` — for the Assets grid per-user filter
 
+## 4.1 Off-Chain Application State (the one exception to "no DB", T-036)
+
+`data/dismissed-alerts.json` (server-side, gitignored, written by `lib/server/dismissedAlerts.ts` via
+`POST /api/audit/anomalies` — see `docs/API_SPEC.md`) is the platform's only piece of mutable state that
+is neither on-chain nor re-derived from the subgraph. It records `{ [anomalyId]: { reason, dismissedAt } }`
+— an operator's decision to dismiss a heuristic-detected anomaly alert, nothing more. This is a
+deliberate, narrow exception to the "no central database" invariant stated at the top of this doc: an
+anomaly *alert* is a computed, non-chain artifact to begin with (see `docs/API_SPEC.md`'s `GET
+/audit/anomalies`), so "an operator reviewed and dismissed it" has nowhere else to live. If this were
+lost (file deleted, redeployed to a fresh host), previously-dismissed alerts would simply reappear as
+open — not a data-integrity risk, since nothing it stores is a source of truth for chain state.
+
 ## 5. Constraints Enforced at Contract Level (not DB-level, since there is no DB)
 
 - A DID cannot exist without exactly one controlling key at a time (enforced in `DIDRegistry`).

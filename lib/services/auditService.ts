@@ -1,10 +1,16 @@
 "use client";
 
 /**
- * lib/services/auditService.ts — Immutable Audit Trail + AI Anomaly Detection (M4).
- * `subscribeToEvents` is the one place a future live-indexer subscription plugs in; the
- * mock implementation just returns a no-op unsubscribe since the ledger stream already
- * demonstrates "live arrival" via the Overview page's Simulate button + Zustand writes.
+ * lib/services/auditService.ts — Immutable Audit Trail + Anomaly Detection (M4).
+ *
+ * `subscribeToEvents` (T-037): the onchain branch throws rather than silently no-op-ing,
+ * because the real "live arrival" mechanism for this project's scope is the `refetchInterval`
+ * polling already on `eventsQuery`/`anomaliesQuery` below (5s / 10s) — a genuinely-updating
+ * read, just not a push subscription. There are zero real callers of this method anywhere in
+ * the app; if one appears, wire `wagmi`'s `useWatchContractEvent` per relevant contract rather
+ * than reusing this signature for polling. Documented as such in docs/API_SPEC.md too. The mock
+ * branch's no-op is intentional, not a stub — mock mode's "live" ledger already comes from
+ * Zustand store writes (the Dashboard's Simulate button), not a subscription of any kind.
  */
 
 import { dataMode } from "./dataMode";
@@ -58,8 +64,24 @@ function useOnchainAuditService(): AuditService {
   return {
     getEvents: () => events,
     getAnomalies: () => anomaliesQuery.data || [],
-    dismissAlert: () => {},
-    subscribeToEvents: () => () => {},
+    // Typed `=> void` on the interface but genuinely async underneath — same pattern as
+    // rbacService's grantTimedRole/revokeRole; callers that `await` this still get the real
+    // promise at runtime despite the looser static type (see AlertCard.tsx's caller).
+    dismissAlert: async (alertId, reason) => {
+      const res = await fetch("/api/audit/anomalies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: alertId, reason }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Failed to dismiss alert");
+      await anomaliesQuery.refetch();
+    },
+    subscribeToEvents: () => {
+      throw new Error(
+        "subscribeToEvents is not implemented in onchain mode — see TODO.md T-037; getEvents()/getAnomalies() already poll live via refetchInterval."
+      );
+    },
   };
 }
 

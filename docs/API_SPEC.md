@@ -96,6 +96,29 @@ UI_UX_SPEC §2.6). Returns only real, heuristic-derived results — an empty arr
 "No anomalies detected.") is a valid, honest response when no anomaly rule fired; this endpoint never
 substitutes placeholder/sample alerts to keep the panel populated. Returns `500` with an explicit error
 message if `NEXT_PUBLIC_SUBGRAPH_URL` isn't configured, rather than falling back to a hardcoded endpoint.
+Each alert carries `status: "open" | "dismissed"` — dismissed status/`dismissReason` come from the
+`POST` below, overlaid onto the freshly-recomputed heuristic result on every request (T-036).
+
+### `POST /api/audit/anomalies`
+Dismisses an anomaly alert (T-036). Body: `{ "id": string, "reason": string }` — `id` is the
+deterministic anomaly id from the `GET` response above (stable across recomputation since it's derived
+from the source event id / actor+timestamp, not a random value). Persists to a small server-side JSON
+store (`lib/server/dismissedAlerts.ts`, `data/dismissed-alerts.json` — gitignored, not a source of
+truth for anything derivable from the chain, just enough state to remember "an operator reviewed this").
+Returns `{ "ok": true }` on success, `400` if `id`/`reason` are missing, `500` on a write failure. This
+is the one piece of mutable off-chain state in the whole platform that isn't either on-chain or
+re-derived from the subgraph — it only ever records "an operator dismissed alert X for reason Y",
+never anything that could substitute for real chain state.
+
+### `subscribeToEvents` (service-layer, not a REST endpoint)
+`lib/services/auditService.ts`'s `AuditService.subscribeToEvents` is not implemented as a push
+subscription in onchain mode — it throws a clear error naming this decision (T-037) rather than
+silently no-op-ing. The real "live" mechanism for this project's scope is polling: `GET /audit` events
+and `GET /audit/anomalies` both refresh on a `refetchInterval` (5s / 10s respectively) via React Query,
+which is a genuinely live-updating read, just not a WebSocket/event-subscription one. There are zero
+real callers of `subscribeToEvents` anywhere in the app; if a future feature needs true push delivery,
+wire `wagmi`'s `useWatchContractEvent` per relevant contract rather than reusing this method's signature
+for polling.
 
 ### `POST /api/ipfs/upload`
 Server-side-only IPFS pin via Pinata — generic JSON metadata upload, not asset-specific. Body:

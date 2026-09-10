@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { GraphQLClient } from "graphql-request";
 import { GET_AUDIT_EVENTS } from "@/lib/queries";
+import { getDismissedAlerts, dismissAlert } from "@/lib/server/dismissedAlerts";
 
 export async function GET() {
   try {
@@ -46,7 +47,9 @@ export async function GET() {
           id: `anomaly-emergency-${event.id}`,
           rule: "Emergency Action",
           detail: `Platform was paused by ${event.actorAddress.slice(0, 10)}... Requires immediate review.`,
+          severity: "critical",
           riskScore: 90,
+          actorDid: event.actorAddress,
           timestamp: timestamp,
           status: "open",
         });
@@ -65,9 +68,11 @@ export async function GET() {
             id: `anomaly-velocity-${actor}-${times[i]}`,
             rule: "Velocity Check: Rapid Role Grants",
             detail: `Actor ${actor.slice(0, 10)}... performed 3+ role operations within 1 hour.`,
+            severity: "warning",
             riskScore: 75,
+            actorDid: actor,
             timestamp: times[i],
-            status: "investigating",
+            status: "open",
           });
           break; // Only flag once per actor to avoid spam
         }
@@ -77,12 +82,35 @@ export async function GET() {
     // Zero anomalies is a correct, honest result — the UI renders "No anomalies detected." for
     // an empty array (see app/audit/page.tsx) rather than needing a populated placeholder here.
 
-    // Sort descending by riskScore
-    anomalies.sort((a, b) => b.riskScore - a.riskScore);
+    // Overlay dismissed state (T-036) — anomaly ids are deterministic per source event/actor+
+    // timestamp, so a dismissal recorded against one id keeps applying every time this route
+    // recomputes the same anomaly on the next poll.
+    const dismissed = await getDismissedAlerts();
+    const withDismissed = anomalies.map((a) =>
+      dismissed[a.id] ? { ...a, status: "dismissed", dismissReason: dismissed[a.id]!.reason } : a
+    );
 
-    return NextResponse.json(anomalies);
+    // Sort descending by riskScore
+    withDismissed.sort((a, b) => b.riskScore - a.riskScore);
+
+    return NextResponse.json(withDismissed);
   } catch (error) {
     console.error("Anomaly Detection Error:", error);
     return NextResponse.json({ error: "Failed to compute anomalies" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, reason } = body ?? {};
+    if (typeof id !== "string" || !id || typeof reason !== "string" || !reason) {
+      return NextResponse.json({ error: "Both `id` and `reason` are required strings." }, { status: 400 });
+    }
+    await dismissAlert(id, reason);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Anomaly Dismiss Error:", error);
+    return NextResponse.json({ error: "Failed to dismiss alert" }, { status: 500 });
   }
 }
