@@ -231,8 +231,15 @@ Sepolia and the live Graph Studio subgraph in this session — not from a doc, f
 
 ## 🟢 Medium Priority — Polish & Robustness
 
-### T-015: ZK Privacy Module (Phase 4)
+### T-015: ZK Privacy Module (Phase 4) — labeling fixed 2026-09-10, implementation still open
 Implement Zero-Knowledge proofs for selective credential disclosure and transaction privacy.
+**2026-09-10 (audit §4.2):** the `/identity` page's "Generate proof" button (`runZkDemo`) fabricated a
+Semaphore-style verification result via `setTimeout` in *every* data mode, with no ZK library anywhere
+in `package.json`. Fixed the honesty gap without building the real thing (out of scope for this pass):
+the card is now `dataMode === "mock"`-only, carries a visible "Illustrative — not a real proof" badge,
+its copy no longer implies a live Merkle-root check, and `docs/FEATURES.md` F1.4 /
+`docs/SECURITY.md` §5.2 both now explicitly say "not yet implemented, Phase 4 roadmap" instead of
+reading like a shipped mitigation. The actual Semaphore/snarkjs integration remains open.
 
 ### T-016: Oracle Attestation (Phase 4)
 Integrate decentralized oracles for off-chain data validation.

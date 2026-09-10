@@ -176,32 +176,37 @@ export default function IdentityPage() {
         )}
       </div>
 
-      <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <IconBadge icon={ShieldCheck} tone="signal" className="mt-0.5" />
-            <div>
-              <h3 className="text-[14px] font-medium text-ink-50">Prove role without revealing identity</h3>
-              <p className="mt-1 max-w-md text-[13px] text-ink-400">
-                Generates a zero-knowledge proof (Semaphore) that you hold a valid{" "}
-                {ROLE_LABEL[dataMode === "onchain" ? me.role : activeRole]} credential, checked against the
-                on-chain membership root — without disclosing which DID you are.
-              </p>
+      {dataMode === "mock" && (
+        <Card>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <IconBadge icon={ShieldCheck} tone="signal" className="mt-0.5" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-[14px] font-medium text-ink-50">Prove role without revealing identity</h3>
+                  <Badge tone="alert">Illustrative — not a real proof</Badge>
+                </div>
+                <p className="mt-1 max-w-md text-[13px] text-ink-400">
+                  Demo walkthrough of a planned zero-knowledge proof (Semaphore) that you hold a valid{" "}
+                  {ROLE_LABEL[activeRole]} credential without disclosing which DID you are. No ZK circuit
+                  exists in this build yet — see <code className="mono-value text-[11px]">docs/SECURITY.md</code>{" "}
+                  §5.2 and the Phase 4 roadmap in <code className="mono-value text-[11px]">TODO.md</code> (T-015).
+                </p>
+              </div>
             </div>
+            <Button variant="secondary" className="shrink-0" onClick={runZkDemo} disabled={zkState === "proving"}>
+              {zkState === "proving" && <Loader2 size={14} className="animate-spin" />}
+              {zkState === "proved" && <CheckCircle2 size={14} className="text-verified-400" />}
+              {zkState === "idle" ? "Generate proof" : zkState === "proving" ? "Proving…" : "Proved"}
+            </Button>
           </div>
-          <Button variant="secondary" className="shrink-0" onClick={runZkDemo} disabled={zkState === "proving"}>
-            {zkState === "proving" && <Loader2 size={14} className="animate-spin" />}
-            {zkState === "proved" && <CheckCircle2 size={14} className="text-verified-400" />}
-            {zkState === "idle" ? "Generate proof" : zkState === "proving" ? "Proving…" : "Proved"}
-          </Button>
-        </div>
-        {zkState === "proved" && (
-          <div className="mt-3 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
-            Proof verified against the current Merkle root — role membership confirmed, identity not
-            disclosed.
-          </div>
-        )}
-      </Card>
+          {zkState === "proved" && (
+            <div className="mt-3 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
+              Illustrative result only — no real proof was generated or verified.
+            </div>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

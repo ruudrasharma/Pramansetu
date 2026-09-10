@@ -6,6 +6,21 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.7] — 2026-09-10 — Gap audit fixes, batch 4: honest ZK proof labeling (T-015 partial)
+
+Closes the labeling half of T-015 per the 2026-09-10 audit §4.2. The actual Semaphore/snarkjs
+integration remains open (Phase 4).
+
+### Changed
+- `app/(app)/identity/page.tsx`: the "Prove role without revealing identity" card (`runZkDemo`, which
+  fabricates a proof result via `setTimeout` in every data mode) is now gated behind
+  `dataMode === "mock"`, carries a visible "Illustrative — not a real proof" badge, and its copy/result
+  message no longer implies a real Merkle-root check happened.
+- `docs/FEATURES.md` F1.4, `docs/SECURITY.md` §5.2: both now explicitly state the ZK role-proof
+  feature is not yet implemented (Phase 4 roadmap) instead of reading as a shipped mitigation.
+
+---
+
 ## [0.10.6] — 2026-09-10 — Gap audit fixes, batch 3: honest "AI" anomaly-detection labeling (T-047)
 
 Closes T-047.

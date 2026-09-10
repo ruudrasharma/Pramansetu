@@ -31,12 +31,16 @@ call(s) behind it, the UI surface, and the edge cases it must handle.
   and prompts re-registration; recovery threshold not met before a guardian withdraws consent (recovery
   simply stalls, no partial state change).
 
-### F1.4 Zero-Knowledge Role Proof
-- **Behavior:** Prove role membership without revealing which DID holds it.
-- **Tooling:** Semaphore / snarkjs (prototype)
-- **UI:** Contextual "Prove without revealing identity" toggle on any role-gated read action
-- **Edge cases:** proof generated against a credential that gets revoked mid-session — verification must
-  re-check the live Merkle root, not a cached one.
+### F1.4 Zero-Knowledge Role Proof — **Phase 4 roadmap, not shipped in this build**
+- **Status:** Not implemented. No `semaphore`/`snarkjs` dependency exists in `package.json`. The
+  `/identity` page's "Prove role without revealing identity" card is a `dataMode === "mock"`-only,
+  clearly-labeled illustrative demo (`setTimeout`-based UI walkthrough) — see `docs/SECURITY.md` §5.2
+  and `TODO.md` T-015.
+- **Behavior (planned):** Prove role membership without revealing which DID holds it.
+- **Tooling (planned):** Semaphore / snarkjs (prototype)
+- **UI (planned):** Contextual "Prove without revealing identity" toggle on any role-gated read action
+- **Edge cases (planned):** proof generated against a credential that gets revoked mid-session —
+  verification must re-check the live Merkle root, not a cached one.
 
 ## M2 — Smart-Contract RBAC Engine
 

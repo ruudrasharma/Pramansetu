@@ -62,7 +62,7 @@ analysis: `original-docs/Problem_Gap_Analysis.pdf` §2 and `original-docs/Comple
 | Private key loss = permanent identity lockout | M-of-N guardian social recovery with time-locked window |
 | Sybil identity creation | DIDs worthless without an issuer-signed, non-revoked VC |
 | DID proves key control, not real identity | VC issuance bound to BEL's existing verified onboarding |
-| Permanent public correlation / privacy leakage | Zero-knowledge proof of credential possession (Semaphore) |
+| Permanent public correlation / privacy leakage | Zero-knowledge proof of credential possession (Semaphore) — **not yet implemented, Phase 4 roadmap; see `docs/FEATURES.md` F1.4** |
 | Admin key compromise = full system takeover | 2-of-3 multisig for privileged actions + emergency pause |
 | No instant revocation | Time-bound roles with automatic on-chain expiry |
 | Irreversible smart contract bugs | UUPS upgradeable proxy + external audit before mainnet |
