@@ -18,6 +18,7 @@ import { resolveControllerAddress } from "@/lib/hooks/useDIDRegistry";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
 import { GET_ASSETS } from "@/lib/queries";
+import { deriveAssetStatus } from "@/lib/services/shared/assets";
 
 export interface AssetService {
   listAssets: () => Asset[];
@@ -134,13 +135,7 @@ async function adaptAsset(raw: RawAsset): Promise<Asset> {
     // would mean regex-matching free-text summaries against a target contract/calldata heuristic,
     // fragile enough that it's not worth guessing at for a list-view status (same call T-043 made
     // for getProvenance).
-    // mintRecipient can be "0x" (Bytes.empty()) in the rare case the originating MintRequest
-    // wasn't found at mint time (see asset-registry.ts) — treat that as unknown rather than a
-    // false-positive "transferred".
-    status:
-      raw.mintRecipient === "0x" || raw.ownerAddress.toLowerCase() === raw.mintRecipient.toLowerCase()
-        ? "finalized"
-        : "transferred",
+    status: deriveAssetStatus(raw.ownerAddress, raw.mintRecipient),
     provenance: [],
   };
 }
