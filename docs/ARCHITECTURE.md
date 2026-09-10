@@ -51,7 +51,7 @@ graph — see [SECURITY.md §6](./SECURITY.md).
 | `GuardianRecovery.sol` | M-of-N key-rotation recovery flow | `DIDRegistry` |
 | `GovernanceTimelock.sol` | Multisig + timelock + dispute veto | All privileged calls across modules |
 | The Graph subgraph | Index all contract events into queryable API | Auditor Dashboard, Anomaly Detection |
-| Anomaly Detection service | Rule-based + lightweight ML on indexed events | Subgraph → Admin/Auditor alert feed |
+| Anomaly Detection service | Rule-based heuristics on indexed events (prototype); lightweight ML is a Phase 3 roadmap item | Subgraph → Admin/Auditor alert feed |
 | IPFS/Pinata | Content-addressed metadata storage | `AssetRegistry` (CID reference only) |
 
 ## 4. Data Flow — Example: Minting an Asset

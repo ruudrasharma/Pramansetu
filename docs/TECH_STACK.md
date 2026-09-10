@@ -58,7 +58,7 @@
 |---|---|
 | Metadata storage | IPFS via Pinata or Web3.Storage (prototype); IPFS + Filecoin with SLA pinning (production) |
 | Indexing | The Graph hosted subgraph (prototype) → self-hosted Graph node (production, data sovereignty) |
-| Anomaly detection | Python service, rule-based + lightweight ML on indexed events (prototype) → full ML pipeline with SOC integration (production) |
+| Anomaly detection | TypeScript Next.js API route, rule-based heuristics on indexed events (prototype) → full ML pipeline with SOC integration (production) |
 | Oracle | Multi-attestor decentralized oracle design with dispute window |
 
 ## Deployment / Infra

@@ -4,7 +4,7 @@
 
 A five-module platform that replaces centralized IAM with on-chain Decentralized Identity (DID), enforces
 Role-Based Access Control inside smart contracts (not application code), tracks organizational digital assets as
-NFTs with dual-attestation minting, maintains an immutable AI-monitored audit trail, and governs itself through
+NFTs with dual-attestation minting, maintains an immutable audit trail with rule-based anomaly detection, and governs itself through
 multi-signature approval and a time-locked dispute-resolution process.
 
 This repo is a hackathon prototype deployed on a public EVM testnet, engineered with an explicit, documented

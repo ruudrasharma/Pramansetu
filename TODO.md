@@ -237,6 +237,30 @@ Implement Zero-Knowledge proofs for selective credential disclosure and transact
 ### T-016: Oracle Attestation (Phase 4)
 Integrate decentralized oracles for off-chain data validation.
 
+### T-047 ✅ closed 2026-09-10 — "AI" anomaly detection relabeled honestly (audit §4.4)
+`app/api/audit/anomalies/route.ts` is a genuinely working, honest rule-based heuristic (mint/role-grant
+velocity + emergency-pause checks) — good code, but `README.md`, `docs/README.md`, `docs/ARCHITECTURE.md`,
+and `docs/TECH_STACK.md` described it as "AI"/"AI monitoring"/a "Python service (rule-based + lightweight
+ML)". None of that matches the shipped TypeScript Next.js API route. Reworded all four to describe it as
+rule-based heuristic detection, consistent with `docs/PRD.md`'s existing Non-Goals ("not shipping a
+production-grade ML anomaly-detection pipeline in the hackathon build"). Left `docs/SECURITY.md` §5.3 and
+`docs/DEPLOYMENT.md`'s Phase 3 row alone — both already correctly frame "AI anomaly-detection service" as
+future-facing/production-roadmap language, not a claim about the current build.
+
+### T-048 — Root vs. `docs/` copies of TODO.md/CHANGELOG.md/README.md have diverged; `docs/` copies are stale
+Found while doing T-047's doc pass (2026-09-10). This repo has two copies each of `TODO.md`, `CHANGELOG.md`,
+and `README.md`: one at the repo root (actively maintained — every phase referenced throughout `docs/*.md`
+and this audit lines up with the root copies' history) and one under `docs/` (last touched 2026-09-09
+21:44, i.e. end of Phase 9 — before Phase 10's merge and all of Phase B.1–B.3/T-021–T-046). `docs/TODO.md`
+still lists items like "wire real wagmi hooks to deployed Sepolia addresses" and "deploy contracts to
+Sepolia" as outstanding blockers, both long since done per the root `TODO.md`'s "Already done, verified
+live on-chain" section. `AI_DEVELOPMENT_RULES.md` §6 names `docs/CHANGELOG.md`/`docs/TODO.md` as canonical,
+which doesn't match actual practice (root files). Not resolved in this pass — deciding whether to delete
+the stale `docs/` copies, turn them into pointers to the root files, or repoint `AI_DEVELOPMENT_RULES.md`
+§6 at the root paths is a documentation-hygiene call worth a deliberate decision rather than a drive-by
+fix, since a stale copy being read instead of the live one is exactly the kind of doc-drift this project's
+own rules exist to prevent.
+
 ---
 
 ## ✅ Completed (see CHANGELOG.md for details)

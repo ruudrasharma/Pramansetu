@@ -6,6 +6,28 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.10.6] — 2026-09-10 — Gap audit fixes, batch 3: honest "AI" anomaly-detection labeling (T-047)
+
+Closes T-047.
+
+### Changed
+- `README.md`, `docs/README.md`: "AI-monitored audit trail" / "AI Anomaly Detection... AI monitoring"
+  reworded to "rule-based anomaly detection" / describe the real velocity + emergency-pause heuristics.
+- `docs/ARCHITECTURE.md`: Anomaly Detection service row now says "Rule-based heuristics on indexed
+  events (prototype); lightweight ML is a Phase 3 roadmap item" instead of implying ML ships today.
+- `docs/TECH_STACK.md`: Anomaly detection row now says "TypeScript Next.js API route, rule-based
+  heuristics" instead of "Python service, rule-based + lightweight ML" — the shipped implementation is
+  neither Python nor ML.
+- Left `docs/SECURITY.md` §5.3 and `docs/DEPLOYMENT.md`'s Phase 3 row unchanged — both already frame
+  "AI anomaly-detection service" as future-facing/production-roadmap, not a claim about this build.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-048**: `docs/TODO.md`/`docs/CHANGELOG.md`/`docs/README.md` are stale duplicates of this file, this
+  changelog, and the root `README.md` — last touched end of Phase 9, missing everything since. Needs a
+  deliberate decision (delete, redirect, or repoint `AI_DEVELOPMENT_RULES.md` §6), not a drive-by fix.
+
+---
+
 ## [0.10.5] — 2026-09-10 — Gap audit fixes, batch 2: restore `KeyRotated` event type (T-038)
 
 Closes T-038.

@@ -4,7 +4,7 @@
 
 **Smart India Hackathon 2026 · Problem Statement 26125 · Bharat Electronics Limited (BEL) · Theme: Blockchain & Cybersecurity**
 
-Praman Setu is a comprehensive five-module blockchain platform designed to replace centralized IAM with on-chain Decentralized Identity (DID). It enforces Role-Based Access Control inside smart contracts, tracks organizational digital assets as NFTs with dual-attestation minting, maintains an immutable AI-monitored audit trail, and governs itself through multi-signature approval and a time-locked dispute-resolution process.
+Praman Setu is a comprehensive five-module blockchain platform designed to replace centralized IAM with on-chain Decentralized Identity (DID). It enforces Role-Based Access Control inside smart contracts, tracks organizational digital assets as NFTs with dual-attestation minting, maintains an immutable audit trail with rule-based anomaly detection, and governs itself through multi-signature approval and a time-locked dispute-resolution process.
 
 ---
 
@@ -51,7 +51,7 @@ Every digital asset, license, and credential is an ERC-721 NFT directly linked t
 ### **Module 4 — Immutable Audit Trail & Anomaly Detection**
 Every state-changing function emits structured events. 
 - **Graph Indexing:** All transactions are indexed by The Graph for a fully decentralized, queryable dashboard.
-- **AI Anomaly Detection:** Real-time AI monitoring flags suspicious patterns (mass transfers, rapid role escalation) as risk-scored alerts.
+- **Rule-Based Anomaly Detection:** Real-time heuristics (mint/role-grant velocity, emergency-pause detection) over the indexed event stream flag suspicious patterns as risk-scored alerts. A full ML pipeline is a Phase 3 production-roadmap item, not shipped in this build (see `docs/PRD.md` Non-Goals).
 
 ### **Module 5 — Multi-Signature Governance & Dispute Resolution**
 Solves the "Who watches the Admin?" problem.
