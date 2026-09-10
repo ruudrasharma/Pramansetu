@@ -53,7 +53,12 @@ type Asset @entity {
   tokenId: BigInt!
   cid: String!                     # IPFS CID
   owner: Identity                  # → Identity (null if owner address has no DID)
-  ownerAddress: Bytes!
+  ownerAddress: Bytes!             # current owner — mutates on every real Transfer
+  # The recipient address at mint time (copied from the originating MintRequest.recipient,
+  # correlated via AssetMinted's requestId param) — distinct from ownerAddress above, which is
+  # overwritten on transfer. Comparing the two is how listAssets/getAsset derive a real
+  # "transferred" status without a per-list provenance lookup (T-063).
+  mintRecipient: Bytes!
   vcId: Bytes!                     # credential gating transferability
   legalReference: Bytes            # optional off-chain doc hash
   proposedBy: Bytes!

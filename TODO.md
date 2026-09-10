@@ -142,7 +142,7 @@ to authenticate as.
   credential-status/role-derivation logic). `name`/`department` are `""` for the same reason as T-021 —
   would need N ipfs:// metadata fetches for a list this size, not done this pass.
 
-### `lib/services/assetService.ts` — B.3, closed 2026-09-09 (T-029/T-030/T-042), partial (T-031), stopgapped (T-043)
+### `lib/services/assetService.ts` — B.3, closed 2026-09-09 (T-029/T-030/T-042), fully closed 2026-09-11 (T-031/T-063), stopgapped (T-043)
 - **T-029** ✅ `proposeMint` — now throws if `vcId`/`recipient` are missing instead of defaulting to
   a zero placeholder; both reach the real transaction as-provided from the mint page's raw inputs.
 - **T-030** ✅ `transferAsset` — real `transferFrom` via the new `useTransferAsset` hook
@@ -151,13 +151,28 @@ to authenticate as.
   `Asset` type — mock mode leaves it `undefined`) rather than guessing the `from` argument.
   `app/(app)/assets/[tokenId]/transfer/page.tsx` no longer redirects on click — it waits for
   `assetService.isTransferConfirmed` (a real `useWaitForTransactionReceipt` result) via `useEffect`.
-- **T-031** 🟡 `listAssets`/`getAsset` ✅ — real `GET_ASSETS` subgraph query, each asset's real
+- **T-031** ✅ `listAssets`/`getAsset` — real `GET_ASSETS` subgraph query, each asset's real
   IPFS-pinned metadata (`name`/`category`) fetched and merged in (worth the extra round-trip here,
   unlike didService's name/department, since `Asset.name` is prominently displayed everywhere —
-  a failed fetch shows "(metadata unavailable)", never a blank or fabricated name). `status` is
-  always `"finalized"` for any indexed `Asset` (an entity only exists once `AssetMinted` fired) —
-  `"transferred"`/`"disputed"` aren't derived (would need a provenance lookup per list row just for
-  a list-view status); see T-043. `getProvenance` itself is stopgapped, see below.
+  a failed fetch shows "(metadata unavailable)", never a blank or fabricated name). `getProvenance`
+  itself is stopgapped, see below.
+- **T-063** ✅ closed 2026-09-11 — `status` is now real for `"finalized"`/`"transferred"`, not always
+  `"finalized"`. `Asset.ownerAddress` mutates on every real `Transfer` (`asset-registry.ts`'s
+  `handleTransfer`), so once a transfer happens there was no field left recording the *original*
+  mint-time recipient to compare against — added `Asset.mintRecipient: Bytes!` to
+  `subgraph/schema.graphql`, populated once in `handleAssetMinted` from the correlated
+  `MintRequest.recipient` (linked via `AssetMinted`'s own `requestId` param — a field that already
+  existed on `MintRequest`, not fabricated for this). `lib/services/assetService.ts` derives
+  `status: ownerAddress === mintRecipient ? "finalized" : "transferred"` (case-insensitive; a
+  `"0x"`/empty `mintRecipient` — the rare case the originating `MintRequest` wasn't found — falls
+  back to `"finalized"` rather than a false-positive "transferred"). Redeployed as subgraph `v10`,
+  verified schema accepts the new field against live data (currently `assets: []` — no asset has
+  been minted through the real UI yet, same as everywhere else in this session).
+  **`"disputed"` intentionally not derived** — this contract has no asset-level dispute concept,
+  only `GovernanceTimelock`'s generic queued-transaction disputes, and nothing links a
+  `GovernanceTx`/`Dispute` back to a specific `tokenId` (would mean regex-matching free-text
+  summaries against a target/calldata heuristic — the same category of fragile guess T-043 already
+  declined for `getProvenance`, not worth it for a list-view status either).
 - **T-042** (found during B.3, not in the original catalogue) — **higher severity than a stub**:
   the old onchain `proposeMint` submitted the real transaction correctly but then **returned a
   hardcoded fake `Asset` object** (`assetById(0) ?? assets[0]!`) regardless of what was actually

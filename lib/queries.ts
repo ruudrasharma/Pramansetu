@@ -71,6 +71,7 @@ export const GET_ASSETS = gql`
       tokenId
       cid
       ownerAddress
+      mintRecipient
       owner {
         id
       }

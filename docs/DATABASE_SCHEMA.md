@@ -107,7 +107,9 @@ type Asset @entity {
   tokenId: BigInt!
   cid: String!                     # IPFS CID
   owner: Identity                  # → Identity (null if owner address has no DID)
-  ownerAddress: Bytes!
+  ownerAddress: Bytes!             # current owner — mutates on every real Transfer
+  mintRecipient: Bytes!            # recipient at mint time (T-063) — comparing this against
+                                    # ownerAddress is how listAssets/getAsset derive "transferred"
   vcId: Bytes!                     # credential gating transferability
   legalReference: Bytes            # optional off-chain doc hash
   proposedBy: Bytes!

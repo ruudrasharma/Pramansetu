@@ -87,6 +87,7 @@ interface RawAsset {
   tokenId: string;
   cid: string;
   ownerAddress: string;
+  mintRecipient: string;
   owner: { id: string } | null;
   vcId: string;
   legalReference: string | null;
@@ -124,11 +125,22 @@ async function adaptAsset(raw: RawAsset): Promise<Asset> {
     mintedAt: Number(raw.mintedAt) * 1000,
     proposer: raw.proposedBy,
     coSigner: raw.coSignedBy,
-    // An indexed Asset entity only exists once AssetMinted has fired — pending proposals live
-    // in the separate MintRequest entity instead. "transferred"/"disputed" aren't derived here
-    // (would need a provenance lookup per asset just to compute a list-view status) — see
-    // TODO.md T-042.
-    status: "finalized",
+    // "transferred" is a real, cheap derivation (T-063): mintRecipient is recorded once, at mint
+    // time, from the originating MintRequest, while ownerAddress mutates on every real Transfer —
+    // if they've diverged, a real transfer has happened since minting. "disputed" is intentionally
+    // not derived here: this contract has no asset-level dispute concept, only
+    // GovernanceTimelock's generic queued-transaction disputes (Dispute → GovernanceTx), and
+    // there's no field linking a GovernanceTx back to a specific tokenId — a real implementation
+    // would mean regex-matching free-text summaries against a target contract/calldata heuristic,
+    // fragile enough that it's not worth guessing at for a list-view status (same call T-043 made
+    // for getProvenance).
+    // mintRecipient can be "0x" (Bytes.empty()) in the rare case the originating MintRequest
+    // wasn't found at mint time (see asset-registry.ts) — treat that as unknown rather than a
+    // false-positive "transferred".
+    status:
+      raw.mintRecipient === "0x" || raw.ownerAddress.toLowerCase() === raw.mintRecipient.toLowerCase()
+        ? "finalized"
+        : "transferred",
     provenance: [],
   };
 }

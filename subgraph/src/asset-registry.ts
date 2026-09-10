@@ -58,6 +58,12 @@ export function handleAssetMinted(event: AssetMintedEvent): void {
   let assetRegistry = AssetRegistry.bind(event.address);
   let ownerCall = assetRegistry.try_ownerOf(event.params.tokenId);
   asset.ownerAddress  = ownerCall.reverted ? Bytes.empty() : ownerCall.value;
+  // Recorded once, at mint time, from the originating MintRequest — ownerAddress above mutates
+  // on every subsequent real Transfer, so this is the only place the original recipient survives
+  // for a later "was this ever transferred" comparison (T-063). Falls back to the just-read
+  // current owner if the MintRequest is somehow missing (shouldn't happen — MintProposed always
+  // precedes AssetMinted), which is still honest: at this exact moment they're the same address.
+  asset.mintRecipient = req != null ? req.recipient : asset.ownerAddress;
   let vcIdCall = assetRegistry.try_vcIdOf(event.params.tokenId);
   asset.vcId          = vcIdCall.reverted ? Bytes.empty() : vcIdCall.value;
   let proposedBy: Bytes = event.transaction.from;

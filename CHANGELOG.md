@@ -6,6 +6,24 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.16.2] — 2026-09-11 — Derive real "transferred" asset status (T-031/T-063)
+
+Closes T-063, fully closes T-031.
+
+### Added
+- `subgraph/schema.graphql`: `Asset.mintRecipient: Bytes!` — the recipient address at mint time,
+  distinct from `ownerAddress` (which mutates on every real `Transfer`). Populated in
+  `handleAssetMinted` (`subgraph/src/asset-registry.ts`) from the correlated `MintRequest.recipient`
+  (linked via `AssetMinted`'s own `requestId` param — no new event/contract data needed). Redeployed
+  as subgraph `v10`.
+
+### Changed
+- `lib/services/assetService.ts`: `listAssets`/`getAsset` now derive `status: "transferred"` when
+  `ownerAddress` and `mintRecipient` diverge (previously always `"finalized"`). `"disputed"`
+  intentionally not derived — no field links a `GovernanceTx`/`Dispute` to a specific `tokenId`,
+  same category of fragile guess T-043 already declined for `getProvenance`.
+- `lib/queries.ts`, `docs/DATABASE_SCHEMA.md` §2: updated to match.
+
 ## [0.16.1] — 2026-09-11 — Off-boarded guardian indicator (T-062)
 
 Closes T-062 (docs/FEATURES.md F1.3's flagged edge case).
