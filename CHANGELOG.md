@@ -6,6 +6,32 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.17.1] — 2026-09-11 — Update deploy scripts for Phase 3's 2-of-N flows; smoke-tested, not deployed
+
+Per explicit request, implements the deploy-script runbook `TODO.md`'s Phase 3 section had flagged
+as not-yet-done. Still gated behind `AI_DEVELOPMENT_RULES.md` §2.5/§9 — neither script was run
+against Sepolia.
+
+### Changed
+- `scripts/deploy.ts`: `TimeBoundAccessControl` now deploys before `DIDRegistry` (constructor
+  dependency, §3.2); the direct `setGuardianRecoveryContract` call removed (now needs 2-of-N
+  approval, moved to `postDeploySetup.ts`); Etherscan `verify()` args updated for `DIDRegistry`'s
+  new constructor; post-deploy checklist console output rewritten to name the real 2-of-N steps.
+- `scripts/postDeploySetup.ts`: reordered so every step needing the deployer as one of two
+  `SUPER_ADMIN_ROLE` signers (wiring `GuardianRecovery`, authorizing+setting the signature
+  verifier) runs *before* the deployer's own `SUPER_ADMIN_ROLE` is revoked, not after — the old
+  order would have left only one real Super Admin by the time those 2-of-N calls needed to happen.
+  Extracted a shared `proposeAndCoSign` helper.
+
+### Verified
+- Both scripts smoke-tested together against Hardhat's ephemeral `--network hardhat` (never
+  Sepolia, no real funds) via a temporary combined script, since each `hardhat run` invocation gets
+  its own throwaway chain. All 5 steps completed; final state checked directly (deployer's
+  `SUPER_ADMIN_ROLE` → false, second admin's → true, `DIDRegistry`'s `guardianRecoveryContract()`/
+  `signatureVerifier()` both correctly wired, issuer's `ISSUER_ROLE` → true). Scratch script and its
+  throwaway deployment record deleted after — nothing from the smoke test persists.
+- `npm run test:contracts`: 105/105, unaffected by this change.
+
 ## [0.17.0] — 2026-09-11 — Phase 3 contract-level fixes: designed, written, tested — NOT deployed
 
 Per `AI_DEVELOPMENT_RULES.md` §2.5/§9, contract/access-control changes require explicit sign-off

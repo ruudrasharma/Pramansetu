@@ -23,6 +23,15 @@ import * as path from "path";
  *   1. Enroll a second SUPER_ADMIN hardware wallet immediately after deploy.
  *   2. Revoke the deployer's SUPER_ADMIN and DEFAULT_ADMIN roles.
  *   3. Set signatureVerifier on DIDRegistry once deployed.
+ *
+ * TODO.md §3.2/§3.3 (audit §2.3/§2.5): DIDRegistry.setGuardianRecoveryContract/
+ * setSignatureVerifier and GovernanceTimelock.queueTransaction now require 2-of-N
+ * SUPER_ADMIN_ROLE approval via TimeBoundAccessControl's propose/co-sign flow instead of a
+ * bare-address/single-signer gate. Only one real SUPER_ADMIN (the deployer) exists at the point
+ * this script runs, so wiring GuardianRecovery into DIDRegistry — which needs that 2-of-N
+ * approval — has moved to postDeploySetup.ts, run after a second SUPER_ADMIN is enrolled there.
+ * DIDRegistry's constructor now also takes accessControlAddr (§3.2) — TimeBoundAccessControl
+ * deploys first below, reordered from its previous position after DIDRegistry.
  */
 
 async function verify(address: string, constructorArgs: unknown[]) {
@@ -49,23 +58,8 @@ async function main() {
   console.log(`Deployer: ${deployer.address}`);
   console.log(`Balance : ${ethers.formatEther(await ethers.provider.getBalance(deployer.address))} MATIC\n`);
 
-  // ── 1. DIDRegistry (non-upgradeable — storage layout is a security boundary) ────
-  console.log("Deploying DIDRegistry...");
-  const DIDRegistry = await ethers.getContractFactory("DIDRegistry");
-  const didRegistry = await DIDRegistry.deploy();
-  await didRegistry.waitForDeployment();
-  const didRegistryAddr = await didRegistry.getAddress();
-  console.log(`  ✓ DIDRegistry: ${didRegistryAddr}`);
-
-  // ── 2. CredentialRegistry (non-upgradeable) ──────────────────────────────────────
-  console.log("Deploying CredentialRegistry...");
-  const CredentialRegistry = await ethers.getContractFactory("CredentialRegistry");
-  const credentialRegistry = await CredentialRegistry.deploy(deployer.address);
-  await credentialRegistry.waitForDeployment();
-  const credRegistryAddr = await credentialRegistry.getAddress();
-  console.log(`  ✓ CredentialRegistry: ${credRegistryAddr}`);
-
-  // ── 3. TimeBoundAccessControl (UUPS proxy) ───────────────────────────────────────
+  // ── 1. TimeBoundAccessControl (UUPS proxy) ───────────────────────────────────────
+  // Deployed first (moved from step 3) — DIDRegistry's constructor now needs its address (§3.2).
   console.log("Deploying TimeBoundAccessControl (UUPS proxy)...");
   const AccessControl = await ethers.getContractFactory("TimeBoundAccessControl");
   const accessControl = await upgrades.deployProxy(AccessControl, [deployer.address], {
@@ -75,6 +69,25 @@ async function main() {
   await accessControl.waitForDeployment();
   const accessControlAddr = await accessControl.getAddress();
   console.log(`  ✓ TimeBoundAccessControl (proxy): ${accessControlAddr}`);
+
+  // ── 2. DIDRegistry (non-upgradeable — storage layout is a security boundary) ────
+  // Constructor now takes accessControlAddr (§3.2, audit §2.3) — owner-equivalent authority for
+  // setSignatureVerifier/setGuardianRecoveryContract routes through TimeBoundAccessControl's
+  // 2-of-N SUPER_ADMIN_ROLE approval instead of a bare `owner` address.
+  console.log("Deploying DIDRegistry...");
+  const DIDRegistry = await ethers.getContractFactory("DIDRegistry");
+  const didRegistry = await DIDRegistry.deploy(accessControlAddr);
+  await didRegistry.waitForDeployment();
+  const didRegistryAddr = await didRegistry.getAddress();
+  console.log(`  ✓ DIDRegistry: ${didRegistryAddr}`);
+
+  // ── 3. CredentialRegistry (non-upgradeable) ──────────────────────────────────────
+  console.log("Deploying CredentialRegistry...");
+  const CredentialRegistry = await ethers.getContractFactory("CredentialRegistry");
+  const credentialRegistry = await CredentialRegistry.deploy(deployer.address);
+  await credentialRegistry.waitForDeployment();
+  const credRegistryAddr = await credentialRegistry.getAddress();
+  console.log(`  ✓ CredentialRegistry: ${credRegistryAddr}`);
 
   // ── 4. AssetRegistry (UUPS proxy) ────────────────────────────────────────────────
   console.log("Deploying AssetRegistry (UUPS proxy)...");
@@ -96,10 +109,10 @@ async function main() {
   const guardianRecoveryAddr = await guardianRecovery.getAddress();
   console.log(`  ✓ GuardianRecovery: ${guardianRecoveryAddr}`);
 
-  // Wire GuardianRecovery address into DIDRegistry (needed for forceRotateKey auth)
-  console.log("  → Wiring GuardianRecovery into DIDRegistry...");
-  await (await didRegistry.setGuardianRecoveryContract(guardianRecoveryAddr)).wait();
-  console.log("    ✓ Done");
+  // NOT wired into DIDRegistry here (see §3.2 note at the top of this file) —
+  // didRegistry.setGuardianRecoveryContract now needs 2-of-N SUPER_ADMIN_ROLE approval, and only
+  // one real SUPER_ADMIN (the deployer) exists at this point. postDeploySetup.ts does this wiring
+  // right after it enrolls a second SUPER_ADMIN.
 
   // ── 6. GovernanceTimelock ──────────────────────────────────────────────────────────
   console.log("Deploying GovernanceTimelock...");
@@ -143,18 +156,20 @@ async function main() {
   // ── 8. Etherscan verification (best-effort; skip on localhost) ─────────────────
   if (networkName !== "hardhat" && networkName !== "localhost") {
     console.log("\n─── Verifying on Etherscan ───");
-    await verify(didRegistryAddr, []);
+    await verify(didRegistryAddr, [accessControlAddr]);
     await verify(credRegistryAddr, [deployer.address]);
     await verify(guardianRecoveryAddr, [didRegistryAddr]);
     await verify(governanceTimelockAddr, [accessControlAddr]);
     // Proxy implementation addresses are auto-verified by hardhat-upgrades
   }
 
-  console.log(`\n⚠  POST-DEPLOY CHECKLIST (see docs/DEPLOYMENT.md §4):`);
-  console.log(`   1. Enroll second SUPER_ADMIN hardware wallet via proposePlatformAction`);
-  console.log(`   2. Revoke deployer SUPER_ADMIN after second admin is enrolled`);
-  console.log(`   3. Deploy ECDSASignatureVerifier and call DIDRegistry.setSignatureVerifier(addr)`);
-  console.log(`   4. Grant ISSUER_ROLE to the CredentialRegistry issuer address`);
+  console.log(`\n⚠  POST-DEPLOY CHECKLIST — run scripts/postDeploySetup.ts (see docs/DEPLOYMENT.md §4):`);
+  console.log(`   1. Enroll second SUPER_ADMIN wallet via grantTimedRole (deployer's DEFAULT_ADMIN_ROLE)`);
+  console.log(`   2. Wire GuardianRecovery into DIDRegistry (2-of-N: proposePlatformAction(6,...) + coSign)`);
+  console.log(`   3. Deploy ECDSASignatureVerifier and authorize+set it on DIDRegistry (2-of-N: actionType 5)`);
+  console.log(`   4. Revoke deployer SUPER_ADMIN_ROLE (2-of-N: proposePlatformAction(1,...) + coSign) — do this LAST,`);
+  console.log(`      after steps 2-3, since those still need the deployer as one of the two signers`);
+  console.log(`   5. Grant ISSUER_ROLE to the CredentialRegistry issuer address`);
 }
 
 main().catch((err) => {

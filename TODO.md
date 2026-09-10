@@ -77,23 +77,31 @@ same zero-DID finding above — would be abandoned, same as the old contract). N
 codebase holds an immutable reference to `DIDRegistry` (checked via
 `grep -n immutable contracts/*.sol`).
 
-**Deploy-script bootstrapping note, not yet implemented**: `scripts/deploy.ts` currently deploys
-`DIDRegistry` *before* `TimeBoundAccessControl` (step 1 vs. step 3) — this fix requires reordering
-so `TimeBoundAccessControl` exists first. It also creates a chicken-and-egg problem for
-`setGuardianRecoveryContract`: that call now needs 2-of-N `SUPER_ADMIN_ROLE` approval, but at that
-point in a fresh deploy only the deployer holds the role. The real sequence needed: (1) deploy
-`TimeBoundAccessControl`, (2) deployer uses its still-held `DEFAULT_ADMIN_ROLE` to `grantTimedRole`
-a second `SUPER_ADMIN_ROLE` holder directly — the same single-signer bootstrap `DEFAULT_ADMIN_ROLE`
-path T-020 already used live, not a new pattern — (3) deploy `DIDRegistry(accessControlAddr)`, (4)
-deploy `GuardianRecovery(didRegistryAddr)`, (5) *now* propose+co-sign actionType 6 with the two real
-Super Admins and call `setGuardianRecoveryContract`, (6) same propose+co-sign dance (actionType 5)
-for `setSignatureVerifier` once `ECDSASignatureVerifier` is deployed.
-`scripts/postDeploySetup.ts`'s existing `setSignatureVerifier` call (line ~75) happens *after* the
-deployer's `SUPER_ADMIN_ROLE` is revoked in that same script — the authorization step would need to
-move earlier, using `secondAdmin` (who still holds the role at that point) instead. **Not
-implemented in this pass** — editing untested deploy-script changes ahead of an actual approved
-redeploy risked presenting speculative script edits as more validated than the Solidity/test work
-actually is; this paragraph is the precise runbook for whoever does the real redeploy.
+**Deploy-script bootstrapping — ✅ implemented and smoke-tested 2026-09-11 (still not run against
+Sepolia)**: `scripts/deploy.ts` reordered so `TimeBoundAccessControl` deploys first (step 1, was
+step 3), then `DIDRegistry(accessControlAddr)` (step 2). The direct `didRegistry.setGuardianRecoveryContract(...)`
+call that used to run inside `deploy.ts` right after `GuardianRecovery` deployed is now gone from
+that script entirely — it needs 2-of-N `SUPER_ADMIN_ROLE` approval, and only the deployer holds
+the role at that point, so it moved to `scripts/postDeploySetup.ts`, which is what actually creates
+the second Super Admin.
+
+`postDeploySetup.ts` reordered end-to-end: (1) enroll second `SUPER_ADMIN_ROLE` holder via
+`grantTimedRole` from the deployer's `DEFAULT_ADMIN_ROLE` — the same single-signer bootstrap path
+T-020 already used live, unchanged; (2) *now* propose+co-sign actionType 6 with the two real Super
+Admins and call `setGuardianRecoveryContract`; (3) deploy `ECDSASignatureVerifier`, propose+co-sign
+actionType 5, call `setSignatureVerifier`; (4) **only now** revoke the deployer's `SUPER_ADMIN_ROLE`
+(actionType 1) — moved from step 2 to step 4, since steps 2–3 still need the deployer as one of the
+two signers; (5) grant `ISSUER_ROLE`, unchanged. A shared `proposeAndCoSign` helper replaces the
+three near-duplicate propose/co-sign blocks the old script had inline.
+
+**Verified by smoke-testing both scripts' actual logic against Hardhat's ephemeral local network**
+(`--network hardhat`, never Sepolia, never real funds) — not just read for plausibility: a combined
+run reproducing `deploy.ts` then the full reordered `postDeploySetup.ts` sequence completed all 5
+steps and the final on-chain state was checked directly, not assumed: deployer's `SUPER_ADMIN_ROLE`
+→ `false`, `secondAdmin`'s → `true`, `didRegistry.guardianRecoveryContract()`/`signatureVerifier()`
+both correctly set to the real deployed addresses, issuer's `ISSUER_ROLE` → `true`. The scratch
+script and its throwaway `deployments/hardhat.json` output were deleted after — nothing from this
+smoke test is committed or was ever real. `npm run test:contracts` (105/105) unaffected.
 `lib/hooks/useGovernanceTimelock.ts`'s `useQueueTransaction`/DIDRegistry ABI consumers would need
 matching updates at that time too (checked: zero real UI callers of either today, so nothing live
 breaks by deferring this).
