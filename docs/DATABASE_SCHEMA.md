@@ -15,6 +15,7 @@ true at all times as a system invariant.
 | `didOf[address]` | `bytes32` (did hash) | reverse lookup: controller address → DID (Phase 2.8 fix: was `controllerOf`) |
 | `guardianRecoveryContract` | `address` | only this contract may call `forceRotateKey` |
 | `signatureVerifier` | `ISignatureVerifier` | pluggable verifier; zero address = skip proof check (Phase 2.4) |
+| `accessControl` | `TimeBoundAccessControl` (immutable) | **not yet deployed (TODO.md §3.2, audit §2.3)** — replaces the previous `address public immutable owner`. `setSignatureVerifier`/`setGuardianRecoveryContract` now check+consume a 2-of-N `SUPER_ADMIN_ROLE` approval on this contract instead of a bare-address gate. |
 
 ### CredentialRegistry
 | Field | Type | Notes |
@@ -29,7 +30,9 @@ true at all times as a system invariant.
 | `roleExpiry[role][account]` | `uint256` (unix ts) | `hasRole()` returns false once `block.timestamp >= this` |
 | `_roles[role][account]` | `bool` (OZ AccessControl base) | standard grant flag |
 | `pendingGrants[grantId]` | `struct { bytes32 role; address account; uint256 validUntil; address proposer; address[] signers; bool executed; }` | 2-of-N multisig staging for privileged grants |
-| `pendingActions[actionId]` | `struct { uint8 actionType; bytes32 role; address account; address proposer; address[] signers; bool executed; }` | 2-of-N staging for emergencyRevoke/pause/unpause (Phase 2.5+2.6) |
+| `pendingActions[actionId]` | `struct { uint8 actionType; bytes32 role; address account; address proposer; address[] signers; bool executed; }` | 2-of-N staging for emergencyRevoke/pause/unpause (Phase 2.5+2.6), extended (**not yet deployed**, TODO.md §3.1/§3.2) to actionType 4=authorizeUpgrade/5=authorizeDIDSignatureVerifier/6=authorizeDIDGuardianRecovery — `account` reused to hold the pending target address for these, no new struct field |
+| `upgradeAuthorized[address]` | `bool` | **not yet deployed** (§3.1) — set true once actionType 4 reaches threshold for that implementation address; checked+consumed by `_authorizeUpgrade` |
+| `didSignatureVerifierAuthorized[address]` / `didGuardianRecoveryAuthorized[address]` | `bool` | **not yet deployed** (§3.2) — same pattern as `upgradeAuthorized`, for `DIDRegistry`'s owner-equivalent actions |
 
 ### AssetRegistry (ERC-721 extension)
 | Field | Type | Notes |
@@ -49,6 +52,7 @@ true at all times as a system invariant.
 | Field | Type | Notes |
 |---|---|---|
 | `queue[txId]` | `struct QueuedTx { address target; bytes data; uint256 eta; Status status; address raisedBy; string disputeReason; }` | **corrected 2026-09-11 (T-056)** — there is no separate `disputes[txId]` mapping; dispute fields live inside this same struct. `Status` is a 4-value enum (`Queued`, `Executed`, `Disputed`, `Cancelled`), not a boolean `executed` as this table previously said. |
+| `pendingQueues[pendingId]` | `struct PendingQueue { address target; bytes data; uint256 delay; address proposer; address[] signers; bool executed; }` | **not yet deployed** (TODO.md §3.3, audit §2.5) — 2-of-N `SUPER_ADMIN_ROLE` staging for `queue[txId]` entries, via `proposeQueueTransaction`/`coSignQueueTransaction`; replaces the old single-signer `queueTransaction`. A distinct struct from `TimeBoundAccessControl`'s `PendingAction`/`PendingGrant` — `data` is arbitrary-length calldata, which doesn't fit either of those fixed-shape structs. |
 
 ## 2. Off-Chain Indexer Schema (Subgraph / Read Model)
 

@@ -42,7 +42,7 @@ This is the exact runbook actually followed for the live deployment currently in
    ```bash
    TS_NODE_PROJECT=tsconfig.hardhat.json npx hardhat run scripts/deploy.ts --network sepolia
    ```
-   Deploys DIDRegistry, CredentialRegistry, TimeBoundAccessControl (UUPS proxy), AssetRegistry (UUPS proxy), GuardianRecovery, GovernanceTimelock, and writes addresses to `deployments/sepolia.json`.
+   Deploys TimeBoundAccessControl (UUPS proxy), DIDRegistry, CredentialRegistry, AssetRegistry (UUPS proxy), GuardianRecovery, GovernanceTimelock — in this order, not alphabetical/module order — and writes addresses to `deployments/sepolia.json`. `TimeBoundAccessControl` deploys first because `DIDRegistry`'s constructor now takes its address (TODO.md §3.2, audit §2.3): `setSignatureVerifier`/`setGuardianRecoveryContract` route owner-equivalent authority through `TimeBoundAccessControl`'s 2-of-N `SUPER_ADMIN_ROLE` approval instead of a bare `owner` address. `GuardianRecovery` is **not** wired into `DIDRegistry` by this script — that call now needs 2-of-N approval that doesn't exist yet at this point (only the deployer holds `SUPER_ADMIN_ROLE`); it happens in `postDeploySetup.ts` instead, once a second Super Admin is enrolled.
    Etherscan verification is attempted automatically but is non-fatal if `ETHERSCAN_API_KEY` isn't set (it currently isn't — contracts are deployed and functional, just not source-verified on Etherscan yet).
 
 3. **Post-deploy setup** — run immediately after, same session:
@@ -53,10 +53,17 @@ This is the exact runbook actually followed for the live deployment currently in
 
 ## 4. Post-Deploy Checklist (performed by `postDeploySetup.ts`)
 
-1. Generates a second Super Admin wallet, funds it with 0.005 ETH, and grants it `SUPER_ADMIN_ROLE` directly via `grantTimedRole` (single deployer signature — this step runs *before* the deployer's own `SUPER_ADMIN_ROLE` is revoked in step 2, which is what makes step 2's 2-of-N co-signature possible in the first place).
-2. Revokes the deployer's `SUPER_ADMIN_ROLE` via a co-signed `proposePlatformAction`/`coSignPlatformAction` (actionType 1), co-signed by the new second admin.
-3. Deploys `ECDSASignatureVerifier` and calls `DIDRegistry.setSignatureVerifier(verifier_address)`.
-4. Generates an issuer wallet and grants it `ISSUER_ROLE` on `CredentialRegistry`.
+**Reordered (2026-09-11, TODO.md §3.2/§3.3, audit §2.3/§2.5)** — `DIDRegistry.setGuardianRecoveryContract`/
+`setSignatureVerifier` now require 2-of-N `SUPER_ADMIN_ROLE` approval via `TimeBoundAccessControl`'s
+propose/co-sign flow (`proposePlatformAction`/`coSignPlatformAction`, actionType 5/6), not a bare
+`owner` address. That approval needs two real signers, so every step needing it must run *before*
+the deployer's own `SUPER_ADMIN_ROLE` is revoked — revocation moved from step 2 to step 4.
+
+1. Generates a second Super Admin wallet, funds it with 0.005 ETH, and grants it `SUPER_ADMIN_ROLE` directly via `grantTimedRole` (single deployer signature, using the deployer's still-held `DEFAULT_ADMIN_ROLE` — this is what creates the second signer every step below depends on).
+2. Proposes+co-signs `proposePlatformAction`/`coSignPlatformAction` actionType 6 (`authorizeDIDGuardianRecovery`) for the deployed `GuardianRecovery` address, then calls `DIDRegistry.setGuardianRecoveryContract(guardianRecovery_address)`.
+3. Deploys `ECDSASignatureVerifier`, proposes+co-signs actionType 5 (`authorizeDIDSignatureVerifier`) for its address, then calls `DIDRegistry.setSignatureVerifier(verifier_address)`.
+4. **Now** revokes the deployer's `SUPER_ADMIN_ROLE` via a co-signed `proposePlatformAction`/`coSignPlatformAction` (actionType 1), co-signed by the second admin — steps 2–3 above still needed the deployer as one of the two signers, so this can't run any earlier.
+5. Generates an issuer wallet and grants it `ISSUER_ROLE` on `CredentialRegistry`.
 
 **The deployer intentionally still holds `DEFAULT_ADMIN_ROLE` after this** (see `TODO.md` T-020) — it is the only path to enroll a third Super Admin or recover from a lost key while there are only two. Do not renounce it until a third Super Admin exists or a proper upgrade-based recovery path is shipped; renouncing it with only one other Super Admin locks the contract out of ever granting `SUPER_ADMIN_ROLE` again (2-of-N can never be reached with a single remaining signer, and there's no other bypass once `DEFAULT_ADMIN_ROLE` is gone).
 

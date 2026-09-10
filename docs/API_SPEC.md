@@ -16,8 +16,14 @@ token. Every function below reverts if the caller's DID does not hold the requir
 | Create DID | `createDID(bytes pubKey, string metadataURI) → bytes32 did` | Any address (gated by prior onboarding credential issuance off-chain) |
 | Resolve DID | `resolveDID(bytes32 did) view → DIDDocument` | Public read |
 | Rotate key | `rotateKey(bytes32 did, bytes newPubKey, string keyType, bytes proof) → void` | Controller only — `proof` checked against `signatureVerifier` if configured |
-| Set verifier | `setSignatureVerifier(address verifier)` | Owner — swaps ECDSA → Dilithium without schema change |
-| Set recovery | `setGuardianRecoveryContract(address recovery)` | Owner |
+| Set verifier | `setSignatureVerifier(address verifier)` | 2-of-N `SUPER_ADMIN_ROLE` via `TimeBoundAccessControl.proposePlatformAction(5,...)`/`coSignPlatformAction` — swaps ECDSA → Dilithium without schema change |
+| Set recovery | `setGuardianRecoveryContract(address recovery)` | 2-of-N `SUPER_ADMIN_ROLE` via `TimeBoundAccessControl.proposePlatformAction(6,...)`/`coSignPlatformAction` |
+
+> **Not yet deployed (TODO.md §3.2, audit §2.3):** the two rows above describe the current
+> `contracts/DIDRegistry.sol` source, which replaced a bare `owner`/`onlyOwner` gate with the 2-of-N
+> flow shown. The live Sepolia contract (`deployments/sepolia.json`) still runs the old `owner`-gated
+> version — this table documents the code, not (yet) what's deployed. Same caveat applies to
+> `proposePlatformAction`'s actionType 4/5/6 and `GovernanceTimelock`'s queue functions below.
 
 ### CredentialRegistry
 | Function | Signature | Access |
@@ -33,7 +39,7 @@ token. Every function below reverts if the caller's DID does not hold the requir
 | Propose privileged grant | `proposePrivilegedGrant(bytes32 role, address account, uint256 validUntil) → uint256 grantId` | `SUPER_ADMIN_ROLE` |
 | Co-sign privileged grant | `coSignGrant(uint256 grantId)` | Second distinct `SUPER_ADMIN_ROLE` — executes on threshold |
 | Check role | `hasRole(bytes32 role, address account) view → bool` | Public read; auto-false past expiry |
-| Propose platform action | `proposePlatformAction(uint8 actionType, bytes32 role, address account) → uint256 actionId` | `SUPER_ADMIN_ROLE` — actionType: 1=emergencyRevoke, 2=pause, 3=unpause |
+| Propose platform action | `proposePlatformAction(uint8 actionType, bytes32 role, address account) → uint256 actionId` | `SUPER_ADMIN_ROLE` — actionType: 1=emergencyRevoke, 2=pause, 3=unpause, 4=authorizeUpgrade, 5=authorizeDIDSignatureVerifier, 6=authorizeDIDGuardianRecovery (4/5/6 added, TODO.md §3.1/§3.2 — not yet deployed) |
 | Co-sign platform action | `coSignPlatformAction(uint256 actionId)` | Second distinct `SUPER_ADMIN_ROLE` — executes on threshold |
 
 > **Breaking change (Phase 2.5+2.6):** `emergencyRevoke()`, `pause()`, and `unpause()` are removed as direct single-signer calls. All destructive platform actions now require 2-of-N SUPER_ADMIN co-signatures via `proposePlatformAction` + `coSignPlatformAction`.
@@ -59,7 +65,8 @@ token. Every function below reverts if the caller's DID does not hold the requir
 ### GovernanceTimelock
 | Function | Signature | Access |
 |---|---|---|
-| Queue transaction | `queueTransaction(address target, bytes data, uint256 eta)` | Super Admin multisig |
+| Propose queue | `proposeQueueTransaction(address target, bytes data, uint256 delay) → uint256 pendingId` | `SUPER_ADMIN_ROLE` — replaces the old single-signer `queueTransaction` (TODO.md §3.3, audit §2.5, not yet deployed) |
+| Co-sign queue | `coSignQueueTransaction(uint256 pendingId) → uint256 txId` | Second distinct `SUPER_ADMIN_ROLE` — enters `queue` (real `eta`/dispute/execute lifecycle) once `QUEUE_THRESHOLD` met |
 | Raise dispute | `raiseDispute(uint256 txId, string reason)` | `AUDITOR_ROLE` |
 | Resolve dispute | `resolveDispute(uint256 txId, bool proceed)` | `SUPER_ADMIN_ROLE` — `proceed: true` returns the tx to Queued (still needs `executeTransaction` once `eta` passes), `false` cancels it permanently |
 | Execute | `executeTransaction(uint256 txId)` | Anyone, after `eta` and no active dispute — `GovernanceService.executeTransaction`, an "Execute" button on `/governance/disputes`' queued-tx row (T-053) |
