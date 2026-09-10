@@ -27,6 +27,9 @@ export const ROLE = {
   ISSUER_ROLE: keccak256(toBytes("ISSUER_ROLE")),
   AUDITOR_ROLE: keccak256(toBytes("AUDITOR_ROLE")),
   USER_ROLE: keccak256(toBytes("USER_ROLE")),
+  // T-016 — not part of the app's 5-role Role union (that's a separate demo-persona
+  // abstraction); check this directly via useHasRole where oracle-attestor gating is needed.
+  ORACLE_ATTESTOR_ROLE: keccak256(toBytes("ORACLE_ATTESTOR_ROLE")),
 } as const;
 
 // The 5 non-DEFAULT_ADMIN roles the app's Role union covers, highest privilege first.

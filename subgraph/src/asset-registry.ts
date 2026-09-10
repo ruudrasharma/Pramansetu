@@ -4,6 +4,7 @@ import {
   MintProposed as MintProposedEvent,
   MintCoSigned as MintCoSignedEvent,
   Transfer as TransferEvent,
+  OracleFactRecorded as OracleFactRecordedEvent,
   AssetRegistry,
 } from "../generated/AssetRegistry/AssetRegistry";
 import { Asset, MintRequest, AuditEvent, Identity } from "../generated/schema";
@@ -123,4 +124,15 @@ export function handleTransfer(event: TransferEvent): void {
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
   audit.save();
+}
+
+// T-016 (gap analysis §2.2.5) — mirrors Asset.latestOracleFactType's own doc comment: this is the
+// one place both OracleAttestation's and AssetRegistry's own events matter for the same Asset
+// entity, so it's handled on this (AssetRegistry) dataSource rather than oracle-attestation.ts,
+// keeping every write to the Asset entity itself in one file.
+export function handleOracleFactRecorded(event: OracleFactRecordedEvent): void {
+  let asset = Asset.load(event.params.tokenId.toString());
+  if (asset == null) return;
+  asset.latestOracleFactType = event.params.factType;
+  asset.save();
 }

@@ -11,3 +11,4 @@ export { TimeBoundAccessControlAbi } from './TimeBoundAccessControl';
 export { AssetRegistryAbi } from './AssetRegistry';
 export { GuardianRecoveryAbi } from './GuardianRecovery';
 export { GovernanceTimelockAbi } from './GovernanceTimelock';
+export { OracleAttestationAbi } from './OracleAttestation';

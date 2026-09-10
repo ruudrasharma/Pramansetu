@@ -124,6 +124,11 @@ export const TimeBoundAccessControlAbi = [
   },
   {
     "inputs": [],
+    "name": "UpgradeNotAuthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ValidityInPast",
     "type": "error"
   },
@@ -509,6 +514,19 @@ export const TimeBoundAccessControlAbi = [
   },
   {
     "inputs": [],
+    "name": "ORACLE_ATTESTOR_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "SUPER_ADMIN_ROLE",
     "outputs": [
       {
@@ -570,6 +588,96 @@ export const TimeBoundAccessControlAbi = [
     "name": "coSignPlatformAction",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "recovery",
+        "type": "address"
+      }
+    ],
+    "name": "consumeDIDGuardianRecoveryAuthorization",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "verifier",
+        "type": "address"
+      }
+    ],
+    "name": "consumeDIDSignatureVerifierAuthorization",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "oracleAttestation",
+        "type": "address"
+      }
+    ],
+    "name": "consumeOracleAttestationAuthorization",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "consumeUpgradeAuthorization",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "didGuardianRecoveryAuthorized",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "didSignatureVerifierAuthorized",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -671,6 +779,13 @@ export const TimeBoundAccessControlAbi = [
   },
   {
     "inputs": [],
+    "name": "initializeOracleAttestorRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "nextActionId",
     "outputs": [
       {
@@ -690,6 +805,25 @@ export const TimeBoundAccessControlAbi = [
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "oracleAttestationAuthorized",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -926,6 +1060,25 @@ export const TimeBoundAccessControlAbi = [
       }
     ],
     "name": "supportsInterface",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "upgradeAuthorized",
     "outputs": [
       {
         "internalType": "bool",

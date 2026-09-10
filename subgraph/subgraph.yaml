@@ -122,7 +122,44 @@ dataSources:
           handler: handleAssetMinted
         - event: Transfer(indexed address,indexed address,indexed uint256)
           handler: handleTransfer
+        - event: OracleFactRecorded(indexed uint256,uint8,bytes32,indexed uint256)
+          handler: handleOracleFactRecorded
       file: ./src/asset-registry.ts
+
+  # PLACEHOLDER — OracleAttestation is not yet deployed to live Sepolia (T-016). Address/startBlock
+  # below are placeholders; update both to the real deployed values (and redeploy this subgraph)
+  # once the live upgrade sequence in docs/DEPLOYMENT.md's T-016 runbook actually broadcasts.
+  - kind: ethereum/contract
+    name: OracleAttestation
+    network: sepolia
+    source:
+      address: "0x0000000000000000000000000000000000000000"
+      abi: OracleAttestation
+      startBlock: 11675947
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - OracleFact
+        - AuditEvent
+      abis:
+        - name: OracleAttestation
+          file: ../artifacts/contracts/OracleAttestation.sol/OracleAttestation.json
+      eventHandlers:
+        - event: FactSubmitted(indexed uint256,indexed uint256,uint8,bytes32,address)
+          handler: handleFactSubmitted
+        - event: FactCoSigned(indexed uint256,address,uint256)
+          handler: handleFactCoSigned
+        - event: FactDisputed(indexed uint256,indexed address,string)
+          handler: handleFactDisputed
+        - event: FactDisputeResolved(indexed uint256,bool)
+          handler: handleFactDisputeResolved
+        - event: FactFinalized(indexed uint256,indexed uint256,uint8)
+          handler: handleFactFinalized
+        - event: FactRejected(indexed uint256)
+          handler: handleFactRejected
+      file: ./src/oracle-attestation.ts
 
   - kind: ethereum/contract
     name: GovernanceTimelock

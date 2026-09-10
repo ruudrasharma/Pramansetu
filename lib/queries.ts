@@ -81,6 +81,9 @@ export const GET_ASSETS = gql`
       proposedBy
       coSignedBy
       txHash
+      oracleFacts {
+        status
+      }
     }
   }
 `;
@@ -138,6 +141,28 @@ export const GET_PENDING_GRANTS = gql`
       executed
       proposedAt
       executedAt
+    }
+  }
+`;
+
+export const GET_ORACLE_FACTS = gql`
+  query GetOracleFacts {
+    oracleFacts(first: 50, orderBy: submittedAt, orderDirection: desc) {
+      id
+      factId
+      tokenId
+      factType
+      dataHash
+      proposer
+      coSigner
+      status
+      submittedAt
+      disputeWindowEnd
+      disputedBy
+      disputeReason
+      resolvedProceed
+      finalizedAt
+      txHash
     }
   }
 `;

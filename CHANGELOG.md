@@ -6,6 +6,38 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.18.4] — 2026-09-11 — Build T-016 Oracle Attestation: contract, tests, subgraph, frontend (not yet deployed)
+
+Closes the design/build phase of T-016 (gap analysis §2.2.5, "decentralized oracle design with
+multiple independent attestors and a dispute window"), per explicit scope decision this session.
+Live Sepolia deployment is a separate, not-yet-executed step — see `TODO.md`'s T-016 entry.
+
+### Added
+- `contracts/OracleAttestation.sol` — new contract implementing 2-of-N independent-attestor fact
+  submission, a 15-minute dispute window, Auditor veto, and Super Admin dispute resolution, mirroring
+  `GovernanceTimelock.sol`'s propose→co-sign→dispute→resolve shape.
+- `ORACLE_ATTESTOR_ROLE` and actionType 7 (`authorizeOracleAttestationContract`) on
+  `TimeBoundAccessControl.sol`, added via a new `reinitializer(2)`-based in-place UUPS upgrade
+  mechanism — the first genuine in-place upgrade ever built for this project's live contracts.
+- `AssetRegistry.sol` gains `recordOracleFact`/`oracleFactsOf`/`latestOracleFactType`, closing the
+  permanent gap `lib/services/assetService.ts` used to document: a real onchain asset-level dispute
+  concept, distinct from `GovernanceTimelock`'s free-text-only disputes.
+- `scripts/forkRehearsal_oracleAttestation.ts` + a `HARDHAT_FORK_URL`-conditional fork config in
+  `hardhat.config.ts` — replays the entire live deployment sequence against forked real Sepolia
+  state (impersonating the two real Super Admin addresses) before any live broadcast. Passed cleanly.
+- Full frontend: `lib/hooks/useOracleAttestation.ts`, `lib/services/oracleAttestationService.ts`,
+  a new "Oracle facts" card on `/assets/[tokenId]`, and a dedicated `/oracle/facts` review queue.
+- Subgraph: new `OracleFact` entity and `subgraph/src/oracle-attestation.ts` mapping.
+- 19 new `test/OracleAttestation.test.ts` cases + 4 new `test/Upgrade.test.ts` cases (128 total
+  Hardhat tests passing) and 3 new Vitest cases for `deriveOracleDisputeOverride` (40 total passing).
+
+### Fixed
+- A real React hydration mismatch caught during live browser verification: `app/(app)/oracle/facts/page.tsx`
+  originally rendered a raw `toLocaleTimeString()` wall-clock string computed from a fixture timestamp
+  that differs between server and client renders — switched to the existing `formatCountdown` helper.
+
+---
+
 ## [0.18.3] — 2026-09-11 — Correct T-020 role assignment: real named Super Admins, separate deployer/recovery key
 
 Corrects T-020 on the live Phase 3 Sepolia deployment (`accessControl` =

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveAssetStatus } from "./assets";
+import { deriveAssetStatus, deriveOracleDisputeOverride } from "./assets";
 
 const OWNER = "0xAbC1230000000000000000000000000000dEaD";
 const OTHER = "0x0000000000000000000000000000000000BEEF";
@@ -19,5 +19,19 @@ describe("deriveAssetStatus", () => {
 
   it("returns \"finalized\" (not a false-positive \"transferred\") when mintRecipient is empty (\"0x\")", () => {
     expect(deriveAssetStatus(OWNER, "0x")).toBe("finalized");
+  });
+});
+
+describe("deriveOracleDisputeOverride", () => {
+  it("returns false when there are no oracle facts", () => {
+    expect(deriveOracleDisputeOverride([])).toBe(false);
+  });
+
+  it("returns false when no fact is currently disputed", () => {
+    expect(deriveOracleDisputeOverride([{ status: "submitted" }, { status: "finalized" }])).toBe(false);
+  });
+
+  it("returns true when any fact is currently disputed", () => {
+    expect(deriveOracleDisputeOverride([{ status: "finalized" }, { status: "disputed" }])).toBe(true);
   });
 });

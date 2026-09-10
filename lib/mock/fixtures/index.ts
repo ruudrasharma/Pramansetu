@@ -6,3 +6,4 @@ export * from "./auditEvents";
 export * from "./anomalies";
 export * from "./governance";
 export * from "./disputes";
+export * from "./oracleFacts";

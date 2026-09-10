@@ -18,7 +18,7 @@ import { resolveControllerAddress } from "@/lib/hooks/useDIDRegistry";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
 import { GET_ASSETS } from "@/lib/queries";
-import { deriveAssetStatus } from "@/lib/services/shared/assets";
+import { deriveAssetStatus, deriveOracleDisputeOverride } from "@/lib/services/shared/assets";
 
 export interface AssetService {
   listAssets: () => Asset[];
@@ -46,9 +46,21 @@ function useMockAssetService(): AssetService {
   const [lastMintedTokenId, setLastMintedTokenId] = useState<number>();
   const [isTransferConfirmed, setIsTransferConfirmed] = useState(false);
 
+  // Same live override as onchain mode's adaptAsset (T-016) — an asset whose fixture status is
+  // otherwise "finalized"/"transferred" shows "disputed" the moment any of its oracle facts in
+  // the store is Disputed, so raising a dispute through the UI actually changes what this page
+  // shows, not just the OracleAttestation section itself.
+  const withOracleOverride = (a: Asset): Asset => {
+    const facts = store.oracleFacts.filter((f) => f.tokenId === a.tokenId);
+    return deriveOracleDisputeOverride(facts) ? { ...a, status: "disputed" } : a;
+  };
+
   return {
-    listAssets: () => store.assets,
-    getAsset: (tokenId) => store.assets.find((a) => a.tokenId === tokenId),
+    listAssets: () => store.assets.map(withOracleOverride),
+    getAsset: (tokenId) => {
+      const asset = store.assets.find((a) => a.tokenId === tokenId);
+      return asset ? withOracleOverride(asset) : undefined;
+    },
     getProvenance: (tokenId) => store.assets.find((a) => a.tokenId === tokenId)?.provenance ?? [],
     proposeMint: (input) => {
       const created = store.proposeMint(input);
@@ -96,6 +108,7 @@ interface RawAsset {
   proposedBy: string;
   coSignedBy: string;
   txHash: string;
+  oracleFacts: { status: string }[];
 }
 
 async function adaptAsset(raw: RawAsset): Promise<Asset> {
@@ -128,14 +141,12 @@ async function adaptAsset(raw: RawAsset): Promise<Asset> {
     coSigner: raw.coSignedBy,
     // "transferred" is a real, cheap derivation (T-063): mintRecipient is recorded once, at mint
     // time, from the originating MintRequest, while ownerAddress mutates on every real Transfer —
-    // if they've diverged, a real transfer has happened since minting. "disputed" is intentionally
-    // not derived here: this contract has no asset-level dispute concept, only
-    // GovernanceTimelock's generic queued-transaction disputes (Dispute → GovernanceTx), and
-    // there's no field linking a GovernanceTx back to a specific tokenId — a real implementation
-    // would mean regex-matching free-text summaries against a target contract/calldata heuristic,
-    // fragile enough that it's not worth guessing at for a list-view status (same call T-043 made
-    // for getProvenance).
-    status: deriveAssetStatus(raw.ownerAddress, raw.mintRecipient),
+    // if they've diverged, a real transfer has happened since minting. "disputed" used to be
+    // permanently undeliverable here (this contract had no asset-level dispute concept, only
+    // GovernanceTimelock's generic queued-transaction disputes with no tokenId link) — T-016's
+    // OracleAttestation contract gives it a real one: any oracle fact for this token currently in
+    // the Disputed state overrides deriveAssetStatus's own result.
+    status: deriveOracleDisputeOverride(raw.oracleFacts) ? "disputed" : deriveAssetStatus(raw.ownerAddress, raw.mintRecipient),
     provenance: [],
   };
 }

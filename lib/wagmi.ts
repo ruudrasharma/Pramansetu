@@ -28,4 +28,5 @@ export const contractAddresses = {
   assetRegistry: process.env.NEXT_PUBLIC_ASSET_REGISTRY_ADDRESS as `0x${string}` | undefined,
   guardianRecovery: process.env.NEXT_PUBLIC_GUARDIAN_RECOVERY_ADDRESS as `0x${string}` | undefined,
   governanceTimelock: process.env.NEXT_PUBLIC_GOVERNANCE_TIMELOCK_ADDRESS as `0x${string}` | undefined,
+  oracleAttestation: process.env.NEXT_PUBLIC_ORACLE_ATTESTATION_ADDRESS as `0x${string}` | undefined,
 };

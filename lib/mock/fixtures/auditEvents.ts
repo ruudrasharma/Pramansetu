@@ -25,7 +25,12 @@ export type EventType =
   | "GovernanceExecuted"
   | "GuardianRegistered"
   | "RecoveryInitiated"
-  | "RecoveryFinalized";
+  | "RecoveryFinalized"
+  | "OracleFactSubmitted"
+  | "OracleFactAttested"
+  | "OracleFactDisputed"
+  | "OracleFactFinalized"
+  | "OracleFactRejected";
 
 export interface AuditEvent {
   id: string;

@@ -68,9 +68,9 @@ export function handleActionProposed(event: ActionProposedEvent): void {
   // previously left permanently Bytes.empty() as a result (T-032). Both are real, queryable public
   // storage (pendingActions(actionId)) regardless of what the event carries, so read them via a
   // bound call instead — same pattern asset-registry.ts already uses for pendingMints. Needed for
-  // real reasons, not just completeness: actionType 4/5/6 (T-3.1/T-3.2) store their target address
-  // (implementation/verifier/guardian-recovery contract) in this same `account` field, and
-  // handleActionExecuted below needs it for a real, descriptive audit summary.
+  // real reasons, not just completeness: actionType 4/5/6/7 (T-3.1/T-3.2/T-016) store their target
+  // address (implementation/verifier/guardian-recovery/oracle-attestation contract) in this same
+  // `account` field, and handleActionExecuted below needs it for a real, descriptive audit summary.
   let accessControl = TimeBoundAccessControl.bind(event.address);
   let pending = accessControl.try_pendingActions(event.params.actionId);
   action.role        = pending.reverted ? Bytes.empty() : pending.value.getRole();
@@ -99,7 +99,8 @@ export function handleActionExecuted(event: ActionExecutedEvent): void {
   action.save();
 
   // actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause, 4 = authorizeUpgrade,
-  // 5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery
+  // 5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery,
+  // 7 = authorizeOracleAttestationContract (T-016)
   // (contracts/TimeBoundAccessControl.sol). Previously every actionType collapsed to
   // "EmergencyPaused", so a real role revocation (1) showed on the ledger/audit table identically
   // to an actual platform pause (2) — indistinguishable and misleading. Label each actionType with
@@ -122,6 +123,7 @@ export function handleActionExecuted(event: ActionExecutedEvent): void {
     : event.params.actionType == 4 ? "UUPS upgrade authorized: implementation " + accountStr
     : event.params.actionType == 5 ? "DIDRegistry signature verifier authorized: " + accountStr
     : event.params.actionType == 6 ? "DIDRegistry guardian recovery contract authorized: " + accountStr
+    : event.params.actionType == 7 ? "AssetRegistry oracle attestation contract authorized: " + accountStr
     : "Platform action executed: type=" + event.params.actionType.toString();
 
   let auditId = "AC-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();

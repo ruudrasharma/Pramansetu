@@ -20,6 +20,8 @@ import {
   anomalyAlerts as seedAnomalyAlerts,
   governanceProposals as seedGovernanceProposals,
   timelockTransactions as seedTimelockTransactions,
+  oracleFacts as seedOracleFacts,
+  MIN,
   type Identity,
   type Credential,
   type GuardianSet,
@@ -29,6 +31,7 @@ import {
   type AnomalyAlert,
   type GovernanceProposal,
   type TimelockTransaction,
+  type OracleFact,
   type Role,
 } from "@/lib/mock/fixtures";
 
@@ -52,6 +55,7 @@ interface MockDataState {
   anomalyAlerts: AnomalyAlert[];
   governanceProposals: GovernanceProposal[];
   timelockTransactions: TimelockTransaction[];
+  oracleFacts: OracleFact[];
   platformPaused: boolean;
 
   logEvent: (type: EventType, actorDid: string, summary: string) => void;
@@ -66,6 +70,12 @@ interface MockDataState {
   raiseDispute: (txId: number, reason: string, raisedBy: string) => void;
   resolveDispute: (txId: number, proceed: boolean, resolvedBy: string) => void;
   executeTransaction: (txId: number, executedBy: string) => void;
+
+  submitOracleFact: (input: { tokenId: number; factType: number; dataHash: string; proposer: string }) => OracleFact;
+  attestOracleFact: (factId: number, attestor: string) => void;
+  raiseFactDispute: (factId: number, reason: string, disputedBy: string) => void;
+  resolveFactDispute: (factId: number, proceed: boolean, resolvedBy: string) => void;
+  finalizeOracleFact: (factId: number) => void;
 
   proposePlatformAction: (kind: "addAdmin" | "removeAdmin" | "upgrade" | "pause" | "unpause", title: string, proposedBy: string) => void;
   coSignPlatformAction: (proposalId: string, signer: string) => void;
@@ -89,6 +99,7 @@ export const useMockDataStore = create<MockDataState>()((set, get) => ({
   anomalyAlerts: seedAnomalyAlerts,
   governanceProposals: seedGovernanceProposals,
   timelockTransactions: seedTimelockTransactions,
+  oracleFacts: seedOracleFacts,
   platformPaused: false,
 
   logEvent: (type, actorDid, summary) =>
@@ -223,6 +234,80 @@ export const useMockDataStore = create<MockDataState>()((set, get) => ({
       ),
     }));
     get().logEvent("GovernanceExecuted", executedBy, `Governance tx #${txId} executed`);
+  },
+
+  // Mirrors OracleAttestation.submitFact -- auto-includes the proposer as the first attestor.
+  submitOracleFact: (input) => {
+    const factId = Math.max(0, ...get().oracleFacts.map((f) => f.factId)) + 1;
+    const fact: OracleFact = {
+      factId,
+      tokenId: input.tokenId,
+      factType: input.factType,
+      dataHash: input.dataHash,
+      proposer: input.proposer,
+      status: "submitted",
+      submittedAt: Date.now(),
+    };
+    set((s) => ({ oracleFacts: [fact, ...s.oracleFacts] }));
+    get().logEvent("OracleFactSubmitted", input.proposer, `Oracle fact #${factId} submitted for token #${input.tokenId}`);
+    return fact;
+  },
+
+  // Mirrors OracleAttestation.attestFact -- ATTESTATION_THRESHOLD (2) reached opens the
+  // DISPUTE_WINDOW (15 minutes, matching the deployed contract's constant).
+  attestOracleFact: (factId, attestor) => {
+    const fact = get().oracleFacts.find((f) => f.factId === factId);
+    if (!fact || fact.status !== "submitted") return;
+    const disputeWindowEnd = Date.now() + 15 * MIN;
+    set((s) => ({
+      oracleFacts: s.oracleFacts.map((f) =>
+        f.factId === factId ? { ...f, status: "attested", coSigner: attestor, disputeWindowEnd } : f
+      ),
+    }));
+    get().logEvent("OracleFactAttested", attestor, `Oracle fact #${factId} reached 2-of-N attestation, dispute window open`);
+  },
+
+  // Mirrors OracleAttestation.raiseDispute -- only while Attested and before the window closes.
+  raiseFactDispute: (factId, reason, disputedBy) => {
+    const fact = get().oracleFacts.find((f) => f.factId === factId);
+    if (!fact || fact.status !== "attested" || (fact.disputeWindowEnd ?? 0) <= Date.now()) return;
+    set((s) => ({
+      oracleFacts: s.oracleFacts.map((f) =>
+        f.factId === factId ? { ...f, status: "disputed", disputedBy, disputeReason: reason } : f
+      ),
+    }));
+    get().logEvent("OracleFactDisputed", disputedBy, `Oracle fact #${factId} disputed — ${reason}`);
+  },
+
+  // Mirrors OracleAttestation.resolveDispute -- proceed finalizes immediately, reject is permanent.
+  resolveFactDispute: (factId, proceed, resolvedBy) => {
+    const fact = get().oracleFacts.find((f) => f.factId === factId);
+    if (!fact || fact.status !== "disputed") return;
+    set((s) => ({
+      oracleFacts: s.oracleFacts.map((f) =>
+        f.factId === factId
+          ? { ...f, status: proceed ? "finalized" : "rejected", resolvedProceed: proceed, finalizedAt: proceed ? Date.now() : f.finalizedAt }
+          : f
+      ),
+    }));
+    get().logEvent(
+      proceed ? "OracleFactFinalized" : "OracleFactRejected",
+      resolvedBy,
+      `Oracle fact #${factId} dispute resolved — ${proceed ? "finalized" : "rejected"}`
+    );
+  },
+
+  // Mirrors OracleAttestation.finalize -- permissionless once the dispute window has elapsed
+  // undisputed.
+  finalizeOracleFact: (factId) => {
+    const fact = get().oracleFacts.find((f) => f.factId === factId);
+    if (!fact || fact.status !== "attested" || (fact.disputeWindowEnd ?? Infinity) > Date.now()) return;
+    set((s) => ({
+      oracleFacts: s.oracleFacts.map((f) =>
+        f.factId === factId ? { ...f, status: "finalized", finalizedAt: Date.now() } : f
+      ),
+    }));
+    get().logEvent("OracleFactFinalized", "system", `Oracle fact #${factId} finalized for token #${fact.tokenId}`);
   },
 
   proposePlatformAction: (kind, title, proposedBy) => {

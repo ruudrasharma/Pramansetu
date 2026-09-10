@@ -23,6 +23,12 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant AUDITOR_ROLE = keccak256("AUDITOR_ROLE");
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
+    /// @notice Added post-launch via UUPS upgrade (T-016, gap analysis §2.2.5) -- independent
+    ///         oracle attestors for OracleAttestation.sol's multi-attestor + dispute-window fact
+    ///         mechanism. Its role-admin is set by initializeOracleAttestorRole()'s reinitializer
+    ///         below, not by initialize(), since initialize() already ran on the live deployment
+    ///         before this role existed.
+    bytes32 public constant ORACLE_ATTESTOR_ROLE = keccak256("ORACLE_ATTESTOR_ROLE");
 
     uint8 public constant GRANT_THRESHOLD = 2;   // 2-of-N co-signature for privileged grants
     uint8 public constant ACTION_THRESHOLD = 2;  // 2-of-N co-signature for emergencyRevoke/pause
@@ -39,7 +45,8 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     /// @dev Generic pending action used for emergencyRevoke, pause, unpause, authorizeUpgrade, and
     ///      DIDRegistry's owner-equivalent actions.
     ///      actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause, 4 = authorizeUpgrade,
-    ///                  5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery
+    ///                  5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery,
+    ///                  7 = authorizeOracleAttestationContract
     struct PendingAction {
         uint8 actionType;
         bytes32 role;       // used by emergencyRevoke
@@ -66,6 +73,9 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     ///         authorization check here instead of a bare `onlyOwner`. Also append-only.
     mapping(address => bool) public didSignatureVerifierAuthorized;
     mapping(address => bool) public didGuardianRecoveryAuthorized;
+    /// @notice Same pattern, for AssetRegistry.setOracleAttestationContract (T-016, gap analysis
+    ///         §2.2.5). Also append-only.
+    mapping(address => bool) public oracleAttestationAuthorized;
 
     event TimedRoleGranted(bytes32 indexed role, address indexed account, uint256 validUntil);
     event GrantProposed(uint256 indexed grantId, bytes32 role, address account, address proposer);
@@ -166,18 +176,19 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
     }
 
     /// @notice Step 1: Propose an emergencyRevoke, pause, unpause, authorizeUpgrade, or
-    ///         DIDRegistry owner-equivalent action. Requires a second SUPER_ADMIN to co-sign
-    ///         (ACTION_THRESHOLD) before execution.
+    ///         DIDRegistry/AssetRegistry owner-equivalent action. Requires a second SUPER_ADMIN to
+    ///         co-sign (ACTION_THRESHOLD) before execution.
     ///         actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause, 4 = authorizeUpgrade,
-    ///                     5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery
-    ///         (for actionType 4/5/6, pass the pending target address as `account`; `role` is
+    ///                     5 = authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery,
+    ///                     7 = authorizeOracleAttestationContract
+    ///         (for actionType 4/5/6/7, pass the pending target address as `account`; `role` is
     ///         unused, pass bytes32(0))
     function proposePlatformAction(
         uint8 actionType,
         bytes32 role,
         address account
     ) external onlyRole(SUPER_ADMIN_ROLE) returns (uint256 actionId) {
-        if (actionType < 1 || actionType > 6) revert InvalidActionType();
+        if (actionType < 1 || actionType > 7) revert InvalidActionType();
         actionId = nextActionId++;
         PendingAction storage a = pendingActions[actionId];
         a.actionType = actionType;
@@ -214,6 +225,8 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
                 didSignatureVerifierAuthorized[a.account] = true;
             } else if (a.actionType == 6) {
                 didGuardianRecoveryAuthorized[a.account] = true;
+            } else if (a.actionType == 7) {
+                oracleAttestationAuthorized[a.account] = true;
             }
         }
     }
@@ -255,5 +268,30 @@ contract TimeBoundAccessControl is Initializable, AccessControlUpgradeable, Paus
 
     function consumeDIDGuardianRecoveryAuthorization(address recovery) external {
         didGuardianRecoveryAuthorized[recovery] = false;
+    }
+
+    /// @notice Same pattern, for AssetRegistry.setOracleAttestationContract (T-016).
+    function consumeOracleAttestationAuthorization(address oracleAttestation) external {
+        oracleAttestationAuthorized[oracleAttestation] = false;
+    }
+
+    /// @notice One-time post-upgrade setup introducing ORACLE_ATTESTOR_ROLE (T-016). Uses OZ's
+    ///         reinitializer(2) because initialize() above already permanently consumed version 1
+    ///         (Initializable.initializer is reinitializer(1)) on the live deployment, before this
+    ///         role existed -- the standard OZ pattern for "an upgrade adds a module that needs its
+    ///         own one-time setup." Intended to be passed as the `data` argument to the proxy's own
+    ///         upgradeToAndCall(newImpl, data), not called as a separate follow-up transaction --
+    ///         atomic with the upgrade itself means there is no window where the implementation is
+    ///         swapped but ORACLE_ATTESTOR_ROLE's admin is still unset, and a failed reinitializer
+    ///         reverts the entire upgrade transaction (no partial-upgrade state), matching the
+    ///         "nothing manual left in between" discipline the T-017/T-018 incident note already
+    ///         established for this project's deploy scripts.
+    ///         Gated onlyRole(SUPER_ADMIN_ROLE): msg.sender during the delegatecall this runs under
+    ///         is whoever called upgradeToAndCall on the proxy -- UUPSUpgradeable's own
+    ///         upgradeToAndCall has no caller restriction of its own (see _authorizeUpgrade above),
+    ///         so this check is what stops an arbitrary caller from being the one who "executes"
+    ///         the already-authorized upgrade+init step.
+    function initializeOracleAttestorRole() public reinitializer(2) onlyRole(SUPER_ADMIN_ROLE) {
+        _setRoleAdmin(ORACLE_ATTESTOR_ROLE, SUPER_ADMIN_ROLE);
     }
 }

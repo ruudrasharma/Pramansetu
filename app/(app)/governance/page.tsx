@@ -111,9 +111,14 @@ export default function GovernancePage() {
             transfers cool off before finalizing, and any Auditor can freeze one mid-window.
           </p>
         </div>
-        <Link href="/governance/disputes">
-          <Button variant="secondary">Disputes</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/oracle/facts">
+            <Button variant="secondary">Oracle facts</Button>
+          </Link>
+          <Link href="/governance/disputes">
+            <Button variant="secondary">Disputes</Button>
+          </Link>
+        </div>
       </div>
 
       {actionError && (

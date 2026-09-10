@@ -1055,9 +1055,73 @@ code, given the size of this addition.
 Integrate decentralized oracles for off-chain data validation.
 
 **2026-09-11 scope decision**: per explicit instruction from Rudra, this is also now in scope to
-build for real for the hackathon submission, not left as roadmap. Not started yet as of this note —
-0% built (no contract, no service) — needs its own design pass (which oracle pattern, what data it
-attests, on-chain contract shape, off-chain service) before implementation.
+build for real for the hackathon submission, not left as roadmap.
+
+**2026-09-11 — built, tested, and fork-rehearsed; NOT YET deployed to live Sepolia.** Implements the
+gap-analysis §2.2.5 requirement directly ("decentralized oracle design with multiple independent
+attestors and a dispute window before an oracle-fed fact becomes final on-chain"), distinct from the
+already-built dual-attestation mint flow (§2.3.3, mint-time-only). Closes a real, previously-permanent
+frontend gap: `lib/services/assetService.ts` used to document that `AssetStatus`'s `"disputed"` value
+could never be derived onchain because "this contract has no asset-level dispute concept" — it has one
+now.
+
+Design (approved plan, `/Users/rudra/.claude/plans/hashed-doodling-moore.md`):
+- New `ORACLE_ATTESTOR_ROLE` on the live `TimeBoundAccessControl` — added via a genuine in-place UUPS
+  upgrade (first one ever performed in this project; the prior "upgrade," T-3.1/T-3.2, was actually a
+  full fresh redeploy) using a new `reinitializer(2)` function (`initializeOracleAttestorRole`) passed
+  atomically as `upgradeToAndCall`'s `data` argument, so there's no window where the implementation is
+  swapped but the new role's admin is unset.
+- New actionType 7 (`authorizeOracleAttestationContract`) on `proposePlatformAction`/
+  `coSignPlatformAction`, mirroring actionType 5/6's exact pattern.
+- New non-upgradeable `contracts/OracleAttestation.sol` (mirrors `GovernanceTimelock.sol`'s
+  propose→2-of-N co-sign→dispute-window→dispute/resolve→finalize shape): `submitFact`/`attestFact`
+  (`ATTESTATION_THRESHOLD = 2`, same precedent as every other multisig gate in this codebase),
+  `raiseDispute`/`resolveDispute` (Auditor/Super Admin, same roles as `GovernanceTimelock`), `finalize`
+  (permissionless after a `DISPUTE_WINDOW = 15 minutes` — intentionally short for live-demo purposes,
+  not a production security parameter, flagged in `docs/SECURITY.md`).
+- `AssetRegistry.sol` gets `oracleFactsOf`/`latestOracleFactType` (append-only) and
+  `recordOracleFact`, gated to the one address authorized via actionType 7 — also a live in-place
+  upgrade (second one in this pass; needs no reinitializer, new state defaults acceptably).
+- Frontend: `lib/services/shared/assets.ts`'s new `deriveOracleDisputeOverride` makes `"disputed"` a
+  real, live-derived asset status in both mock and onchain mode — verified live in a real browser
+  (not just route-level checks): raising a dispute on a fact for a "finalized" asset flips its badge
+  to "disputed" and hides the transfer button immediately, and resolving the dispute flips it back.
+  New `app/(app)/assets/[tokenId]/page.tsx` "Oracle facts" card (submit/attest/dispute/resolve inline)
+  and a dedicated `app/(app)/oracle/facts/page.tsx` review queue, both role-gated
+  (`ORACLE_ATTESTOR_ROLE`/`AUDITOR_ROLE`/`SUPER_ADMIN_ROLE` onchain; `MANAGER`/`AUDITOR`/`SUPER_ADMIN`
+  personas in mock mode — mock has no dedicated 6th demo persona for the new role, reusing `MANAGER`
+  rather than rippling a new value through every `Record<Role,...>` in the app for a cosmetic swap).
+- Subgraph: new `OracleFact` entity + `subgraph/src/oracle-attestation.ts` mapping, plus a new
+  `OracleFactRecorded` handler on the existing `AssetRegistry` dataSource. `subgraph.yaml`'s new
+  `OracleAttestation` dataSource has a placeholder address/startBlock until the live deploy happens.
+
+**Caught and fixed during real-browser verification**: the review page originally rendered
+`new Date(fact.disputeWindowEnd).toLocaleTimeString()` directly, which produced a genuine React
+hydration mismatch (server and client evaluate `Date.now()`-derived fixture timestamps at different
+instants, so the second-precision clock string differed) — same class of bug T-064/T-065 only caught
+via real browser clicks, not source review. Fixed by switching to the existing `formatCountdown`
+helper (minute-granularity, matching the rest of the app's already-established time-rendering
+convention) instead of a raw wall-clock string.
+
+**Verified before touching anything live**: 128 Hardhat contract tests passing (19 new
+`OracleAttestation.test.ts`, 4 new `Upgrade.test.ts` cases exercising the real reinitializer
+mechanism and the AssetRegistry wiring, 1 existing `TimeBoundAccessControl.test.ts` boundary updated
+for the new valid actionType), 40 Vitest tests passing (3 new for `deriveOracleDisputeOverride`),
+`npm run lint`/`npm run build` clean, subgraph `codegen`/`build` clean. A new
+`scripts/forkRehearsal_oracleAttestation.ts` (plus a `HARDHAT_FORK_URL`-conditional fork config added
+to `hardhat.config.ts`) replayed the *entire* live deployment sequence — both upgrades, the new
+contract deploy, the actionType-7 wiring, and a full submit→attest→wait→finalize fact lifecycle —
+against a forked copy of real Sepolia state, impersonating the two real Super Admin addresses (Rudra,
+Shivansh; no private keys needed). It passed cleanly.
+
+**Not yet done**: the actual live Sepolia broadcast. Per this project's established discipline
+(design → write → test, deploy only as an explicit separate step) and the plan's own risk note — this
+touches two already-live contracts with real state, including the `SUPER_ADMIN_ROLE`/
+`DEFAULT_ADMIN_ROLE` assignments this session's T-020 correction just set up — the live transaction
+sequence is written up and ready (`docs/DEPLOYMENT.md`, once added) but has **not been broadcast**.
+It also cannot complete unattended: automation only has one of the two Super Admins' private keys, so
+the 2-of-N co-signs on the upgrade/wiring proposals need Rudra's or Shivansh's own wallet for the
+second signature. Awaiting explicit go-ahead before broadcasting anything to live Sepolia.
 
 ### T-057 ✅ closed 2026-09-10 — `/onboarding` walkthrough was silently ambiguous about being fake (audit §3)
 `app/onboarding/page.tsx` is pure animation — `Math.random()` for the DID/pubKey shown, no service

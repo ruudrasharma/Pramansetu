@@ -65,6 +65,9 @@ type Asset @entity {
   coSignedBy: Bytes!
   mintedAt: BigInt!
   txHash: Bytes!
+  oracleFacts: [OracleFact!]!       @derivedFrom(field: "asset")
+  latestOracleFactType: Int         # mirrors AssetRegistry.latestOracleFactType(tokenId) — null
+                                     # until at least one oracle fact has been finalized (T-016)
 }
 
 type MintRequest @entity {
@@ -147,6 +150,30 @@ type Recovery @entity {
   initiatedAt: BigInt!
   signers: [Bytes!]!
   finalized: Boolean!
+  finalizedAt: BigInt
+  txHash: Bytes!
+}
+
+# OracleAttestation.sol's multi-attestor + dispute-window fact lifecycle (T-016, gap analysis
+# §2.2.5) — mirrors PlatformAction's propose/coSign/executed shape, with the extra Disputed/
+# Rejected states GovernanceTimelock's Dispute entity already models for a different mechanism.
+type OracleFact @entity {
+  id: ID!                          # factId as string
+  factId: BigInt!
+  tokenId: BigInt!
+  asset: Asset                     # → Asset (by tokenId), null if not indexed yet
+  factType: Int!
+  dataHash: Bytes!
+  proposer: Bytes!
+  coSigner: Bytes                  # second attestor (ATTESTATION_THRESHOLD=2, same "hardcoded
+                                    # threshold, not a live count" caveat as PlatformAction/
+                                    # PendingGrant's coSigner field — see handleFactCoSigned)
+  status: String!                  # "submitted" | "attested" | "disputed" | "finalized" | "rejected"
+  submittedAt: BigInt!
+  disputeWindowEnd: BigInt
+  disputedBy: Bytes
+  disputeReason: String
+  resolvedProceed: Boolean
   finalizedAt: BigInt
   txHash: Bytes!
 }

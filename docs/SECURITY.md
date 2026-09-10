@@ -67,7 +67,7 @@ analysis: `original-docs/Problem_Gap_Analysis.pdf` §2 and `original-docs/Comple
 | No instant revocation | Time-bound roles with automatic on-chain expiry |
 | Irreversible smart contract bugs | UUPS upgradeable proxy + external audit before mainnet |
 | Gas cost / scalability at organizational scale | Layer-2 rollup (Polygon) deployment target |
-| Oracle / off-chain trust gap | Multi-attestor oracle design + dispute window |
+| Oracle / off-chain trust gap | Multi-attestor oracle design + dispute window — **T-016: `OracleAttestation.sol` built, tested, fork-rehearsed against live Sepolia state; not yet deployed live.** 2-of-N independent `ORACLE_ATTESTOR_ROLE` attestors + a dispute window (Auditor veto, Super Admin adjudication) before a real-world fact (e.g. asset delivery) writes into `AssetRegistry` state. |
 | NFT ownership ≠ legal ownership | `legalReference` bridge field; explicitly flagged as a known limitation |
 | Off-chain metadata rot | IPFS content-addressing — tampering changes the hash, detectable instantly |
 | Fake physical-asset minting | Mandatory dual attestation (two independent roles) |
@@ -82,6 +82,7 @@ analysis: `original-docs/Problem_Gap_Analysis.pdf` §2 and `original-docs/Comple
 | Sophisticated real-time misuse patterns | AI anomaly-detection service on indexed event stream |
 | Cross-organization identity portability | Interoperable `did:web` method planned for cross-PSU bridges |
 | Compliance proof without data exposure | Zero-knowledge compliance proofs (future roadmap) |
+| `OracleAttestation`'s 15-minute dispute window is demo-scale, not production-safe | Explicitly a live-demo parameter (T-016) — a real deployment should make `DISPUTE_WINDOW` configurable, or at minimum much longer, before an oracle-fed fact is trusted for anything higher-stakes than a hackathon demo |
 
 ## 6. Quantum-Resistance Design (Detail)
 

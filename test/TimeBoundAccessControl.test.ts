@@ -183,10 +183,10 @@ describe("TimeBoundAccessControl", function () {
       await expect(
         ac.connect(superAdmin).proposePlatformAction(0, ethers.ZeroHash, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(ac, "InvalidActionType");
-      // 4 (authorizeUpgrade, T-3.1), 5/6 (DIDRegistry owner-equivalent actions, T-3.2) are valid
-      // now — 7 is the first invalid value.
+      // 4 (authorizeUpgrade, T-3.1), 5/6 (DIDRegistry owner-equivalent actions, T-3.2), and 7
+      // (authorizeOracleAttestationContract, T-016) are all valid now — 8 is the first invalid value.
       await expect(
-        ac.connect(superAdmin).proposePlatformAction(7, ethers.ZeroHash, ethers.ZeroAddress)
+        ac.connect(superAdmin).proposePlatformAction(8, ethers.ZeroHash, ethers.ZeroAddress)
       ).to.be.revertedWithCustomError(ac, "InvalidActionType");
     });
 

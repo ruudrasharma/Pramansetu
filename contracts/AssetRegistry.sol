@@ -46,15 +46,43 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
     uint256 public nextRequestId;
     uint256 public nextTokenId;
 
+    /// @notice The sole external contract permitted to call recordOracleFact -- set once via
+    ///         setOracleAttestationContract after 2-of-N SUPER_ADMIN_ROLE authorization (actionType
+    ///         7 on TimeBoundAccessControl), mirroring DIDRegistry.guardianRecoveryContract's exact
+    ///         pattern (T-016, gap analysis §2.2.5). Appended after nextTokenId, storage-layout-safe
+    ///         same convention as TimeBoundAccessControl.sol's append-only mappings.
+    address public oracleAttestation;
+
+    struct OracleFactRecord {
+        uint8 factType;
+        bytes32 dataHash;
+        uint256 factId;   // OracleAttestation's own id, for cross-reference/lookup
+        uint256 finalizedAt;
+    }
+
+    /// @notice Append-only per-token history of finalized oracle facts -- only ever written by
+    ///         recordOracleFact below, after OracleAttestation's own 2-of-N attest + dispute-window
+    ///         process has already finalized the fact. Nothing is ever removed or overwritten; a
+    ///         later fact just appends another entry (e.g. Delivered, then later Damaged).
+    mapping(uint256 => OracleFactRecord[]) public oracleFactsOf;
+    /// @notice Mirror of the most recent finalized fact's factType -- lets the frontend show
+    ///         current status without reading the whole history array.
+    mapping(uint256 => uint8) public latestOracleFactType;
+
     event MintProposed(uint256 indexed requestId, string cid, bytes32 recipientDid, address proposer);
     event MintCoSigned(uint256 indexed requestId, address coSigner);
     event AssetMinted(uint256 indexed tokenId, uint256 indexed requestId, bytes32 recipientDid, string cid);
     event LegalReferenceAttached(uint256 indexed tokenId, bytes32 legalReferenceHash);
+    event OracleAttestationContractSet(address indexed oracleAttestation);
+    event OracleFactRecorded(uint256 indexed tokenId, uint8 factType, bytes32 dataHash, uint256 indexed factId);
 
     error SameSignerNotAllowed();
     error AlreadyExecuted();
     error RecipientCredentialInvalid();
     error NotProposer();
+    error NotAuthorized();
+    error OnlyOracleAttestation();
+    error ZeroAddress();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -150,6 +178,36 @@ contract AssetRegistry is Initializable, ERC721Upgradeable, UUPSUpgradeable {
             }
         }
         return super._update(to, tokenId, auth);
+    }
+
+    /// @notice One-time wiring call -- requires 2-of-N SUPER_ADMIN_ROLE approval via
+    ///         accessControl.proposePlatformAction(7,...)/coSignPlatformAction (T-016, gap analysis
+    ///         §2.2.5). Permissionless caller by design -- same tradeoff
+    ///         TimeBoundAccessControl.consumeUpgradeAuthorization's docstring already documents for
+    ///         this class of function: the pre-check (the SUPER_ADMIN-approved flag) is what's
+    ///         trusted, not who happens to submit the tx.
+    function setOracleAttestationContract(address oracleAttestationAddr) external {
+        if (oracleAttestationAddr == address(0)) revert ZeroAddress();
+        if (!accessControl.oracleAttestationAuthorized(oracleAttestationAddr)) revert NotAuthorized();
+        accessControl.consumeOracleAttestationAuthorization(oracleAttestationAddr);
+        oracleAttestation = oracleAttestationAddr;
+        emit OracleAttestationContractSet(oracleAttestationAddr);
+    }
+
+    /// @notice Writes a finalized real-world fact about `tokenId` into on-chain state. Callable
+    ///         only by the authorized OracleAttestation contract, only after its own multi-attestor
+    ///         + dispute-window process has finalized the fact (T-016, gap analysis §2.2.5).
+    function recordOracleFact(uint256 tokenId, uint8 factType, bytes32 dataHash, uint256 factId) external {
+        if (msg.sender != oracleAttestation) revert OnlyOracleAttestation();
+        _requireOwned(tokenId);
+        oracleFactsOf[tokenId].push(OracleFactRecord({
+            factType: factType,
+            dataHash: dataHash,
+            factId: factId,
+            finalizedAt: block.timestamp
+        }));
+        latestOracleFactType[tokenId] = factType;
+        emit OracleFactRecorded(tokenId, factType, dataHash, factId);
     }
 
     /// @notice Replaces the previous single-signer `hasRole(SUPER_ADMIN_ROLE, msg.sender)` gate

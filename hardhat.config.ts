@@ -26,7 +26,14 @@ const config: HardhatUserConfig = {
     artifacts: "./artifacts",
   },
   networks: {
-    hardhat: {},
+    // HARDHAT_FORK_URL, when set, forks the given RPC (e.g. live Sepolia) for the local `hardhat`
+    // network instead of starting from a clean chain -- used by scripts/forkRehearsal_*.ts to
+    // rehearse a real transaction sequence against real live state (via account impersonation, no
+    // private keys needed) before ever broadcasting it for real. Unset by default so every other
+    // use of the `hardhat` network (unit tests, etc.) is unaffected.
+    hardhat: process.env.HARDHAT_FORK_URL
+      ? { forking: { url: process.env.HARDHAT_FORK_URL } }
+      : {},
     amoy: {
       url: process.env.AMOY_RPC_URL || "https://rpc-amoy.polygon.technology",
       accounts: [DEPLOYER_PRIVATE_KEY],

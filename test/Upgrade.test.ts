@@ -36,7 +36,8 @@ describe("UUPS Upgrade Safety", function () {
     ac: TimeBoundAccessControl,
     proxy: { getAddress(): Promise<string>; connect(s: SignerWithAddress): { upgradeToAndCall(a: string, d: string): Promise<any> } },
     contractName: string,
-    signer: SignerWithAddress
+    signer: SignerWithAddress,
+    data: string = "0x"
   ) {
     const Factory = await ethers.getContractFactory(contractName);
     const newImpl = await Factory.deploy();
@@ -50,7 +51,7 @@ describe("UUPS Upgrade Safety", function () {
       .find((e) => e?.name === "ActionProposed");
     await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
 
-    await proxy.connect(signer).upgradeToAndCall(newImplAddr, "0x");
+    await proxy.connect(signer).upgradeToAndCall(newImplAddr, data);
     return Factory.attach(await proxy.getAddress()) as unknown as T;
   }
 
@@ -106,6 +107,73 @@ describe("UUPS Upgrade Safety", function () {
       await expect(
         authorizeAndUpgrade<TimeBoundAccessControl>(ac, ac, "TimeBoundAccessControl", superAdmin)
       ).to.not.be.reverted;
+    });
+  });
+
+  // ── ORACLE_ATTESTOR_ROLE reinitializer (T-016) ───────────────────────────
+  // Proves the in-place-upgrade + reinitializer(2) mechanism this project has never exercised
+  // against live state before: the new role's admin is set atomically with the upgrade itself
+  // (via upgradeToAndCall's `data` argument), not as a separate follow-up transaction.
+
+  describe("TimeBoundAccessControl → ORACLE_ATTESTOR_ROLE (T-016)", () => {
+    let ac: TimeBoundAccessControl;
+
+    beforeEach(async () => {
+      const Factory = await ethers.getContractFactory("TimeBoundAccessControl");
+      ac = (await upgrades.deployProxy(Factory, [superAdmin.address], { kind: "uups" })) as unknown as TimeBoundAccessControl;
+      await ac.waitForDeployment();
+
+      const ts = (await ethers.provider.getBlock("latest"))!.timestamp;
+      await ac.connect(superAdmin).grantTimedRole(SUPER_ADMIN_ROLE, superAdmin2.address, ts + 999999);
+    });
+
+    it("upgrade + reinitializer sets ORACLE_ATTESTOR_ROLE's admin to SUPER_ADMIN_ROLE", async () => {
+      const initData = ac.interface.encodeFunctionData("initializeOracleAttestorRole");
+      const upgraded = await authorizeAndUpgrade<TimeBoundAccessControl>(
+        ac, ac, "TimeBoundAccessControl", superAdmin, initData
+      );
+      expect(await upgraded.getRoleAdmin(await upgraded.ORACLE_ATTESTOR_ROLE())).to.equal(SUPER_ADMIN_ROLE);
+    });
+
+    it("calling initializeOracleAttestorRole a second time reverts (reinitializer already consumed)", async () => {
+      const initData = ac.interface.encodeFunctionData("initializeOracleAttestorRole");
+      const upgraded = await authorizeAndUpgrade<TimeBoundAccessControl>(
+        ac, ac, "TimeBoundAccessControl", superAdmin, initData
+      );
+      await expect(
+        upgraded.connect(superAdmin).initializeOracleAttestorRole()
+      ).to.be.revertedWithCustomError(upgraded, "InvalidInitialization");
+    });
+
+    it("the whole upgrade tx reverts if the upgradeToAndCall caller doesn't hold SUPER_ADMIN_ROLE, even once the implementation itself is 2-of-N authorized (atomic failure, no partial-upgrade state)", async () => {
+      // _authorizeUpgrade only checks whether the *implementation address* was 2-of-N authorized —
+      // it doesn't check who calls upgradeToAndCall (same permissionless-caller design as
+      // consumeUpgradeAuthorization elsewhere in this contract). The real caller-role requirement
+      // for THIS specific upgrade comes from the reinitializer's own onlyRole(SUPER_ADMIN_ROLE)
+      // check, executed via upgradeToAndCall's delegatecall (which preserves msg.sender) — if that
+      // reverts, EVM atomicity guarantees the whole transaction (including the implementation swap
+      // that already happened earlier in the same call) unwinds with it.
+      const Factory = await ethers.getContractFactory("TimeBoundAccessControl");
+      const newImpl = await Factory.deploy();
+      await newImpl.waitForDeployment();
+      const newImplAddr = await newImpl.getAddress();
+
+      const tx = await ac.connect(superAdmin).proposePlatformAction(4, ethers.ZeroHash, newImplAddr);
+      const r = await tx.wait();
+      const ev = r!.logs
+        .map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+
+      const initData = ac.interface.encodeFunctionData("initializeOracleAttestorRole");
+      await expect(
+        ac.connect(stranger).upgradeToAndCall(newImplAddr, initData)
+      ).to.be.revertedWithCustomError(ac, "AccessControlUnauthorizedAccount");
+
+      // Prove no partial state: the implementation is still authorized (untouched by the failed
+      // attempt) and a legitimate SUPER_ADMIN can still complete the same upgrade afterward.
+      expect(await ac.upgradeAuthorized(newImplAddr)).to.equal(true);
+      await expect(ac.connect(superAdmin).upgradeToAndCall(newImplAddr, initData)).to.not.be.reverted;
     });
   });
 
@@ -180,6 +248,34 @@ describe("UUPS Upgrade Safety", function () {
       await expect(
         ar.connect(superAdmin).upgradeToAndCall(await newImpl.getAddress(), "0x")
       ).to.be.revertedWith("upgrade not authorized");
+    });
+
+    // ── OracleAttestation wiring after upgrade (T-016) ─────────────────────
+    it("upgrades AssetRegistry, deploys+wires OracleAttestation via actionType 7, and gates recordOracleFact to only that address", async () => {
+      const upgraded = await authorizeAndUpgrade<AssetRegistry>(ac, ar, "AssetRegistry", superAdmin);
+      // Existing state (minted token from the outer beforeEach) still intact post-upgrade.
+      expect(await upgraded.ownerOf(0)).to.equal(recipient.address);
+
+      const OAFactory = await ethers.getContractFactory("OracleAttestation");
+      const oa = await OAFactory.deploy(await ac.getAddress(), await upgraded.getAddress());
+      await oa.waitForDeployment();
+      const oaAddr = await oa.getAddress();
+
+      const tx = await ac.connect(superAdmin).proposePlatformAction(7, ethers.ZeroHash, oaAddr);
+      const r = await tx.wait();
+      const ev = r!.logs
+        .map((l) => { try { return ac.interface.parseLog(l as any); } catch { return null; } })
+        .find((e) => e?.name === "ActionProposed");
+      await ac.connect(superAdmin2).coSignPlatformAction(ev!.args.actionId);
+
+      await expect(upgraded.connect(stranger).setOracleAttestationContract(oaAddr))
+        .to.emit(upgraded, "OracleAttestationContractSet").withArgs(oaAddr);
+      expect(await upgraded.oracleAttestation()).to.equal(oaAddr);
+
+      // Only the wired OracleAttestation address may call recordOracleFact.
+      await expect(
+        upgraded.connect(stranger).recordOracleFact(0, 1, ethers.ZeroHash, 0)
+      ).to.be.revertedWithCustomError(upgraded, "OnlyOracleAttestation");
     });
   });
 });

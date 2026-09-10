@@ -155,12 +155,22 @@ export const AssetRegistryAbi = [
   },
   {
     "inputs": [],
+    "name": "NotAuthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotInitializing",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "NotProposer",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyOracleAttestation",
     "type": "error"
   },
   {
@@ -187,6 +197,11 @@ export const AssetRegistryAbi = [
       }
     ],
     "name": "UUPSUnsupportedProxiableUUID",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAddress",
     "type": "error"
   },
   {
@@ -350,6 +365,50 @@ export const AssetRegistryAbi = [
       }
     ],
     "name": "MintProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oracleAttestation",
+        "type": "address"
+      }
+    ],
+    "name": "OracleAttestationContractSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "factType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "dataHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "factId",
+        "type": "uint256"
+      }
+    ],
+    "name": "OracleFactRecorded",
     "type": "event"
   },
   {
@@ -594,6 +653,25 @@ export const AssetRegistryAbi = [
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "latestOracleFactType",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "name",
     "outputs": [
@@ -626,6 +704,58 @@ export const AssetRegistryAbi = [
       {
         "internalType": "uint256",
         "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "oracleAttestation",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "oracleFactsOf",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "factType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "dataHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "factId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "finalizedAt",
         "type": "uint256"
       }
     ],
@@ -740,6 +870,34 @@ export const AssetRegistryAbi = [
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "tokenId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "factType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "dataHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "factId",
+        "type": "uint256"
+      }
+    ],
+    "name": "recordOracleFact",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "from",
         "type": "address"
@@ -802,6 +960,19 @@ export const AssetRegistryAbi = [
       }
     ],
     "name": "setApprovalForAll",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "oracleAttestationAddr",
+        "type": "address"
+      }
+    ],
+    "name": "setOracleAttestationContract",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

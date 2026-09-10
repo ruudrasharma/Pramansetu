@@ -39,7 +39,7 @@ token. Every function below reverts if the caller's DID does not hold the requir
 | Propose privileged grant | `proposePrivilegedGrant(bytes32 role, address account, uint256 validUntil) → uint256 grantId` | `SUPER_ADMIN_ROLE` |
 | Co-sign privileged grant | `coSignGrant(uint256 grantId)` | Second distinct `SUPER_ADMIN_ROLE` — executes on threshold |
 | Check role | `hasRole(bytes32 role, address account) view → bool` | Public read; auto-false past expiry |
-| Propose platform action | `proposePlatformAction(uint8 actionType, bytes32 role, address account) → uint256 actionId` | `SUPER_ADMIN_ROLE` — actionType: 1=emergencyRevoke, 2=pause, 3=unpause, 4=authorizeUpgrade, 5=authorizeDIDSignatureVerifier, 6=authorizeDIDGuardianRecovery (4/5/6 added, TODO.md §3.1/§3.2 — not yet deployed) |
+| Propose platform action | `proposePlatformAction(uint8 actionType, bytes32 role, address account) → uint256 actionId` | `SUPER_ADMIN_ROLE` — actionType: 1=emergencyRevoke, 2=pause, 3=unpause, 4=authorizeUpgrade, 5=authorizeDIDSignatureVerifier, 6=authorizeDIDGuardianRecovery (4/5/6 live on Sepolia, TODO.md §3.1/§3.2), 7=authorizeOracleAttestationContract (T-016, built+tested, not yet deployed) |
 | Co-sign platform action | `coSignPlatformAction(uint256 actionId)` | Second distinct `SUPER_ADMIN_ROLE` — executes on threshold |
 
 > **Breaking change (Phase 2.5+2.6):** `emergencyRevoke()`, `pause()`, and `unpause()` are removed as direct single-signer calls. All destructive platform actions now require 2-of-N SUPER_ADMIN co-signatures via `proposePlatformAction` + `coSignPlatformAction`.
@@ -53,6 +53,25 @@ token. Every function below reverts if the caller's DID does not hold the requir
 | Get metadata | `tokenURI(uint256 tokenId) view → string` | Public read — returns `ipfs://<CID>` |
 | Attach legal ref | `attachLegalReference(uint256 tokenId, bytes32 hash)` | Token owner |
 | VC lookup | `vcIdOf(uint256 tokenId) view → bytes32` | Public read — returns the VC gating this token's transferability |
+| Authorize oracle contract | `setOracleAttestationContract(address addr)` | Anyone — requires `addr` already 2-of-N `SUPER_ADMIN_ROLE`-authorized via `TimeBoundAccessControl.proposePlatformAction(7,...)`/`coSignPlatformAction` (T-016, not yet deployed) |
+| Record oracle fact | `recordOracleFact(uint256 tokenId, uint8 factType, bytes32 dataHash, uint256 factId)` | Only the wired `OracleAttestation` contract — called after its own multi-attestor + dispute-window process finalizes a fact (T-016, not yet deployed) |
+| Oracle fact history | `oracleFactsOf(uint256 tokenId, uint256 index) view → (uint8 factType, bytes32 dataHash, uint256 factId, uint256 finalizedAt)` | Public read — append-only per-token history (T-016) |
+| Latest oracle fact | `latestOracleFactType(uint256 tokenId) view → uint8` | Public read — cheap "current status" mirror (T-016) |
+
+### OracleAttestation (T-016, gap analysis §2.2.5 — not yet deployed to live Sepolia)
+Decentralized oracle design with multiple independent attestors and a dispute window before an
+oracle-fed real-world fact (e.g. "this physical asset was delivered") becomes final on-chain —
+distinct from `AssetRegistry`'s dual-attestation mint flow, which only guards mint-time fraud.
+
+| Function | Signature | Access |
+|---|---|---|
+| Submit fact | `submitFact(uint256 tokenId, uint8 factType, bytes32 dataHash) → uint256 factId` | `ORACLE_ATTESTOR_ROLE` — auto-signs as the first attestor |
+| Attest fact | `attestFact(uint256 factId)` | Second, distinct `ORACLE_ATTESTOR_ROLE` — at `ATTESTATION_THRESHOLD` (2), opens the `DISPUTE_WINDOW` (15 minutes) |
+| Raise dispute | `raiseDispute(uint256 factId, string reason)` | `AUDITOR_ROLE` — only while `Attested` and before the window closes |
+| Resolve dispute | `resolveDispute(uint256 factId, bool proceed)` | `SUPER_ADMIN_ROLE` — `proceed: true` finalizes immediately, `false` rejects permanently |
+| Finalize | `finalize(uint256 factId)` | Anyone, once the dispute window has elapsed undisputed — calls `AssetRegistry.recordOracleFact` |
+| Fact lookup | `facts(uint256 factId) view → (...)` | Public read — dynamic `attestors[]` member dropped by the auto-generated getter, use `getAttestors` |
+| Attestors lookup | `getAttestors(uint256 factId) view → address[]` | Public read |
 
 ### GuardianRecovery
 | Function | Signature | Access |
