@@ -6,6 +6,64 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.0] — 2026-09-10 — Gap audit fixes, batch 7: governanceService onchain wiring (T-032–T-035)
+## + a critical subgraph manifest fix that was silently blocking every subgraph deploy
+
+Closes T-032, T-033, T-034, T-035.
+
+### Added
+- `lib/hooks/useAccessControl.ts`: `useProposePrivilegedGrant()` + `useCoSignGrant()` (wrap
+  `TimeBoundAccessControl.proposePrivilegedGrant`/`coSignGrant` — the real path for `addAdmin`, a
+  separate `pendingGrants` mapping/threshold from `pendingActions`). `useProposePlatformAction()` now
+  also decodes the real `actionId` from the `ActionProposed` log.
+- `lib/hooks/useGovernanceTimelock.ts`: `useResolveDispute()` wrapping the real
+  `GovernanceTimelock.resolveDispute(txId, proceed)` — confirmed to exist and behave as described
+  (`proceed: true` → back to Queued, `false` → Cancelled).
+- `lib/queries.ts`: `GET_PLATFORM_ACTIONS`; extended `GET_GOVERNANCE`'s nested `dispute` selection.
+
+### Changed
+- `lib/services/governanceService.ts` (onchain branch), fully rewired: `getProposals`/`getDisputes`
+  query real subgraph entities instead of mock fixtures; `proposeAction` branches per kind for real
+  (`addAdmin`→`proposePrivilegedGrant`, `removeAdmin`→`proposePlatformAction(1, ...)`,
+  `pause`/`unpause` unchanged, `upgrade`→honest "not yet supported" error — no on-chain path exists);
+  `approveProposal` decodes real numeric ids (prefixed `action-`/`grant-` to disambiguate which
+  contract mapping/co-sign function applies) instead of calling `BigInt()` on a mock-shaped string;
+  `resolveDispute` calls the new real hook instead of unconditionally calling `executeTransaction`.
+- `docs/API_SPEC.md`: added the previously-undocumented `resolveDispute` row; flagged
+  `executeTransaction` as having no UI/service caller (T-053).
+
+### Fixed — critical, found while implementing the above
+`subgraph/subgraph.yaml` declared **wrong event signatures** for 5 event handlers across
+`TimeBoundAccessControl`, `CredentialRegistry`, `DIDRegistry`, and `AssetRegistry` (wrong event names,
+param counts, and param types — see TODO.md's governanceService entry for the full list). `graph
+codegen` failed outright before this fix: **the subgraph could not have been built from the current
+repo state at all**, regardless of this session's changes. Fixed all 5 signatures, plus added two
+previously-missing handlers this session's own fixes need to work correctly: `handleActionCoSigned`
+(`subgraph/src/access-control.ts`, populates `PlatformAction.coSigner` — schema already declared this
+field, no handler ever set it) and `handleDisputeResolved` (`subgraph/src/governance-timelock.ts`,
+populates new `Dispute.proceeded`/`resolvedBy`/`resolvedAt` fields — without it, T-035's real
+`resolveDispute` would succeed on-chain but never stop showing as disputed in `getDisputes()`).
+`graph codegen` and `graph build` both verified clean after these fixes.
+
+**Attempted, blocked**: `graph deploy praman-setu ... --deploy-key <key>` failed with "Subgraph not
+found" — the `praman-setu` slot doesn't exist under this deploy key's Graph Studio account. This
+confirms and sharpens T-050 (previously: the live query endpoint returns "Not found"). Needs a human
+with Graph Studio dashboard access to (re)create the subgraph slot before any deploy can succeed — see
+TODO.md T-050 for the full detail and the exact redeploy command to run once that's done.
+
+### Found, not fixed this pass (tracked in TODO.md)
+- **T-053**: no UI or service method calls `executeTransaction` — a queued, undisputed tx has no way
+  to actually finalize once `eta` passes.
+- **T-054**: the real `addAdmin`/`removeAdmin` branching this pass built has no UI caller yet — needs
+  a minimal propose form on the governance page.
+- **T-055**: `/governance`, `/governance/approvals`, `/governance/disputes` are not `dataMode`-aware at
+  all (still read the mock-only demo role switcher unconditionally) — needs the same page-level rewrite
+  `/roles`/`/identity` already got in earlier phases.
+- **T-056**: `docs/DATABASE_SCHEMA.md` §2's subgraph schema sketch doesn't match the real
+  `subgraph/schema.graphql` — pervasive drift, flagged with a note, not fixed line-by-line.
+
+---
+
 ## [0.10.9] — 2026-09-10 — Gap audit fixes, batch 6: Verifiable-Credential issuance UI (T-051)
 
 Closes T-051 (audit §4.1) — the last unimplemented step of the onboarding workflow.

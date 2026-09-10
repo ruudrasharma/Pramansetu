@@ -5,9 +5,10 @@
  * and the 2-of-N platform action queue (emergencyRevoke / pause / unpause).
  */
 
+import { useMemo } from "react";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { readContract } from "wagmi/actions";
-import { keccak256, toBytes } from "viem";
+import { keccak256, toBytes, decodeEventLog } from "viem";
 import { TimeBoundAccessControlAbi } from "@/lib/abis";
 import { contractAddresses, wagmiConfig } from "@/lib/wagmi";
 
@@ -127,12 +128,70 @@ export function useGrantTimedRole() {
 }
 
 /**
+ * proposePrivilegedGrant — first signature in the 2-of-N multisig queue for a privileged
+ * (Super-Admin-tier) role grant, e.g. addAdmin (TODO.md T-033). Distinct from grantTimedRole's
+ * single-signer path for lower-privilege roles.
+ */
+export function useProposePrivilegedGrant() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function proposePrivilegedGrant({
+    role,
+    account,
+    validUntil,
+  }: {
+    role: `0x${string}`;
+    account: `0x${string}`;
+    validUntil: bigint;
+  }) {
+    if (!address) throw new Error("AccessControl address not configured");
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "proposePrivilegedGrant", args: [role, account, validUntil] });
+  }
+
+  // Decode the real grantId from the mined transaction's GrantProposed log — same pattern as
+  // useAssetRegistry's useProposeMint decoding requestId.
+  const grantId = useMemo(() => {
+    if (!receipt || !address) return undefined;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== address.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({ abi: TimeBoundAccessControlAbi, data: log.data, topics: log.topics });
+        if (decoded.eventName === "GrantProposed") {
+          return (decoded.args as { grantId: bigint }).grantId;
+        }
+      } catch {
+        // not a GrantProposed log — skip
+      }
+    }
+    return undefined;
+  }, [receipt, address]);
+
+  return { proposePrivilegedGrant, hash, grantId, isPending: isPending || isConfirming, isSuccess, error };
+}
+
+/**
+ * coSignGrant — second signature; executes the privileged grant when GRANT_THRESHOLD is met.
+ */
+export function useCoSignGrant() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function coSignGrant(grantId: bigint) {
+    if (!address) throw new Error("AccessControl address not configured");
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "coSignGrant", args: [grantId] });
+  }
+
+  return { coSignGrant, hash, isPending: isPending || isConfirming, isSuccess, error };
+}
+
+/**
  * proposePlatformAction — first signature in the 2-of-N multisig queue.
  * actionType: 1 = emergencyRevoke, 2 = pause, 3 = unpause
  */
 export function useProposePlatformAction() {
   const { writeContract, data: hash, isPending, error } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { data: receipt, isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   function proposePlatformAction({
     actionType,
@@ -152,7 +211,25 @@ export function useProposePlatformAction() {
     });
   }
 
-  return { proposePlatformAction, hash, isPending: isPending || isConfirming, isSuccess, error };
+  // Decode the real actionId from the mined transaction's ActionProposed log (TODO.md T-034 —
+  // approveProposal previously called BigInt() on a mock-shaped string id instead of this).
+  const actionId = useMemo(() => {
+    if (!receipt || !address) return undefined;
+    for (const log of receipt.logs) {
+      if (log.address.toLowerCase() !== address.toLowerCase()) continue;
+      try {
+        const decoded = decodeEventLog({ abi: TimeBoundAccessControlAbi, data: log.data, topics: log.topics });
+        if (decoded.eventName === "ActionProposed") {
+          return (decoded.args as { actionId: bigint }).actionId;
+        }
+      } catch {
+        // not an ActionProposed log — skip
+      }
+    }
+    return undefined;
+  }, [receipt, address]);
+
+  return { proposePlatformAction, hash, actionId, isPending: isPending || isConfirming, isSuccess, error };
 }
 
 /**

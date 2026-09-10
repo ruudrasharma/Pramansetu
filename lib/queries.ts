@@ -96,9 +96,31 @@ export const GET_GOVERNANCE = gql`
       queuedAt
       dispute {
         id
+        raisedBy
         reason
         resolved
+        proceeded
+        resolvedBy
+        raisedAt
+        resolvedAt
       }
+    }
+  }
+`;
+
+export const GET_PLATFORM_ACTIONS = gql`
+  query GetPlatformActions {
+    platformActions(first: 50, orderBy: proposedAt, orderDirection: desc) {
+      id
+      actionId
+      actionType
+      role
+      account
+      proposer
+      coSigner
+      executed
+      proposedAt
+      executedAt
     }
   }
 `;

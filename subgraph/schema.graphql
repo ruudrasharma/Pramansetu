@@ -107,6 +107,9 @@ type Dispute @entity {
   raisedBy: Bytes!
   reason: String!
   resolved: Boolean!
+  proceeded: Boolean               # set on resolution: true = tx returns to queue, false = cancelled
+  resolvedBy: Bytes                # DisputeResolved doesn't carry this param — tx.from is used instead
+  resolvedAt: BigInt
   raisedAt: BigInt!
   txHash: Bytes!
 }

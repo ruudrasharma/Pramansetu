@@ -146,21 +146,100 @@ non-expired credential of this role" edge case isn't checked yet — see **T-052
 recent `validUntil` governs). Not built in the T-051 pass; the page always proposes a fresh issuance
 with no pre-check against the subject's existing credentials.
 
-### `lib/services/governanceService.ts`
-- **T-032** `getProposals` / `getDisputes` — both return mock fixture arrays. Needs subgraph queries
-  over `GovernanceTx`/`PlatformAction` entities.
-- **T-033** `proposeAction` — hardcodes zero role/account, and maps `addAdmin`/`upgrade` onto
-  `actionType` values that don't correspond to real contract enum members (only 1/2/3 are valid —
-  emergencyRevoke/pause/unpause). Needs real per-kind branching against the actual contract surface
-  (`grantRole`/`_authorizeUpgrade`) for `addAdmin`/`removeAdmin`/`upgrade`, not the platform-action queue.
-- **T-034** `approveProposal` — calls `BigInt(proposalId)` where `proposalId` is a mock-shaped string
-  (e.g. `"gov-1"`); **throws at runtime** the first time this path is exercised in onchain mode. Needs
-  the real numeric `actionId` read from the proposing transaction's receipt, same pattern as
-  `assetService`'s `useProposeMint`.
-- **T-035** `resolveDispute` — silently ignores its own `proceed: boolean` argument and always calls
-  `executeTransaction`, even when the caller meant to reject/cancel a disputed transaction. Needs a
-  real `resolveDispute`-equivalent wagmi hook in `lib/hooks/useGovernanceTimelock.ts` that branches on
-  `proceed`.
+### `lib/services/governanceService.ts` — closed 2026-09-10 (T-032–T-035), with major adjacent findings
+- **T-032** ✅ `getProposals`/`getDisputes` now query real subgraph entities (`GET_PLATFORM_ACTIONS`
+  over `PlatformAction`, `GET_GOVERNANCE` over `GovernanceTx`+`Dispute`), adapted to the
+  `GovernanceProposal`/`TimelockTransaction` shapes. `role`/`account` on `PlatformAction` stay empty
+  in the adapted output — `ActionProposed` genuinely doesn't emit them
+  (`contracts/TimeBoundAccessControl.sol:60`), a contract-level limitation, not a mapping gap.
+- **T-033** ✅ `proposeAction` now branches per kind for real: `pause`/`unpause` unchanged (already
+  correct); `removeAdmin` → `proposePlatformAction(1=emergencyRevoke, ADMIN_ROLE, account)`;
+  `addAdmin` → the real `proposePrivilegedGrant` (new hook, see below) since privileged grants use a
+  separate `pendingGrants` mapping/threshold from `pendingActions`; `upgrade` throws an honest "not
+  yet supported" error (no on-chain path exists — `_authorizeUpgrade` is single-signer only, TODO §3.2,
+  contract change gated behind sign-off). Extended the interface with an optional `target` param
+  (account + validUntil) since the old signature couldn't carry what real addAdmin/removeAdmin need —
+  safe because `proposeAction` has zero real UI callers today (see **T-054**).
+- **T-034** ✅ `approveProposal` no longer calls `BigInt()` on a mock-shaped string. Onchain proposal
+  ids are now prefixed by which pending-item mapping they live in — `action-<actionId>` or
+  `grant-<grantId>` — decoded from the proposing transaction's real event log
+  (`useProposePlatformAction`'s new `actionId` field, `useProposePrivilegedGrant`'s new `grantId`
+  field, both added to `lib/hooks/useAccessControl.ts`, same log-decoding pattern as
+  `useProposeMint`'s `requestId`). `approveProposal` branches on the prefix to call
+  `coSignPlatformAction` or the new `useCoSignGrant`.
+- **T-035** ✅ `resolveDispute` now calls a real `useResolveDispute` hook (new, in
+  `lib/hooks/useGovernanceTimelock.ts`) wrapping `GovernanceTimelock.resolveDispute(txId, proceed)` —
+  confirmed the function exists and behaves as the audit described (`proceed: true` returns the tx to
+  Queued, `false` cancels it permanently) — instead of unconditionally calling `executeTransaction`.
+
+#### Major finding while implementing T-032: the subgraph manifest didn't match the contracts at all
+`subgraph/subgraph.yaml` declared **wrong event signatures** for 5 of the ~20 event handlers across
+`TimeBoundAccessControl`, `CredentialRegistry`, `DIDRegistry`, and `AssetRegistry` — wrong event names
+(`RoleGranted` vs. the contract's actual `TimedRoleGranted`), wrong param counts (`ActionProposed`
+declared with 5 params, the deployed contract's is 3; `MintProposed` similarly overcounted), and wrong
+param types (`KeyRotated`'s 2nd param declared `bytes`, actually `indexed address`;
+`CredentialRevoked`'s 2nd param declared `indexed address`, actually `uint256`; `AssetMinted`'s params
+declared in the wrong types/order entirely). Confirmed by running `graph codegen`, which failed outright
+with "Event with signature '...' not present in ABI" for every one of these — **this subgraph could not
+have been built from the current state of `contracts/` + `subgraph/src/*.ts` + `subgraph/subgraph.yaml`
+all together**, regardless of anything in this session's scope. The `.ts` mapping files themselves were
+already written correctly against the real event params (confirmed by reading e.g.
+`asset-registry.ts`'s `event.params.recipientDid` usage, which only makes sense against the real
+4-param `AssetMinted`) — only the manifest's declared signatures had drifted. Fixed all 5, plus added
+two previously-missing handlers needed for this session's own fixes to actually reflect state correctly:
+`ActionCoSigned` (populates `PlatformAction.coSigner`, which the schema already declared but no handler
+ever set — without it, `getProposals()`'s "1/2 signed" state was unobservable) and `DisputeResolved`
+(populates `Dispute.resolved`/`proceeded`/`resolvedBy`/`resolvedAt` — new schema fields; without it,
+T-035's real `resolveDispute` calls would succeed on-chain but a resolved dispute would show as
+still-disputed forever in `getDisputes()`). `graph codegen` and `graph build` both succeed cleanly
+after these fixes — verified in this session, not assumed.
+
+**Also found, likely inert (not fixed — compiles fine, not a blocker):** `TimeBoundAccessControl`'s
+manifest binds `handleRoleRevoked` to the inherited OZ `AccessControl.RoleRevoked` event, but the
+contract never calls `_revokeRole`/`renounceRole` anywhere — emergency revocation works purely by
+setting `roleExpiry` to `block.timestamp` inside `coSignPlatformAction`'s actionType==1 branch, which
+already correctly surfaces as a `"RoleRevoked"` audit event via `handleActionExecuted`. This handler
+binding is real, valid, and harmless, just structurally unreachable.
+
+**Attempted, blocked: could not actually redeploy.** Ran `graph deploy praman-setu subgraph.yaml
+--studio --deploy-key <the GRAPH_DEPLOY_KEY from .env.local> --version-label v4` after confirming a
+clean local build — it failed with **"Subgraph not found."** This is a Graph Studio-side rejection
+(the deploy key doesn't correspond to an existing `praman-setu` subgraph slot under whatever account it
+belongs to), not a build or code problem — see **T-050** below, which this directly confirms and
+sharpens: the "Not found" the live query endpoint returns isn't a transient/network issue, it's that
+the subgraph slot itself doesn't currently exist (or isn't reachable by this deploy key). Creating a
+Graph Studio subgraph slot is a one-time dashboard action (studio.thegraph.com) that needs a human with
+account access — this session has the deploy key but not that access. All the fixes above are ready to
+deploy the moment that slot exists: run `npm run deploy:studio -- --deploy-key <key> --version-label
+v5` (or whatever label) from `subgraph/`, then update `.env.local`'s `NEXT_PUBLIC_SUBGRAPH_URL` to the
+resulting query URL.
+
+### T-054 — `proposeAction` (all 5 kinds) and `pause`/`unpause`'s multisig UI have no real "propose
+add/remove Admin" caller anywhere
+Found while closing T-033 (2026-09-10). `governance/page.tsx`'s "Multisig queue" lane can only
+*approve* existing proposals (`approveProposal`) or trigger pause/unpause (dedicated buttons) — there
+is no form anywhere to actually call `proposeAction("addAdmin"/"removeAdmin", ...)`, so the real
+per-kind branching this session built has no UI path to reach it yet, same category as T-027/T-043's
+dead-code stopgaps except here the underlying logic is real, not stubbed. Needs a minimal "Propose add/
+remove Admin" form (target address + validity for addAdmin) on the governance page, gated to Super
+Admin, before FR-5.1 ("Super Admin actions... require M-of-N multisig") is demonstrable end-to-end for
+role changes specifically (pause/unpause already are).
+
+### T-055 — Governance pages (`/governance`, `/governance/approvals`, `/governance/disputes`) are not
+`dataMode`-aware at all
+Found while closing T-032–T-035 (2026-09-10). All three pages resolve "me" via
+`identityByRole[useAppStore((s) => s.activeRole)]` unconditionally — the mock-only demo role switcher
+— never `useCurrentIdentity()`/`dataMode`, unlike `/roles` and `/identity` (fixed in Phases B.1/B.2).
+Concretely, in onchain mode: `canPause`/`canRaise`/`canResolve` gate on the demo role switcher instead
+of a real connected wallet's on-chain role (so a real Super Admin wallet won't see pause controls, and
+anyone who sets the mock switcher to "SUPER_ADMIN" would incorrectly see them, even though the
+underlying contract call would still correctly revert for an unauthorized caller); `proposedBy`/
+`raisedBy`/`resolvedBy`/`currentSignerDid` are all a mock persona's DID string, not the real connected
+address `getProposals()`'s onchain signers are now keyed by (see T-032's note above on signer identity
+being address-based, not DID-based, for real multisig data) — so the "already signed" check in
+`MultisigApprovalWidget` won't correctly match a real signer either. Out of scope for this pass (T-032–
+T-035 was specifically the service layer); needs the same page-level rewrite `/roles` and `/identity`
+already got.
 
 ### `lib/services/auditService.ts`
 - **T-036** ✅ closed 2026-09-10 — `dismissAlert` was a no-op in onchain mode; the dismissal was
@@ -210,6 +289,36 @@ was verified by direct source reading and `tsc`/`next build`/lint, the same limi
 audit itself flagged for contract compilation, not by exercising it against real indexed data. Needs
 a redeploy of `subgraph/` to Graph Studio (or a corrected URL, if the subgraph is alive under a
 different version tag) before treating onchain mode as demo-ready.
+
+**2026-09-10 update, while closing T-032–T-035**: this is sharper than "the endpoint returns Not
+found" — an actual `graph deploy praman-setu ... --deploy-key <GRAPH_DEPLOY_KEY>` attempt (after fixing
+the manifest bugs documented under the governanceService entry below and confirming a clean local
+`graph build`) failed with **"Subgraph not found"** directly from Graph Studio's deploy endpoint. The
+`praman-setu` subgraph slot itself doesn't exist (or isn't reachable) under whatever Graph Studio
+account this deploy key belongs to — not a network/config issue on this session's end. Needs a human
+with Graph Studio dashboard access (studio.thegraph.com) to (re)create the `praman-setu` subgraph slot
+before any `graph deploy` can succeed — this session has the deploy key but not dashboard access. Every
+subgraph fix made this session (manifest signatures, two new handlers, two new schema fields) is
+verified buildable and ready to ship the moment that slot exists.
+
+### T-056 — `docs/DATABASE_SCHEMA.md` §2's subgraph schema sketch doesn't match `subgraph/schema.graphql`
+Found while writing `governanceService.ts`'s subgraph queries (2026-09-10). Nearly every entity in
+`DATABASE_SCHEMA.md`'s §2 GraphQL block differs from the real, buildable schema — wrong field names
+throughout, and `GovernanceAction`/no `MintRequest` don't exist in the real schema at all (the real
+governance entities are `PlatformAction`, `GovernanceTx`, and `Dispute`). Flagged with a prominent note
+at the top of §2 pointing to `subgraph/schema.graphql` as ground truth, not fixed line-by-line this
+pass — the drift is pervasive enough (nearly every entity, not just governance) that it deserves a
+dedicated full-sync pass rather than a partial patch.
+
+### T-053 — No UI or service method calls `GovernanceTimelock.executeTransaction`
+Found while closing T-035 (2026-09-10) — `governanceService.ts` no longer needs
+`useExecuteTransaction` internally (it was only ever used as T-035's workaround, calling it instead of
+a real `resolveDispute`). Checked: nothing else in the app calls it either, so a queued, non-disputed
+transaction has no way to actually be finalized once its `eta` passes — the timelock queue can be
+populated and disputed, but never executed, through the product today. Not fixed this pass (out of
+T-035's scope); needs either a `GovernanceService.executeTransaction` method + a button on the
+timelock-queue lane once `eta` has passed, or a documented decision that this is acceptable to leave
+manual (e.g. via Etherscan) for this build's scope.
 
 ### T-049 — No frontend/API-route test framework exists anywhere in this repo
 Found while closing T-036 (2026-09-10). `docs/TESTING.md` §2–4 (Frontend Unit Tests, Integration

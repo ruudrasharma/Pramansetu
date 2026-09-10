@@ -3,27 +3,45 @@
 /**
  * lib/services/governanceService.ts — Multi-Sig Governance & Dispute Resolution (M5):
  * Super Admin multisig queue + GovernanceTimelock cooling-off + dispute veto.
+ *
+ * Onchain proposal ids are prefixed by which pending-item mapping they live in on
+ * TimeBoundAccessControl — `action-<actionId>` (pendingActions, via proposePlatformAction) or
+ * `grant-<grantId>` (pendingGrants, via proposePrivilegedGrant) — since they're two distinct
+ * ID spaces on the contract requiring two different co-sign functions. approveProposal branches
+ * on this prefix (T-034).
  */
 
 import { dataMode } from "./dataMode";
 import { useMockDataStore } from "@/lib/store/mockDataStore";
-import {
-  governanceProposals,
-  timelockTransactions,
-  type GovernanceProposal,
-  type TimelockTransaction,
-  type ProposalKind,
-} from "@/lib/mock/fixtures";
+import { type GovernanceProposal, type TimelockTransaction, type ProposalKind } from "@/lib/mock/fixtures";
 import {
   useProposePlatformAction as useProposePlatformActionOnchain,
   useCoSignPlatformAction as useCoSignPlatformActionOnchain,
+  useProposePrivilegedGrant as useProposePrivilegedGrantOnchain,
+  useCoSignGrant as useCoSignGrantOnchain,
   usePlatformPaused as usePlatformPausedOnchain,
+  ROLE,
 } from "@/lib/hooks/useAccessControl";
-import { useRaiseDispute as useRaiseDisputeOnchain, useExecuteTransaction as useExecuteTransactionOnchain } from "@/lib/hooks/useGovernanceTimelock";
+import {
+  useRaiseDispute as useRaiseDisputeOnchain,
+  useResolveDispute as useResolveDisputeOnchain,
+} from "@/lib/hooks/useGovernanceTimelock";
+import { useQuery } from "@tanstack/react-query";
+import { getGraphQLClient } from "@/lib/graphql";
+import { GET_PLATFORM_ACTIONS, GET_GOVERNANCE } from "@/lib/queries";
+
+const ZERO_ROLE = ("0x" + "0".repeat(64)) as `0x${string}`;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 
 export interface GovernanceService {
   getProposals: () => GovernanceProposal[];
-  proposeAction: (kind: ProposalKind, title: string, proposedBy: string) => void;
+  /**
+   * `target` is required for "addAdmin" (account + validUntil) and "removeAdmin" (account) —
+   * optional only because "pause"/"unpause"/"upgrade" don't need one. Callers resolving a target
+   * DID to an address should use `resolveControllerAddress` (lib/hooks/useDIDRegistry.ts), same
+   * as rbacService's write paths.
+   */
+  proposeAction: (kind: ProposalKind, title: string, proposedBy: string, target?: { account: string; validUntil?: number }) => void;
   approveProposal: (proposalId: string, signer: string) => void;
   getDisputes: () => TimelockTransaction[];
   raiseDispute: (txId: number, reason: string, raisedBy: string) => void;
@@ -51,37 +69,156 @@ function useMockGovernanceService(): GovernanceService {
   };
 }
 
+interface RawPlatformAction {
+  actionId: string;
+  actionType: number;
+  proposer: string;
+  coSigner: string | null;
+  executed: boolean;
+  proposedAt: string;
+  executedAt: string | null;
+}
+
+interface RawDispute {
+  id: string;
+  raisedBy: string;
+  reason: string;
+  resolved: boolean;
+  proceeded: boolean | null;
+  resolvedBy: string | null;
+  raisedAt: string;
+  resolvedAt: string | null;
+}
+
+interface RawGovernanceTx {
+  txId: string;
+  target: string;
+  calldata: string;
+  eta: string;
+  executed: boolean;
+  queuedAt: string;
+  dispute: RawDispute | null;
+}
+
 function useOnchainGovernanceService(): GovernanceService {
-  const { proposePlatformAction, isPending: isProposing } = useProposePlatformActionOnchain();
-  const { coSignPlatformAction, isPending: isCoSigning } = useCoSignPlatformActionOnchain();
+  const { proposePlatformAction, isPending: isProposingAction } = useProposePlatformActionOnchain();
+  const { coSignPlatformAction, isPending: isCoSigningAction } = useCoSignPlatformActionOnchain();
+  const { proposePrivilegedGrant, isPending: isProposingGrant } = useProposePrivilegedGrantOnchain();
+  const { coSignGrant, isPending: isCoSigningGrant } = useCoSignGrantOnchain();
   const { data: isPaused } = usePlatformPausedOnchain();
   const { raiseDispute, isPending: isDisputing } = useRaiseDisputeOnchain();
-  const { executeTransaction, isPending: isExecuting } = useExecuteTransactionOnchain();
+  const { resolveDispute: resolveDisputeOnchain, isPending: isResolving } = useResolveDisputeOnchain();
+
+  const actionsQuery = useQuery({
+    queryKey: ["platformActions"],
+    queryFn: async () => getGraphQLClient().request<{ platformActions: RawPlatformAction[] }>(GET_PLATFORM_ACTIONS),
+    refetchInterval: 10000,
+  });
+
+  const governanceQuery = useQuery({
+    queryKey: ["governanceTxs"],
+    queryFn: async () => getGraphQLClient().request<{ governanceTxs: RawGovernanceTx[] }>(GET_GOVERNANCE),
+    refetchInterval: 10000,
+  });
+
+  // actionType: 1 = emergencyRevoke (any role, not necessarily Admin — the UI's ProposalKind
+  // union only distinguishes "removeAdmin" as a label, the contract doesn't), 2 = pause, 3 =
+  // unpause. `role`/`account` are always empty here — ActionProposed genuinely doesn't emit them
+  // (contracts/TimeBoundAccessControl.sol:60), so there's nothing honest to show beyond the
+  // action type itself; this is a contract-level limitation, not a subgraph gap.
+  const proposals: GovernanceProposal[] = (actionsQuery.data?.platformActions ?? []).map((a) => {
+    const kind: ProposalKind = a.actionType === 1 ? "removeAdmin" : a.actionType === 2 ? "pause" : "unpause";
+    const title = a.actionType === 1 ? "Emergency revoke role" : a.actionType === 2 ? "Emergency pause" : "Unpause platform";
+    return {
+      id: `action-${a.actionId}`,
+      kind,
+      title,
+      description: `Platform action #${a.actionId} via TimeBoundAccessControl.proposePlatformAction.`,
+      proposedBy: a.proposer,
+      proposedAt: Number(a.proposedAt) * 1000,
+      status: a.executed ? "executed" : "queued",
+      // Signer identity here is the real controlling ADDRESS, not a DID — multisig co-signing on
+      // this contract is by address (msg.sender), and resolving each address back to a DID would
+      // need a per-signer subgraph/Identity lookup this pass didn't build. currentSignerDid
+      // comparisons against this list only work correctly once callers pass an address too.
+      signers: [
+        { did: a.proposer, signed: true },
+        ...(a.coSigner ? [{ did: a.coSigner, signed: true }] : []),
+      ],
+      requiredSignatures: 2, // ACTION_THRESHOLD (contracts/TimeBoundAccessControl.sol:28)
+    };
+  });
+
+  const disputes: TimelockTransaction[] = (governanceQuery.data?.governanceTxs ?? []).map((tx) => {
+    const d = tx.dispute;
+    const status: TimelockTransaction["status"] =
+      d && !d.resolved ? "disputed" : d?.resolved && d.proceeded === false ? "cancelled" : tx.executed ? "executed" : "queued";
+    return {
+      txId: Number(tx.txId),
+      title: `Governance tx #${tx.txId}`,
+      description: `Queued transaction to ${tx.target}`,
+      target: tx.target,
+      queuedAt: Number(tx.queuedAt) * 1000,
+      eta: Number(tx.eta) * 1000,
+      status,
+      raisedBy: d?.raisedBy,
+      disputeReason: d?.reason,
+      resolution:
+        d?.resolved
+          ? { proceeded: !!d.proceeded, resolvedBy: d.resolvedBy ?? "", resolvedAt: d.resolvedAt ? Number(d.resolvedAt) * 1000 : 0 }
+          : undefined,
+    };
+  });
 
   return {
-    // TODO(onchain): pendingActions(actionId) is per-ID only — no "list all pending"
-    // view. Needs a subgraph query over GovernanceAction entities (docs/DATABASE_SCHEMA.md).
-    getProposals: () => governanceProposals,
-    proposeAction: (kind) => {
-      const actionTypeMap: Record<ProposalKind, number> = { addAdmin: 0, removeAdmin: 1, upgrade: 0, pause: 2, unpause: 3 };
-      // TODO(onchain): addAdmin/removeAdmin/upgrade don't map 1:1 onto the contract's
-      // actionType enum (1=emergencyRevoke, 2=pause, 3=unpause per
-      // contracts/TimeBoundAccessControl.sol:156) — those go through grantRole/
-      // _authorizeUpgrade instead. This wiring needs per-kind branching once built.
-      proposePlatformAction({ actionType: actionTypeMap[kind], role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x0000000000000000000000000000000000000000" });
+    getProposals: () => proposals,
+    proposeAction: (kind, _title, _proposedBy, target) => {
+      if (kind === "pause") {
+        proposePlatformAction({ actionType: 2, role: ZERO_ROLE, account: ZERO_ADDRESS });
+        return;
+      }
+      if (kind === "unpause") {
+        proposePlatformAction({ actionType: 3, role: ZERO_ROLE, account: ZERO_ADDRESS });
+        return;
+      }
+      if (kind === "removeAdmin") {
+        if (!target?.account) throw new Error('proposeAction("removeAdmin", ...) requires target.account (the address to revoke).');
+        proposePlatformAction({ actionType: 1, role: ROLE.ADMIN_ROLE, account: target.account as `0x${string}` });
+        return;
+      }
+      if (kind === "addAdmin") {
+        if (!target?.account || !target?.validUntil) {
+          throw new Error('proposeAction("addAdmin", ...) requires target.account and target.validUntil.');
+        }
+        proposePrivilegedGrant({
+          role: ROLE.ADMIN_ROLE,
+          account: target.account as `0x${string}`,
+          validUntil: BigInt(Math.floor(target.validUntil / 1000)),
+        });
+        return;
+      }
+      // kind === "upgrade": no on-chain path exists yet — _authorizeUpgrade on both upgradeable
+      // contracts is single-signer only (TODO.md §3.2 / gap audit §2.2), gated behind
+      // AI_DEVELOPMENT_RULES.md §9 sign-off since fixing it means a contract change. An honest
+      // failure here, not a transaction that would revert or silently do nothing.
+      throw new Error('proposeAction("upgrade", ...) is not yet supported on-chain — see TODO.md §3.2.');
     },
-    approveProposal: (proposalId) => coSignPlatformAction(BigInt(proposalId)),
-    // TODO(onchain): GovernanceTimelock.queue(txId) is per-ID only — subgraph query
-    // over queued/disputed transactions needed for a full list.
-    getDisputes: () => timelockTransactions,
+    approveProposal: (proposalId) => {
+      if (proposalId.startsWith("action-")) {
+        coSignPlatformAction(BigInt(proposalId.slice("action-".length)));
+      } else if (proposalId.startsWith("grant-")) {
+        coSignGrant(BigInt(proposalId.slice("grant-".length)));
+      } else {
+        throw new Error(`approveProposal: unrecognized onchain proposal id "${proposalId}" — expected "action-<id>" or "grant-<id>".`);
+      }
+    },
+    getDisputes: () => disputes,
     raiseDispute: (txId, reason) => raiseDispute({ txId: BigInt(txId), reason }),
-    // TODO(onchain): resolveDispute has no wagmi hook yet (lib/hooks/useGovernanceTimelock.ts
-    // doesn't wrap it) — executeTransaction below only runs the non-disputed path.
-    resolveDispute: (txId) => executeTransaction(BigInt(txId)),
-    pause: () => proposePlatformAction({ actionType: 2, role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x0000000000000000000000000000000000000000" }),
-    unpause: () => proposePlatformAction({ actionType: 3, role: "0x0000000000000000000000000000000000000000000000000000000000000000", account: "0x0000000000000000000000000000000000000000" }),
+    resolveDispute: (txId, proceed) => resolveDisputeOnchain({ txId: BigInt(txId), proceed }),
+    pause: () => proposePlatformAction({ actionType: 2, role: ZERO_ROLE, account: ZERO_ADDRESS }),
+    unpause: () => proposePlatformAction({ actionType: 3, role: ZERO_ROLE, account: ZERO_ADDRESS }),
     isPlatformPaused: !!isPaused,
-    isPending: isProposing || isCoSigning || isDisputing || isExecuting,
+    isPending: isProposingAction || isCoSigningAction || isProposingGrant || isCoSigningGrant || isDisputing || isResolving,
   };
 }
 

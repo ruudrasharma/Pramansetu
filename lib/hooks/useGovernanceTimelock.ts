@@ -82,6 +82,23 @@ export function useRaiseDispute() {
 }
 
 /**
+ * resolveDispute — Super Admin resolves a disputed transaction (T-035).
+ * `proceed: true` returns the tx to Queued (still needs executeTransaction once eta passes);
+ * `proceed: false` cancels it permanently (contracts/GovernanceTimelock.sol:90-95).
+ */
+export function useResolveDispute() {
+  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+
+  function resolveDispute({ txId, proceed }: { txId: bigint; proceed: boolean }) {
+    if (!address) throw new Error("GovernanceTimelock address not configured");
+    writeContract({ address, abi: GovernanceTimelockAbi, functionName: "resolveDispute", args: [txId, proceed] });
+  }
+
+  return { resolveDispute, hash, isPending: isPending || isConfirming, isSuccess, error };
+}
+
+/**
  * executeTransaction — execute a queued transaction after ETA + no active dispute.
  * Permissionless — anyone can call once conditions are met.
  */

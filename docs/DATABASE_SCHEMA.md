@@ -55,6 +55,17 @@ true at all times as a system invariant.
 
 These entities mirror emitted events 1:1 — the indexer never stores anything not derivable from an event.
 
+> **2026-09-10: this section is an idealized sketch, not a faithful mirror of `subgraph/schema.graphql`
+> (the real, buildable schema).** Found while implementing governanceService.ts's onchain wiring
+> (TODO.md T-032): most field names below don't match the real schema (e.g. `AuditEvent.eventType` here
+> vs. the real `type`; `Credential.issuer` here vs. the real `issuerDid: Bytes`), and `GovernanceAction`
+> below doesn't exist at all — the real equivalents are three separate entities, `PlatformAction`
+> (Super-Admin multisig actions), `GovernanceTx` (timelock queue), and `Dispute` (nested under
+> `GovernanceTx`). `MintRequest` (dual-attestation mint staging) also has no equivalent below. Treat
+> `subgraph/schema.graphql` as ground truth until this section gets a full sync pass (not done in this
+> session — the sketch below is left as directional context, not fixed line-by-line, since the drift is
+> pervasive across nearly every entity here, not scoped to governance).
+
 ```graphql
 type Identity @entity {
   id: ID!                  # DID string

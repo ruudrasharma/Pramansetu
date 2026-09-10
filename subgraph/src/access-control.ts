@@ -3,6 +3,7 @@ import {
   TimedRoleGranted as TimedRoleGrantedEvent,
   RoleRevoked as RoleRevokedEvent,
   ActionProposed as ActionProposedEvent,
+  ActionCoSigned as ActionCoSignedEvent,
   ActionExecuted as ActionExecutedEvent,
   Paused as PausedEvent,
   Unpaused as UnpausedEvent,
@@ -65,6 +66,16 @@ export function handleActionProposed(event: ActionProposedEvent): void {
   action.proposer    = event.params.proposer;
   action.executed    = false;
   action.proposedAt  = event.block.timestamp;
+  action.save();
+}
+
+// TODO.md T-032/T-034: previously unhandled — PlatformAction.coSigner (declared in schema.graphql)
+// was never populated by any mapping, so getProposals()'s "1/2 signed, needs 1 more" state was
+// unobservable from indexed data; an action just jumped straight from "no coSigner" to executed.
+export function handleActionCoSigned(event: ActionCoSignedEvent): void {
+  let action = PlatformAction.load(event.params.actionId.toString());
+  if (action == null) return;
+  action.coSigner = event.params.signer;
   action.save();
 }
 

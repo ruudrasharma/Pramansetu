@@ -61,7 +61,8 @@ token. Every function below reverts if the caller's DID does not hold the requir
 |---|---|---|
 | Queue transaction | `queueTransaction(address target, bytes data, uint256 eta)` | Super Admin multisig |
 | Raise dispute | `raiseDispute(uint256 txId, string reason)` | `AUDITOR_ROLE` |
-| Execute | `executeTransaction(uint256 txId)` | Anyone, after `eta` and no active dispute |
+| Resolve dispute | `resolveDispute(uint256 txId, bool proceed)` | `SUPER_ADMIN_ROLE` — `proceed: true` returns the tx to Queued (still needs `executeTransaction` once `eta` passes), `false` cancels it permanently |
+| Execute | `executeTransaction(uint256 txId)` | Anyone, after `eta` and no active dispute — **no UI or service caller wires this today, see TODO.md T-053** |
 
 ## 2. Off-Chain Read API (Indexer)
 

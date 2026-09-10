@@ -2,6 +2,7 @@ import { BigInt } from "@graphprotocol/graph-ts";
 import {
   TransactionQueued as TransactionQueuedEvent,
   DisputeRaised as DisputeRaisedEvent,
+  DisputeResolved as DisputeResolvedEvent,
   TransactionExecuted as TransactionExecutedEvent,
   GovernanceTimelock
 } from "../generated/GovernanceTimelock/GovernanceTimelock";
@@ -46,6 +47,32 @@ export function handleDisputeRaised(event: DisputeRaisedEvent): void {
   audit.type         = "DisputeRaised";
   audit.actorAddress = event.params.raisedBy;
   audit.summary      = "Dispute raised on governance tx #" + event.params.txId.toString() + ": " + event.params.reason;
+  audit.timestamp    = event.block.timestamp;
+  audit.blockNumber  = event.block.number;
+  audit.txHash       = event.transaction.hash;
+  audit.save();
+}
+
+// TODO.md T-032/T-035: previously unhandled — Dispute.resolved was never set back to true after
+// GovernanceTimelock.resolveDispute() fired, so a resolved dispute would show as still-active
+// forever in getDisputes(). proceeded=true returns the tx to Queued (still needs eta + a separate
+// executeTransaction to actually finalize); proceeded=false cancels it permanently
+// (contracts/GovernanceTimelock.sol:90-95).
+export function handleDisputeResolved(event: DisputeResolvedEvent): void {
+  let dispute = Dispute.load(event.params.txId.toString());
+  if (dispute == null) return;
+  dispute.resolved   = true;
+  dispute.proceeded  = event.params.proceeded;
+  dispute.resolvedBy = event.transaction.from;
+  dispute.resolvedAt = event.block.timestamp;
+  dispute.save();
+
+  let auditId = "GovTL-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
+  let audit = new AuditEvent(auditId);
+  audit.type         = "GovernanceExecuted";
+  audit.actorAddress = event.transaction.from;
+  audit.summary      = "Dispute on governance tx #" + event.params.txId.toString() + " resolved — "
+                      + (event.params.proceeded ? "proceeded" : "cancelled");
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

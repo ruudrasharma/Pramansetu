@@ -28,7 +28,7 @@ dataSources:
       eventHandlers:
         - event: DIDCreated(indexed bytes32,indexed address,string,uint256)
           handler: handleDIDCreated
-        - event: KeyRotated(indexed bytes32,bytes,string,uint256)
+        - event: KeyRotated(indexed bytes32,indexed address,string,uint256)
           handler: handleKeyRotated
       file: ./src/did-registry.ts
 
@@ -52,7 +52,7 @@ dataSources:
       eventHandlers:
         - event: CredentialIssued(indexed bytes32,indexed bytes32,indexed bytes32,string,uint256)
           handler: handleCredentialIssued
-        - event: CredentialRevoked(indexed bytes32,indexed address)
+        - event: CredentialRevoked(indexed bytes32,uint256)
           handler: handleCredentialRevoked
       file: ./src/credential-registry.ts
 
@@ -75,12 +75,14 @@ dataSources:
         - name: TimeBoundAccessControl
           file: ../artifacts/contracts/TimeBoundAccessControl.sol/TimeBoundAccessControl.json
       eventHandlers:
-        - event: RoleGranted(indexed bytes32,indexed address,indexed address)
-          handler: handleRoleGranted
+        - event: TimedRoleGranted(indexed bytes32,indexed address,uint256)
+          handler: handleTimedRoleGranted
         - event: RoleRevoked(indexed bytes32,indexed address,indexed address)
           handler: handleRoleRevoked
-        - event: ActionProposed(indexed uint256,uint8,bytes32,address,address)
+        - event: ActionProposed(indexed uint256,uint8,address)
           handler: handleActionProposed
+        - event: ActionCoSigned(indexed uint256,address,uint256)
+          handler: handleActionCoSigned
         - event: ActionExecuted(indexed uint256,uint8)
           handler: handleActionExecuted
         - event: Paused(address)
@@ -108,11 +110,11 @@ dataSources:
         - name: AssetRegistry
           file: ../artifacts/contracts/AssetRegistry.sol/AssetRegistry.json
       eventHandlers:
-        - event: MintProposed(indexed uint256,string,bytes32,address,address)
+        - event: MintProposed(indexed uint256,string,bytes32,address)
           handler: handleMintProposed
         - event: MintCoSigned(indexed uint256,address)
           handler: handleMintCoSigned
-        - event: AssetMinted(indexed uint256,indexed address,string,bytes32)
+        - event: AssetMinted(indexed uint256,indexed uint256,bytes32,string)
           handler: handleAssetMinted
         - event: Transfer(indexed address,indexed address,indexed uint256)
           handler: handleTransfer
@@ -141,6 +143,8 @@ dataSources:
           handler: handleTransactionQueued
         - event: DisputeRaised(indexed uint256,indexed address,string)
           handler: handleDisputeRaised
+        - event: DisputeResolved(indexed uint256,bool)
+          handler: handleDisputeResolved
         - event: TransactionExecuted(indexed uint256)
           handler: handleTransactionExecuted
       file: ./src/governance-timelock.ts
