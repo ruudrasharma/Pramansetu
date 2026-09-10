@@ -15,7 +15,7 @@
 
 import { dataMode } from "./dataMode";
 import { useMockDataStore } from "@/lib/store/mockDataStore";
-import { auditEvents, anomalyAlerts, type AuditEvent, type AnomalyAlert } from "@/lib/mock/fixtures";
+import { type AuditEvent, type AnomalyAlert } from "@/lib/mock/fixtures";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
 import { GET_AUDIT_EVENTS } from "@/lib/queries";
@@ -25,6 +25,17 @@ export interface AuditService {
   getAnomalies: () => AnomalyAlert[];
   dismissAlert: (alertId: string, reason: string) => void;
   subscribeToEvents: (onEvent: (event: AuditEvent) => void) => () => void;
+  /**
+   * Set only when the real events query genuinely failed (network error, subgraph
+   * unreachable, GraphQL error) — `getEvents()` still returns `[]` in that case (never
+   * `undefined`) so callers don't need a null-check, but without this field a real outage is
+   * visually indistinguishable from "zero events, honestly" (docs/TODO.md-tracked bug, closed
+   * 2026-09-11 — directly relevant while T-050's subgraph is genuinely unreachable). Always
+   * `undefined` in mock mode.
+   */
+  eventsError: string | undefined;
+  /** Same as `eventsError`, for `getAnomalies()`. */
+  anomaliesError: string | undefined;
 }
 
 function useMockAuditService(): AuditService {
@@ -35,6 +46,8 @@ function useMockAuditService(): AuditService {
     getAnomalies: () => store.anomalyAlerts,
     dismissAlert: store.dismissAlert,
     subscribeToEvents: () => () => {},
+    eventsError: undefined,
+    anomaliesError: undefined,
   };
 }
 
@@ -82,6 +95,9 @@ function useOnchainAuditService(): AuditService {
         "subscribeToEvents is not implemented in onchain mode — see TODO.md T-037; getEvents()/getAnomalies() already poll live via refetchInterval."
       );
     },
+    eventsError: eventsQuery.error instanceof Error ? eventsQuery.error.message : eventsQuery.isError ? "Failed to load events." : undefined,
+    anomaliesError:
+      anomaliesQuery.error instanceof Error ? anomaliesQuery.error.message : anomaliesQuery.isError ? "Failed to load anomalies." : undefined,
   };
 }
 

@@ -564,19 +564,48 @@ production-grade ML anomaly-detection pipeline in the hackathon build"). Left `d
 `docs/DEPLOYMENT.md`'s Phase 3 row alone — both already correctly frame "AI anomaly-detection service" as
 future-facing/production-roadmap language, not a claim about the current build.
 
-### T-048 — Root vs. `docs/` copies of TODO.md/CHANGELOG.md/README.md have diverged; `docs/` copies are stale
-Found while doing T-047's doc pass (2026-09-10). This repo has two copies each of `TODO.md`, `CHANGELOG.md`,
-and `README.md`: one at the repo root (actively maintained — every phase referenced throughout `docs/*.md`
-and this audit lines up with the root copies' history) and one under `docs/` (last touched 2026-09-09
-21:44, i.e. end of Phase 9 — before Phase 10's merge and all of Phase B.1–B.3/T-021–T-046). `docs/TODO.md`
-still lists items like "wire real wagmi hooks to deployed Sepolia addresses" and "deploy contracts to
-Sepolia" as outstanding blockers, both long since done per the root `TODO.md`'s "Already done, verified
-live on-chain" section. `AI_DEVELOPMENT_RULES.md` §6 names `docs/CHANGELOG.md`/`docs/TODO.md` as canonical,
-which doesn't match actual practice (root files). Not resolved in this pass — deciding whether to delete
-the stale `docs/` copies, turn them into pointers to the root files, or repoint `AI_DEVELOPMENT_RULES.md`
-§6 at the root paths is a documentation-hygiene call worth a deliberate decision rather than a drive-by
-fix, since a stale copy being read instead of the live one is exactly the kind of doc-drift this project's
-own rules exist to prevent.
+### T-048 ✅ closed 2026-09-11 — Deleted the stale `docs/` duplicates, fixed the canonical-path rule
+Resolved: deleted `docs/TODO.md`, `docs/CHANGELOG.md`, `docs/README.md`, and (found while doing this,
+a **fourth** duplicate not previously catalogued) `docs/AI_DEVELOPMENT_RULES.md` — all four were stale
+snapshots frozen at end of Phase 9 (2026-09-09 21:44), before Phase 10's merge and everything since.
+`docs/AI_DEVELOPMENT_RULES.md` was particularly worth catching: it's the *governing rules file*, and
+it still had the stale `/Users/rudra/Development/SIH2026_Build` local-working-copy path Phase 2
+housekeeping fixed in the root copy — a future session reading the wrong copy would follow outdated
+rules. Fixed `AI_DEVELOPMENT_RULES.md` §6 itself to correctly say `TODO.md`/`CHANGELOG.md` (repo root),
+not `docs/TODO.md`/`docs/CHANGELOG.md` — that mismatch against actual practice was the root cause of
+this whole class of drift. `docs/README.md` wasn't a pure duplicate (it had a fuller Documentation
+Index table linking `TECH_STACK.md`/`USER_FLOWS.md`/`FEATURES.md`/`ENVIRONMENT.md`/`TESTING.md`/
+`DEPLOYMENT.md`, which the root `README.md` didn't) — merged that table into the root `README.md`
+rather than losing it; skipped its "Repository Structure" tree (stale — pre-dated the `app/(app)/*`
+route-group refactor) and "Git Workflow" section (didn't match this project's actual commit
+convention) since merging stale/inaccurate content would just recreate the same problem.
+
+**Before deleting, checked `docs/TODO.md` for anything genuinely unresolved (same discipline as
+`CIPHERLOOM_STATE_AND_PLAN.md`'s deletion) — found two real, still-live bugs not captured anywhere in
+the root `TODO.md`, both fixed in this same pass**:
+- `components/shell/TopBar.tsx`'s identity chip had a real SSR/hydration mismatch: the server always
+  renders "not connected" (no wallet state during SSR), but wagmi restores a persisted connection on
+  the client almost immediately, so a returning user's very first client render could already show
+  "Resolving…"/an address — mismatching the server output and forcing React to discard and fully
+  re-render the tree on every load in onchain mode. Fixed at the source, in
+  `lib/hooks/useCurrentIdentity.ts` (a `hasMounted` gate deferring real wallet state until after the
+  client mounts, first client render matches the server's, then updates normally post-hydration) —
+  every consumer benefits, not just TopBar.
+- `lib/services/auditService.ts`'s onchain `["auditEvents"]` query: the doc's original complaint (it
+  resolved to `undefined` instead of `[]`) was already fixed by the time this was checked, but the
+  underlying concern was still real — a genuine query failure (subgraph unreachable, network error)
+  was indistinguishable from "zero events, honestly," both rendering as an empty ledger with no error
+  indicator. Directly relevant given T-050 (the subgraph genuinely is unreachable right now). Added
+  `eventsError`/`anomaliesError` to `AuditService`, surfaced as a clear "Couldn't load" state on
+  `/dashboard`, `/audit`, and `/audit/anomalies` instead of blending into the empty-state.
+
+**Also found and fixed while looking at `/dashboard`'s ledger, a separate and more serious bug in the
+same area**: `events` state there was a **one-time snapshot** — `useState`'s lazy initializer captured
+`auditService.getEvents()` once at mount and never synced again. In onchain mode this silently froze
+the ledger forever after first render, regardless of the real 5s `refetchInterval` poll underneath it
+— a real subgraph update would never appear without a full page remount. Fixed by deriving `events`
+reactively (`useMemo` over the live service data + a separate local list for the mock-only "Simulate"
+button's synthetic events, which aren't part of any real store/subgraph data).
 
 ---
 

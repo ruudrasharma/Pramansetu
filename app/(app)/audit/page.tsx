@@ -109,7 +109,12 @@ export default function AuditPage() {
       </Card>
 
       <Card>
-        {events.length === 0 ? (
+        {auditService.eventsError ? (
+          <EmptyState
+            title="Couldn't load events"
+            description={auditService.eventsError}
+          />
+        ) : events.length === 0 ? (
           <EmptyState title="No matching events" description="Try a different search term or event type filter." />
         ) : (
           events.map((event) => <EventRow key={event.id} event={event} />)

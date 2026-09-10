@@ -13,6 +13,7 @@
  * role switcher. See the 2026-09-09 Phase B.1 audit for the full reasoning.
  */
 
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole } from "@/lib/mock/fixtures";
@@ -34,6 +35,16 @@ export interface CurrentIdentity {
 }
 
 export function useCurrentIdentity(): CurrentIdentity {
+  // SSR never has wallet state, so the server always renders as "nothing known yet." wagmi
+  // restores a persisted connection on the client as soon as it mounts, though — often before
+  // React's first client render even commits — so without this gate, a returning user's very
+  // first client render could already report isResolving/did/address, mismatching what the
+  // server sent and forcing React to discard + fully re-render the tree (found in
+  // components/shell/TopBar.tsx's identity chip, but this hook is the actual source — every
+  // consumer benefits from the fix living here instead of being patched per-caller).
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => setHasMounted(true), []);
+
   const activeRole = useAppStore((s) => s.activeRole);
   const { address, isConnected } = useAccount();
   const { data: didHash, isLoading, isFetched } = useDIDOf(address);
@@ -41,6 +52,10 @@ export function useCurrentIdentity(): CurrentIdentity {
   if (dataMode === "mock") {
     const identity = identityByRole[activeRole];
     return { did: identity.did, address: identity.controller as `0x${string}`, isResolving: false, hasNoDid: false };
+  }
+
+  if (!hasMounted) {
+    return { did: undefined, address: undefined, isResolving: false, hasNoDid: false };
   }
 
   const resolvedDid = didHash && didHash !== ZERO_BYTES32 ? (didHash as string) : undefined;

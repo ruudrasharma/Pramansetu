@@ -77,7 +77,9 @@ export default function AnomalyDashboardPage() {
           {dismissError}
         </div>
       )}
-      {openAlerts.length === 0 ? (
+      {auditService.anomaliesError ? (
+        <EmptyState title="Couldn't load anomalies" description={auditService.anomaliesError} />
+      ) : openAlerts.length === 0 ? (
         <EmptyState title="No open alerts" description="Everything currently flagged has been reviewed." />
       ) : (
         <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">

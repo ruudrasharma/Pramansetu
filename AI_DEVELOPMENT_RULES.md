@@ -82,15 +82,19 @@ These come directly from `docs/SECURITY.md` and the Gap Analysis. An agent must 
 
 - New contract logic requires corresponding Hardhat tests before being considered done.
 - New API endpoints require at least one happy-path and one auth-failure test case, per `docs/TESTING.md`.
-- Do not mark a TODO item complete in `docs/TODO.md` without a passing test run referenced in the commit/summary.
+- Do not mark a TODO item complete in `TODO.md` without a passing test run referenced in the commit/summary.
 
 ---
 
 ## 6. Documentation Hygiene
 
 - Every code change that alters behavior described in a doc must update that doc in the same session (not "later").
-- `docs/CHANGELOG.md` gets a new entry per completed feature/fix, dated, one line, plain language.
-- `docs/TODO.md` is the only place new known gaps get recorded — don't leave TODOs only as inline code comments.
+- `CHANGELOG.md` gets a new entry per completed feature/fix, dated, one line, plain language.
+- `TODO.md` is the only place new known gaps get recorded — don't leave TODOs only as inline code comments.
+- **Corrected 2026-09-11 (T-048)**: `TODO.md`/`CHANGELOG.md` live at the **repo root**, not under
+  `docs/` — this section previously said `docs/CHANGELOG.md`/`docs/TODO.md`, which never matched
+  actual practice (every phase of this project's real history lives in the root files). The stale
+  `docs/` duplicates that drift caused have been deleted.
 
 ---
 

@@ -113,6 +113,14 @@ For exhaustive implementation details, workflows, and specifications, refer to o
 | [DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) | On-chain state layout + off-chain indexer schema |
 | [API_SPEC.md](./docs/API_SPEC.md) | Contract ABIs as endpoints, REST indexer API, auth |
 | [SECURITY.md](./docs/SECURITY.md) | Threat model, auth, encryption, mitigations |
+| [TECH_STACK.md](./docs/TECH_STACK.md) | Exact versions and infra |
+| [USER_FLOWS.md](./docs/USER_FLOWS.md) | Step-by-step journeys per role |
+| [FEATURES.md](./docs/FEATURES.md) | Feature-by-feature spec per module |
+| [ENVIRONMENT.md](./docs/ENVIRONMENT.md) | `.env` variables & deployment config |
+| [TESTING.md](./docs/TESTING.md) | Unit/integration/E2E/security testing plan |
+| [DEPLOYMENT.md](./docs/DEPLOYMENT.md) | Build, Docker, CI/CD, production rollout |
+| [CHANGELOG.md](./CHANGELOG.md) | Dated log of completed work |
+| [TODO.md](./TODO.md) | Open items, bugs, roadmap |
 
 ## 6. License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

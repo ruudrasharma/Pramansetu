@@ -6,6 +6,39 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.14.0] — 2026-09-11 — Delete stale docs/ duplicates; fix two real bugs found while checking them (T-048)
+
+Closes T-048.
+
+### Removed
+- `docs/TODO.md`, `docs/CHANGELOG.md`, `docs/README.md`, and `docs/AI_DEVELOPMENT_RULES.md` — all
+  four were stale snapshots frozen at end of Phase 9, superseded by the actively-maintained root
+  files. `docs/AI_DEVELOPMENT_RULES.md` (a fourth duplicate, not previously catalogued) was
+  particularly worth catching — it's the governing rules file, and still had the stale local-working-
+  copy path Phase 2 housekeeping had only fixed in the root copy.
+
+### Changed
+- `AI_DEVELOPMENT_RULES.md` §6: corrected to say `TODO.md`/`CHANGELOG.md` (repo root) — the previous
+  `docs/TODO.md`/`docs/CHANGELOG.md` wording never matched actual practice and was the root cause of
+  this whole class of drift.
+- `README.md`: merged `docs/README.md`'s fuller Documentation Index table (it linked several docs the
+  root README's index didn't) before deleting the duplicate.
+
+### Fixed — found while checking `docs/TODO.md` for anything unresolved before deleting it
+- `lib/hooks/useCurrentIdentity.ts`: a real SSR/hydration mismatch — the server always renders "not
+  connected," but wagmi restores a persisted wallet connection almost immediately on the client, so a
+  returning user's first client render could already differ from the server's, forcing React to
+  discard and fully re-render the tree on every load in onchain mode. Fixed with a `hasMounted` gate
+  at the hook level (every consumer benefits, not just `TopBar.tsx`, where this was first reported).
+- `lib/services/auditService.ts`: added `eventsError`/`anomaliesError` so a genuine query failure
+  (subgraph unreachable) is distinguishable from "zero events, honestly" — previously both rendered
+  as the same empty state. Surfaced on `/dashboard`, `/audit`, `/audit/anomalies`.
+- `app/(app)/dashboard/page.tsx`: the ledger's `events` state was a **one-time snapshot** — captured
+  once at mount via `useState`'s lazy initializer and never synced again, silently freezing the ledger
+  in onchain mode regardless of the real 5s poll underneath it. Fixed by deriving it reactively.
+
+---
+
 ## [0.13.2] — 2026-09-11 — Sync docs/DATABASE_SCHEMA.md against the real schema/contracts (T-056)
 
 Closes T-056. Docs-only, no code changes.

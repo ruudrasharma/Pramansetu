@@ -66,7 +66,19 @@ export default function DashboardPage() {
     },
   ];
 
-  const [events, setEvents] = useState<AuditEvent[]>(() => [...auditService.getEvents()].sort((a, b) => b.timestamp - a.timestamp));
+  // The mock-only "Simulate" button injects synthetic events that aren't part of the real
+  // store/subgraph data — kept as separate local state, merged in below, rather than the old
+  // approach of snapshotting auditService.getEvents() into local state once at mount and never
+  // syncing again. That snapshot silently froze the ledger forever after the first render —
+  // real onchain-mode updates (5s refetchInterval) and other pages' mock-store writes never
+  // showed up here without a full remount. Found while investigating the audit ledger's
+  // "silently empty" bug class (docs/TODO.md-tracked, closed 2026-09-11).
+  const [simulatedEvents, setSimulatedEvents] = useState<AuditEvent[]>([]);
+  const liveEvents = auditService.getEvents();
+  const events = useMemo(() => {
+    const merged = dataMode === "mock" ? [...simulatedEvents, ...liveEvents] : liveEvents;
+    return [...merged].sort((a, b) => b.timestamp - a.timestamp);
+  }, [simulatedEvents, liveEvents]);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   const last7Days = useMemo(() => {
@@ -101,7 +113,7 @@ export default function DashboardPage() {
       timestamp: Date.now(),
       txHash: `0x${Math.random().toString(16).slice(2, 6)}…${Math.random().toString(16).slice(2, 6)}`,
     };
-    setEvents((prev) => [newEvent, ...prev].slice(0, 30));
+    setSimulatedEvents((prev) => [newEvent, ...prev].slice(0, 30));
   }
 
   return (
@@ -167,13 +179,21 @@ export default function DashboardPage() {
             onSelect={(d) => setSelectedDay((prev) => (prev?.toDateString() === d.toDateString() ? null : d))}
             className="mb-3 mt-2"
           />
-          <AnimatePresence initial={false}>
-            {visibleEvents.map((event, i) => (
-              <EventRow key={event.id} event={event} index={i} />
-            ))}
-          </AnimatePresence>
-          {visibleEvents.length === 0 && (
-            <p className="py-6 text-center text-[12px] text-ink-500">No events on this day.</p>
+          {auditService.eventsError ? (
+            <p className="flex items-center gap-1.5 py-6 text-center text-[12px] text-danger-400">
+              <TriangleAlert size={13} /> Couldn&apos;t load live events — {auditService.eventsError}
+            </p>
+          ) : (
+            <>
+              <AnimatePresence initial={false}>
+                {visibleEvents.map((event, i) => (
+                  <EventRow key={event.id} event={event} index={i} />
+                ))}
+              </AnimatePresence>
+              {visibleEvents.length === 0 && (
+                <p className="py-6 text-center text-[12px] text-ink-500">No events on this day.</p>
+              )}
+            </>
           )}
         </Card>
 
