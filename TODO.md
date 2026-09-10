@@ -5,6 +5,38 @@ Completed items are moved to CHANGELOG.md.
 
 ---
 
+### T-065 ✅ closed 2026-09-11 — `AuditEvent.actorDid` crashed the ledger/audit UI on real null values
+Found immediately after T-064, clicking through the local dev server with the real redeployed
+contracts + `v12` subgraph: `/dashboard` threw a full-page client error boundary
+(`TypeError: Cannot read properties of null (reading 'length')`) the moment a real indexed event
+with no registered DID rendered. Root cause: `AuditEvent.actorDid` is genuinely nullable on real
+onchain data (`subgraph/src/*.ts` leaves it unset whenever the actor address has no DID —
+`lib/server/anomalyDetection.ts` already had a comment about this exact gap, for the *anomalies*
+path only) but the mock-fixture-derived TypeScript type declared it as a plain non-nullable
+`string`, and `lib/services/auditService.ts`'s onchain adapter (`{...e, timestamp: ...}`) passes the
+raw nullable GraphQL value straight through with an `any` cast masking the mismatch. Three real call
+sites crashed or would have crashed on this: `components/modules/EventRow.tsx` (confirmed crash,
+the ledger stream), `app/(app)/audit/page.tsx`'s search filter (`.includes(query)` on null — crashes
+only when a user actually searches), and `components/shell/DetailPanel.tsx`'s "Actor DID" field
+(silently rendered blank, not a crash, but not honest either).
+
+Fixed at the type level (`AuditEvent.actorDid: string | null`, new optional `actorAddress?: string`
+— the always-present onchain fallback both `GET_AUDIT_EVENTS`/`GET_DASHBOARD_DATA` already select)
+and at all three call sites (`?? event.actorAddress ?? "..."` fallback, matching the exact pattern
+`anomalyDetection.ts` already established for the same nullability). Verified fixed live: reloaded
+`/dashboard` and `/audit` against the real redeployed contracts with a connected wallet — no crash,
+console clean, real events render with real addresses (`DIDRegistry guardian recovery contract
+authorized: 0xdc30f7f9…`, etc.), and the `/audit` search box correctly filters by the fallback
+address (`0x2972` matches events with a null DID). `npx tsc --noEmit` clean, `npm run lint`
+unchanged (0 errors), `npm run build` succeeds.
+
+**Never caught before now** because no prior session in this project's history had a working Chrome
+extension connection to actually click through a page with a real wallet against real indexed data
+— every previous verification pass was route-level (`curl`, HTTP status codes) or source-reading,
+neither of which executes client-side React and so neither could ever hit this class of bug.
+
+---
+
 ### T-064 ✅ closed 2026-09-11 — `/dashboard` was hardcoded to the mock persona in every data mode
 Found by actually clicking through the live Vercel deployment with a real wallet connected (Chrome
 extension), not from source reading — the first real browser verification this session managed to

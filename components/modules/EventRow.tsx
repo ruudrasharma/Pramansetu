@@ -75,7 +75,7 @@ export function EventRow({ event, index = 0 }: { event: AuditEvent; index?: numb
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] text-ink-50 group-hover:text-ink-50">{event.summary}</p>
         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-600">
-          <span className="mono-value">{truncateMiddle(event.actorDid, 12, 4)}</span>
+          <span className="mono-value">{truncateMiddle(event.actorDid ?? event.actorAddress ?? "", 12, 4)}</span>
           <span>·</span>
           <span className="mono-value">{event.txHash}</span>
         </div>

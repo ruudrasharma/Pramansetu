@@ -30,7 +30,14 @@ export type EventType =
 export interface AuditEvent {
   id: string;
   type: EventType;
-  actorDid: string;
+  // Genuinely nullable on real onchain events — the subgraph's AuditEvent.actorDid is `null`
+  // whenever the actor address has no registered DID (many handlers, including the one behind
+  // EmergencyPaused, never set it — see lib/server/anomalyDetection.ts's comment on the same
+  // gap). Mock fixtures never set it null, but real onchain data does; every real-data consumer
+  // must handle both. actorAddress is the always-present onchain fallback (undefined in mock
+  // mode fixtures, which have no equivalent field).
+  actorDid: string | null;
+  actorAddress?: string;
   summary: string;
   timestamp: number;
   txHash: string;

@@ -41,7 +41,12 @@ export default function AuditPage() {
       .slice()
       .sort((a, b) => b.timestamp - a.timestamp)
       .filter((e) => (typeFilter === "all" ? true : e.type === typeFilter))
-      .filter((e) => (query ? e.summary.toLowerCase().includes(query.toLowerCase()) || e.actorDid.includes(query) : true));
+      .filter((e) =>
+        query
+          ? e.summary.toLowerCase().includes(query.toLowerCase()) ||
+            (e.actorDid ?? e.actorAddress ?? "").includes(query)
+          : true
+      );
   }, [auditService, query, typeFilter]);
 
   const volumeData = useMemo(() => {

@@ -119,7 +119,11 @@ export function DetailPanel() {
 
               <div className="mt-5">
                 <FieldRow label="Event ID" value={event.id} />
-                <FieldRow label="Actor DID" value={event.actorDid} mono />
+                <FieldRow
+                  label={event.actorDid ? "Actor DID" : "Actor address"}
+                  value={event.actorDid ?? event.actorAddress ?? "unknown"}
+                  mono
+                />
                 <FieldRow
                   label="Timestamp"
                   value={new Date(event.timestamp).toISOString()}

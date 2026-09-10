@@ -6,6 +6,30 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.18.2] — 2026-09-11 — Fix real null-actorDid crash across the ledger/audit UI (T-065)
+
+Closes T-065. Found immediately after T-064 by continuing to click through the local dev server
+against the real redeployed contracts — the first session with working browser access to real
+indexed data end-to-end.
+
+### Fixed
+- `lib/mock/fixtures/auditEvents.ts`: `AuditEvent.actorDid` type corrected to `string | null`
+  (matches real onchain nullability — many subgraph handlers never set it) with a new optional
+  `actorAddress?: string` fallback field (always present on real onchain events).
+- `components/modules/EventRow.tsx`: the ledger stream's actor display crashed
+  (`TypeError: Cannot read properties of null`) on any real event with no registered DID for its
+  actor — now falls back to `actorAddress`.
+- `app/(app)/audit/page.tsx`: the search filter had the identical crash risk, reachable only when a
+  user actually typed a search query. Fixed the same way; verified live (searching `0x2972` matches
+  real events by their fallback address).
+- `components/shell/DetailPanel.tsx`: the "Actor DID" field silently rendered blank (not a crash,
+  but not honest) for the same reason — now shows the real address with a relabeled field ("Actor
+  address") when no DID exists.
+
+### Verified live, not just by source reading
+Reloaded `/dashboard` and `/audit` in a real browser against the real redeployed Sepolia contracts
+with a connected wallet — no crash, clean console, real events rendering correctly.
+
 ## [0.18.1] — 2026-09-11 — Fix /dashboard's hardcoded mock persona (T-064)
 
 Closes T-064. Found by clicking through the live Vercel deployment with a real wallet connected —
