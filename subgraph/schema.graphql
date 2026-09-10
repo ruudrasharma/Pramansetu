@@ -88,6 +88,21 @@ type PlatformAction @entity {
   executedAt: BigInt
 }
 
+# 2-of-N staging for privileged (Super-Admin-tier) role grants, e.g. addAdmin — a distinct
+# mapping/threshold from PlatformAction on TimeBoundAccessControl (T-054). Unlike ActionProposed,
+# GrantProposed does carry role/account, so both are real here, not left empty.
+type PendingGrant @entity {
+  id: ID!                          # grantId as string
+  grantId: BigInt!
+  role: Bytes!
+  account: Bytes!
+  proposer: Bytes!
+  coSigner: Bytes
+  executed: Boolean!
+  proposedAt: BigInt!
+  executedAt: BigInt
+}
+
 type GovernanceTx @entity {
   id: ID!                          # txId as string
   txId: BigInt!

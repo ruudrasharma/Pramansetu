@@ -2,21 +2,29 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Octagon, AlertTriangle, PlayCircle } from "lucide-react";
+import { Octagon, AlertTriangle, PlayCircle, UserPlus, Loader2 } from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { IconBadge } from "@/components/ui/IconBadge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { MultisigApprovalWidget } from "@/components/modules/MultisigApprovalWidget";
 import { TimelockCountdown } from "@/components/modules/TimelockCountdown";
 import { truncateMiddle } from "@/lib/utils";
 import { useAppStore } from "@/lib/store/appStore";
-import { identityByRole } from "@/lib/mock/fixtures";
+import { identityByRole, identities, findIdentity, type ProposalKind } from "@/lib/mock/fixtures";
 import { useGovernanceService } from "@/lib/services/governanceService";
 import { useDidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
+import { resolveControllerAddress } from "@/lib/hooks/useDIDRegistry";
 import { dataMode } from "@/lib/services/dataMode";
+
+const validityOptions = [
+  { label: "90 days", ms: 90 * 24 * 3_600_000 },
+  { label: "1 year", ms: 365 * 24 * 3_600_000 },
+  { label: "2 years", ms: 2 * 365 * 24 * 3_600_000 },
+];
 
 export default function GovernancePage() {
   const activeRole = useAppStore((s) => s.activeRole);
@@ -29,7 +37,7 @@ export default function GovernancePage() {
   const proposals = governanceService.getProposals();
   const disputes = governanceService.getDisputes();
 
-  const canPause = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" : activeRole === "SUPER_ADMIN";
+  const isSuperAdmin = dataMode === "onchain" ? myRealIdentity?.role === "SUPER_ADMIN" : activeRole === "SUPER_ADMIN";
   // Onchain multisig signers are keyed by wallet address, not DID (see governanceService.ts's
   // getProposals adapter) — MultisigApprovalWidget's "already signed" check needs the matching
   // identifier for whichever mode is active.
@@ -39,6 +47,12 @@ export default function GovernancePage() {
   const [confirmText, setConfirmText] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const isPaused = governanceService.isPlatformPaused;
+
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [proposeKind, setProposeKind] = useState<Extract<ProposalKind, "addAdmin" | "removeAdmin">>("addAdmin");
+  const [targetDid, setTargetDid] = useState(dataMode === "mock" ? (identities[0]?.did ?? "") : "");
+  const [validityMs, setValidityMs] = useState(validityOptions[1]!.ms);
+  const [isProposing, setIsProposing] = useState(false);
 
   async function handleConfirm() {
     setActionError(null);
@@ -58,6 +72,27 @@ export default function GovernancePage() {
       await governanceService.approveProposal(id, me.did);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Failed to approve proposal");
+    }
+  }
+
+  async function handleProposeAdminChange() {
+    if (!targetDid) return;
+    setActionError(null);
+    setIsProposing(true);
+    try {
+      const targetName = dataMode === "mock" ? findIdentity(targetDid)?.name ?? targetDid : targetDid;
+      const title = proposeKind === "addAdmin" ? `Add ${targetName} as Admin` : `Remove Admin: ${targetName}`;
+      const account = dataMode === "onchain" ? await resolveControllerAddress(targetDid as `0x${string}`) : targetDid;
+      await governanceService.proposeAction(proposeKind, title, me.did, {
+        account,
+        validUntil: proposeKind === "addAdmin" ? Date.now() + validityMs : undefined,
+      });
+      setProposeOpen(false);
+      setTargetDid(dataMode === "mock" ? identities[0]?.did ?? "" : "");
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to propose action");
+    } finally {
+      setIsProposing(false);
     }
   }
 
@@ -82,7 +117,7 @@ export default function GovernancePage() {
         <Card className="mb-5 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
       )}
 
-      {canPause && (
+      {isSuperAdmin && (
         <Card className={`mb-5 ${isPaused ? "border-danger-500/25 bg-danger-500/[0.04]" : "border-danger-500/15"}`}>
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
             <div className="flex gap-3">
@@ -112,7 +147,14 @@ export default function GovernancePage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div>
-          <h3 className="mb-3 text-[13px] font-medium text-ink-400">Multisig queue</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-[13px] font-medium text-ink-400">Multisig queue</h3>
+            {isSuperAdmin && (
+              <Button variant="secondary" className="px-2.5 py-1 text-[12px]" onClick={() => setProposeOpen(true)}>
+                <UserPlus size={12} /> Propose Admin change
+              </Button>
+            )}
+          </div>
           {proposals.length === 0 ? (
             <EmptyState title="Nothing queued" description="No multisig actions are pending." />
           ) : (
@@ -171,6 +213,88 @@ export default function GovernancePage() {
             </Button>
             <Button variant="danger" disabled={confirmText !== confirmAction?.toUpperCase()} onClick={handleConfirm}>
               Propose {confirmAction}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={proposeOpen} onOpenChange={(open) => !open && setProposeOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Propose Admin change</DialogTitle>
+            <DialogDescription>
+              Requires a second Super Admin&apos;s co-signature — {proposeKind === "addAdmin"
+                ? "via proposePrivilegedGrant"
+                : "an emergency revoke via proposePlatformAction"} — before it takes effect.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mb-3">
+            <label className="mb-1.5 block text-[12px] text-ink-500">Action</label>
+            <Select value={proposeKind} onValueChange={(v: string) => setProposeKind(v as typeof proposeKind)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="addAdmin">Add Admin</SelectItem>
+                <SelectItem value="removeAdmin">Remove Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {dataMode === "mock" ? (
+            <div className="mb-3">
+              <label className="mb-1.5 block text-[12px] text-ink-500">Target identity</label>
+              <Select value={targetDid} onValueChange={setTargetDid}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {identities.map((i) => (
+                    <SelectItem key={i.did} value={i.did}>
+                      {i.name} — {i.department}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="mb-3">
+              <label className="mb-1.5 block text-[12px] text-ink-500">Target DID (bytes32)</label>
+              <input
+                value={targetDid}
+                onChange={(e) => setTargetDid(e.target.value)}
+                placeholder="0x..."
+                className="w-full rounded-xl border border-graphite-800 bg-graphite-900 px-3 py-2 text-[13px] text-ink-50 mono-value focus:border-signal-500 focus:outline-none"
+              />
+            </div>
+          )}
+
+          {proposeKind === "addAdmin" && (
+            <div className="mb-3">
+              <label className="mb-1.5 block text-[12px] text-ink-500">Validity</label>
+              <Select value={String(validityMs)} onValueChange={(v: string) => setValidityMs(Number(v))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {validityOptions.map((v) => (
+                    <SelectItem key={v.label} value={String(v.ms)}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setProposeOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={!targetDid || isProposing} onClick={handleProposeAdminChange}>
+              {isProposing && <Loader2 size={14} className="animate-spin" />}
+              {isProposing ? "Confirming transaction…" : `Propose ${proposeKind === "addAdmin" ? "add" : "remove"}`}
             </Button>
           </DialogFooter>
         </DialogContent>

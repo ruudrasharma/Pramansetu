@@ -125,6 +125,22 @@ export const GET_PLATFORM_ACTIONS = gql`
   }
 `;
 
+export const GET_PENDING_GRANTS = gql`
+  query GetPendingGrants {
+    pendingGrants(first: 50, orderBy: proposedAt, orderDirection: desc) {
+      id
+      grantId
+      role
+      account
+      proposer
+      coSigner
+      executed
+      proposedAt
+      executedAt
+    }
+  }
+`;
+
 export const GET_CREDENTIALS_BY_SUBJECT = gql`
   query GetCredentialsBySubject($subject: String!) {
     credentials(where: { subject: $subject }, orderBy: issuedAt, orderDirection: desc) {

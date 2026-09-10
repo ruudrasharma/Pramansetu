@@ -5,10 +5,12 @@ import {
   ActionProposed as ActionProposedEvent,
   ActionCoSigned as ActionCoSignedEvent,
   ActionExecuted as ActionExecutedEvent,
+  GrantProposed as GrantProposedEvent,
+  GrantCoSigned as GrantCoSignedEvent,
   Paused as PausedEvent,
   Unpaused as UnpausedEvent,
 } from "../generated/TimeBoundAccessControl/TimeBoundAccessControl";
-import { RoleGrant, PlatformAction, AuditEvent } from "../generated/schema";
+import { RoleGrant, PlatformAction, PendingGrant, AuditEvent } from "../generated/schema";
 
 // Human-readable role label lookup (keccak256 of the name, as stored in the contract)
 function roleLabel(roleHash: Bytes): string {
@@ -100,6 +102,45 @@ export function handleActionExecuted(event: ActionExecutedEvent): void {
   audit.type         = typeStr;
   audit.actorAddress = event.transaction.from;
   audit.summary      = "Platform action executed: type=" + event.params.actionType.toString();
+  audit.timestamp    = event.block.timestamp;
+  audit.blockNumber  = event.block.number;
+  audit.txHash       = event.transaction.hash;
+  audit.save();
+}
+
+// T-054: 2-of-N staging for privileged grants (e.g. addAdmin via proposePrivilegedGrant) — a
+// separate pendingGrants mapping/threshold from pendingActions, previously entirely unindexed.
+// Unlike ActionProposed, GrantProposed does carry role/account, so both are real here.
+export function handleGrantProposed(event: GrantProposedEvent): void {
+  let grant = new PendingGrant(event.params.grantId.toString());
+  grant.grantId    = event.params.grantId;
+  grant.role       = event.params.role;
+  grant.account    = event.params.account;
+  grant.proposer   = event.params.proposer;
+  grant.executed   = false;
+  grant.proposedAt = event.block.timestamp;
+  grant.save();
+}
+
+// GRANT_THRESHOLD is a hardcoded constant = 2 on the deployed contract
+// (contracts/TimeBoundAccessControl.sol) — proposePrivilegedGrant auto-signs the proposer as
+// signer 1, so the one and only coSignGrant call that ever succeeds is necessarily the co-sign
+// that reaches threshold and executes the grant. If that constant ever changes, this handler
+// needs a real signer-count check instead of assuming every GrantCoSigned means "executed."
+export function handleGrantCoSigned(event: GrantCoSignedEvent): void {
+  let grant = PendingGrant.load(event.params.grantId.toString());
+  if (grant == null) return;
+  grant.coSigner   = event.params.signer;
+  grant.executed   = true;
+  grant.executedAt = event.block.timestamp;
+  grant.save();
+
+  let auditId = "AC-" + event.transaction.hash.toHexString() + "-" + event.logIndex.toString();
+  let audit = new AuditEvent(auditId);
+  audit.type         = "RoleGranted";
+  audit.actorAddress = event.params.signer;
+  audit.summary      = "Privileged grant #" + event.params.grantId.toString() + " co-signed — role granted to "
+                      + grant.account.toHexString().slice(0, 10) + "…";
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

@@ -70,6 +70,7 @@ dataSources:
       entities:
         - RoleGrant
         - PlatformAction
+        - PendingGrant
         - AuditEvent
       abis:
         - name: TimeBoundAccessControl
@@ -85,6 +86,10 @@ dataSources:
           handler: handleActionCoSigned
         - event: ActionExecuted(indexed uint256,uint8)
           handler: handleActionExecuted
+        - event: GrantProposed(indexed uint256,bytes32,address,address)
+          handler: handleGrantProposed
+        - event: GrantCoSigned(indexed uint256,address,uint256)
+          handler: handleGrantCoSigned
         - event: Paused(address)
           handler: handlePaused
         - event: Unpaused(address)

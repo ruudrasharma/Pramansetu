@@ -6,6 +6,32 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.11.7] — 2026-09-11 — "Propose Admin change" UI + PendingGrant subgraph support (T-054)
+
+Closes T-054.
+
+### Added
+- `app/(app)/governance/page.tsx`: a "Propose Admin change" dialog (Super-Admin-gated) — Add/Remove
+  Admin kind select, target-identity field (mock dropdown / onchain DID resolved to an address at
+  submit time via `resolveControllerAddress`), and a validity-period select for Add Admin. Calls the
+  real per-kind `governanceService.proposeAction` branching built for T-033.
+- `subgraph/schema.graphql`: `PendingGrant` entity — privileged grants (`addAdmin`) live in a
+  completely separate `pendingGrants` mapping/threshold from `PlatformAction` on
+  `TimeBoundAccessControl`, with no prior subgraph representation at all.
+- `subgraph/src/access-control.ts`: `handleGrantProposed`/`handleGrantCoSigned` mappings, plus the
+  corresponding `subgraph.yaml` manifest entries.
+- `lib/queries.ts`: `GET_PENDING_GRANTS`, merged into `governanceService.ts`'s `getProposals()`
+  alongside `PlatformAction` results.
+
+### Fixed — found while wiring the form up
+Without the `PendingGrant` subgraph work above, a real "Add Admin" proposal made through the new form
+would have succeeded on-chain and then **silently vanished** from the visible multisig queue — nothing
+to co-sign, no sign it ever happened. `graph codegen`/`graph build` verified clean; an actual redeploy
+attempt (`--version-label v5`) failed with the same "Subgraph not found" as T-050 (see that entry) —
+confirms the missing-slot issue isn't a one-off, and this fix is ready to ship the moment it's resolved.
+
+---
+
 ## [0.11.6] — 2026-09-11 — executeTransaction UI + governance pages' dataMode wiring (T-053, T-055)
 
 Closes T-053 and T-055.

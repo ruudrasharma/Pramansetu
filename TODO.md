@@ -214,16 +214,34 @@ deploy the moment that slot exists: run `npm run deploy:studio -- --deploy-key <
 v5` (or whatever label) from `subgraph/`, then update `.env.local`'s `NEXT_PUBLIC_SUBGRAPH_URL` to the
 resulting query URL.
 
-### T-054 — `proposeAction` (all 5 kinds) and `pause`/`unpause`'s multisig UI have no real "propose
-add/remove Admin" caller anywhere
-Found while closing T-033 (2026-09-10). `governance/page.tsx`'s "Multisig queue" lane can only
-*approve* existing proposals (`approveProposal`) or trigger pause/unpause (dedicated buttons) — there
-is no form anywhere to actually call `proposeAction("addAdmin"/"removeAdmin", ...)`, so the real
-per-kind branching this session built has no UI path to reach it yet, same category as T-027/T-043's
-dead-code stopgaps except here the underlying logic is real, not stubbed. Needs a minimal "Propose add/
-remove Admin" form (target address + validity for addAdmin) on the governance page, gated to Super
-Admin, before FR-5.1 ("Super Admin actions... require M-of-N multisig") is demonstrable end-to-end for
-role changes specifically (pause/unpause already are).
+### T-054 ✅ closed 2026-09-11 — Built the "Propose Admin change" form
+Added a "Propose Admin change" dialog to `/governance` (gated to Super Admin, next to the Multisig
+queue heading): kind select (Add/Remove Admin), a target-identity field (mock: dropdown; onchain: DID
+hash, resolved to an address via `resolveControllerAddress` at submit time), and a validity-period
+select for Add Admin. Calls the real `governanceService.proposeAction` branching built for T-033.
+
+**Found while wiring this up, and fixed in the same pass**: `getProposals()` only ever queried
+`PlatformAction` entities (`removeAdmin`/`pause`/`unpause`, via `proposePlatformAction`) — `addAdmin`
+goes through a *completely separate* `proposePrivilegedGrant`/`pendingGrants` mapping on the contract
+that had no subgraph entity or mapping at all (same category of gap as T-032's original finding, just
+for the grant side instead of the action side). Without fixing this, a real "Add Admin" proposal
+would have succeeded on-chain and then **silently vanished** from the visible queue — nothing to
+co-sign, no sign that it ever happened, the exact "fabricated success" pattern this whole project's
+audits exist to catch, just inverted (a broken *absence* of real state instead of a fabricated
+presence). Fixed by adding a `PendingGrant` entity (`subgraph/schema.graphql`), `handleGrantProposed`/
+`handleGrantCoSigned` mappings (`subgraph/src/access-control.ts` — `GrantProposed` genuinely emits
+`role`/`account`, unlike `ActionProposed`, so both are real here), the corresponding manifest entries,
+and a `GET_PENDING_GRANTS` query merged into `getProposals()` alongside `PlatformAction` results
+(`grant-<id>` vs `action-<id>` prefixes, matching `approveProposal`'s existing dispatch from T-034).
+`graph codegen`/`graph build` both verified clean. Attempted a real redeploy
+(`--version-label v5`) — failed with the same **"Subgraph not found"** as T-050; this fix is ready to
+ship the moment that slot exists, verified by a clean local build and IPFS upload, not just source
+review.
+
+Note: `handleGrantCoSigned` marks a grant `executed` on every `GrantCoSigned` event, relying on
+`GRANT_THRESHOLD` being the hardcoded constant `2` — the proposer auto-signs on `proposePrivilegedGrant`,
+so the one `coSignGrant` call that ever succeeds is necessarily the one that reaches threshold. Flagged
+in a code comment; would need a real signer-count check if that constant ever changes.
 
 ### T-055 ✅ closed 2026-09-11 — Governance pages are now `dataMode`-aware
 `/governance`, `/governance/approvals`, and `/governance/disputes` now resolve "me" the same way
@@ -300,6 +318,11 @@ with Graph Studio dashboard access (studio.thegraph.com) to (re)create the `pram
 before any `graph deploy` can succeed — this session has the deploy key but not dashboard access. Every
 subgraph fix made this session (manifest signatures, two new handlers, two new schema fields) is
 verified buildable and ready to ship the moment that slot exists.
+
+**2026-09-11 update, while closing T-054**: reconfirmed — a second `graph deploy ... --version-label
+v5` attempt (this time shipping the new `PendingGrant` entity/mappings) failed with the identical
+"Subgraph not found", after another clean local `graph codegen`/`graph build` and a successful IPFS
+upload of the build artifacts. This isn't a one-off; the slot is genuinely absent every time.
 
 ### T-056 — `docs/DATABASE_SCHEMA.md` §2's subgraph schema sketch doesn't match `subgraph/schema.graphql`
 Found while writing `governanceService.ts`'s subgraph queries (2026-09-10). Nearly every entity in

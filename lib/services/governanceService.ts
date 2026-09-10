@@ -29,7 +29,7 @@ import {
 } from "@/lib/hooks/useGovernanceTimelock";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
-import { GET_PLATFORM_ACTIONS, GET_GOVERNANCE } from "@/lib/queries";
+import { GET_PLATFORM_ACTIONS, GET_PENDING_GRANTS, GET_GOVERNANCE } from "@/lib/queries";
 
 const ZERO_ROLE = ("0x" + "0".repeat(64)) as `0x${string}`;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`;
@@ -88,6 +88,17 @@ interface RawPlatformAction {
   executedAt: string | null;
 }
 
+interface RawPendingGrant {
+  grantId: string;
+  role: string;
+  account: string;
+  proposer: string;
+  coSigner: string | null;
+  executed: boolean;
+  proposedAt: string;
+  executedAt: string | null;
+}
+
 interface RawDispute {
   id: string;
   raisedBy: string;
@@ -125,6 +136,12 @@ function useOnchainGovernanceService(): GovernanceService {
     refetchInterval: 10000,
   });
 
+  const grantsQuery = useQuery({
+    queryKey: ["pendingGrants"],
+    queryFn: async () => getGraphQLClient().request<{ pendingGrants: RawPendingGrant[] }>(GET_PENDING_GRANTS),
+    refetchInterval: 10000,
+  });
+
   const governanceQuery = useQuery({
     queryKey: ["governanceTxs"],
     queryFn: async () => getGraphQLClient().request<{ governanceTxs: RawGovernanceTx[] }>(GET_GOVERNANCE),
@@ -136,7 +153,7 @@ function useOnchainGovernanceService(): GovernanceService {
   // unpause. `role`/`account` are always empty here — ActionProposed genuinely doesn't emit them
   // (contracts/TimeBoundAccessControl.sol:60), so there's nothing honest to show beyond the
   // action type itself; this is a contract-level limitation, not a subgraph gap.
-  const proposals: GovernanceProposal[] = (actionsQuery.data?.platformActions ?? []).map((a) => {
+  const platformActionProposals: GovernanceProposal[] = (actionsQuery.data?.platformActions ?? []).map((a) => {
     const kind: ProposalKind = a.actionType === 1 ? "removeAdmin" : a.actionType === 2 ? "pause" : "unpause";
     const title = a.actionType === 1 ? "Emergency revoke role" : a.actionType === 2 ? "Emergency pause" : "Unpause platform";
     return {
@@ -158,6 +175,28 @@ function useOnchainGovernanceService(): GovernanceService {
       requiredSignatures: 2, // ACTION_THRESHOLD (contracts/TimeBoundAccessControl.sol:28)
     };
   });
+
+  // Privileged grants (addAdmin) live in a completely separate pendingGrants mapping/threshold on
+  // the contract, so they need their own subgraph entity/query (T-054) — merged into one list here
+  // so the UI doesn't need to know these are two different contract mechanisms under one queue.
+  const grantProposals: GovernanceProposal[] = (grantsQuery.data?.pendingGrants ?? []).map((g) => ({
+    id: `grant-${g.grantId}`,
+    kind: "addAdmin",
+    title: "Add Admin",
+    description: `Privileged grant #${g.grantId} for ${g.account} via TimeBoundAccessControl.proposePrivilegedGrant.`,
+    proposedBy: g.proposer,
+    proposedAt: Number(g.proposedAt) * 1000,
+    status: g.executed ? "executed" : "queued",
+    signers: [
+      { did: g.proposer, signed: true },
+      ...(g.coSigner ? [{ did: g.coSigner, signed: true }] : []),
+    ],
+    requiredSignatures: 2, // GRANT_THRESHOLD (contracts/TimeBoundAccessControl.sol:27)
+  }));
+
+  const proposals: GovernanceProposal[] = [...platformActionProposals, ...grantProposals].sort(
+    (a, b) => b.proposedAt - a.proposedAt
+  );
 
   const disputes: TimelockTransaction[] = (governanceQuery.data?.governanceTxs ?? []).map((tx) => {
     const d = tx.dispute;
