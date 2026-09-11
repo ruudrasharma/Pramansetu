@@ -126,16 +126,14 @@ dataSources:
           handler: handleOracleFactRecorded
       file: ./src/asset-registry.ts
 
-  # PLACEHOLDER — OracleAttestation is not yet deployed to live Sepolia (T-016). Address/startBlock
-  # below are placeholders; update both to the real deployed values (and redeploy this subgraph)
-  # once the live upgrade sequence in docs/DEPLOYMENT.md's T-016 runbook actually broadcasts.
+  # T-016 — deployed and wired live on Sepolia 2026-09-11 (deployments/sepolia.json).
   - kind: ethereum/contract
     name: OracleAttestation
     network: sepolia
     source:
-      address: "0x0000000000000000000000000000000000000000"
+      address: "0xE3aa1B2406125731711cdC5897Ee665F551D05f3"
       abi: OracleAttestation
-      startBlock: 11675947
+      startBlock: 11680400
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7

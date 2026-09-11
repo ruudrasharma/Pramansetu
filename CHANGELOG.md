@@ -6,6 +6,43 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.19.0] — 2026-09-11 — T-016 Oracle Attestation live on Sepolia
+
+Closes T-016 for real — the design/build (0.18.4) is now deployed, wired, and verified live, not
+just tested and fork-rehearsed.
+
+### Added
+- `TimeBoundAccessControl` upgraded in place on live Sepolia (this project's first real in-place
+  UUPS upgrade — tx `0x71b82546...`), introducing `ORACLE_ATTESTOR_ROLE` via a `reinitializer(2)`
+  passed atomically as the upgrade's calldata.
+- `AssetRegistry` upgraded in place (tx `0x68d9fe12...`), adding real `recordOracleFact`/
+  `oracleFactsOf`/`latestOracleFactType` state.
+- `OracleAttestation` deployed (`0xE3aa1B2406125731711cdC5897Ee665F551D05f3`) and wired into
+  `AssetRegistry` (tx `0xb22fe433...`) via the 2-of-N actionType-7 governance flow.
+- `ORACLE_ATTESTOR_ROLE` granted to Rudra and Shivansh (1-year `validUntil`).
+- Subgraph redeployed as `v13` with the real `OracleAttestation` dataSource; `deployments/sepolia.json`,
+  `.env.local`, and Vercel's Production/Preview env vars all updated and redeployed.
+
+### Fixed
+- Vercel's stored `NEXT_PUBLIC_SUBGRAPH_URL` was stale, causing `/api/audit/anomalies` to error on
+  every production request — corrected and verified (now correctly surfaces a real, honest anomaly:
+  a velocity-check flag on Shivansh's address from this session's own burst of governance activity).
+- First `vercel deploy` failed outright (untracked 592MB zip at the repo root exceeded the 100MB
+  upload limit) — added `.vercelignore`.
+
+### Notes
+- Co-signing via Etherscan's Write Contract UI didn't work — `TimeBoundAccessControl`'s
+  implementation was never verified there, so neither the default "Contract" tab nor "Write as
+  Proxy" exposed any usable function, with no clear error surfaced to explain why. Diagnosed by
+  screenshotting the actual page after three blind attempts failed. Built a minimal standalone
+  wallet-connect tool (raw `eth_call`/`eth_sendTransaction` against known function selectors, zero
+  Etherscan/ABI dependency) that worked on the first try once pointed at it.
+- `ORACLE_ATTESTOR_ROLE` currently sits on the same two addresses as `SUPER_ADMIN_ROLE` (Rudra,
+  Shivansh) — a deliberate simplification for this pass, not independent attestors. Revisit before
+  the "multiple independent attestors" property needs to mean anything in a real demo.
+
+---
+
 ## [0.18.5] — 2026-09-11 — Redeploy to live Vercel with T-016's UI; fix a real production error
 
 Per explicit request, deployed the current `main` (including T-016's frontend) to the existing

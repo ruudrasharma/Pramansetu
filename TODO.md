@@ -1051,7 +1051,7 @@ to build. Not started yet as of this note; needs its own implementation plan (ci
 `snarkjs`/`circomlib` dependency choice, where verification happens on/off-chain) before writing
 code, given the size of this addition.
 
-### T-016: Oracle Attestation (Phase 4)
+### T-016 ✅ closed 2026-09-11 — Oracle Attestation, live on Sepolia
 Integrate decentralized oracles for off-chain data validation.
 
 **2026-09-11 scope decision**: per explicit instruction from Rudra, this is also now in scope to
@@ -1180,10 +1180,45 @@ Executed for real, verified after each step:
   upgrade above is live, not just proposed (this is the exact ordering bug caught earlier) —
   **actionId 5**, tx `0x7370f3ed3bb8b63dc468710b4b093dff0ab3554a8a25c84e3ea3774ce101fd03`.
 
-**Awaiting one more co-sign: actionId 5** (the OracleAttestation wiring authorization), via the
-same tool. Once co-signed: `AssetRegistry.setOracleAttestationContract(0xE3aa1B2406125731711cdC5897Ee665F551D05f3)`,
-grant `ORACLE_ATTESTOR_ROLE` to real attestor addresses, then the off-chain wiring (§9 in the
-original sequence: `deployments/sepolia.json`, `.env.local`/Vercel env, subgraph redeploy).
+**2026-09-11 — T-016 fully live on Sepolia. ✅ Closed.** actionId 5 co-signed (verified
+`executed: true` and `oracleAttestationAuthorized(...) == true` independently before proceeding).
+Completed the rest of the sequence, verifying after each step:
+
+- `AssetRegistry.setOracleAttestationContract(0xE3aa1B2406125731711cdC5897Ee665F551D05f3)` — tx
+  `0xb22fe433676616d62a02e8ae8cf729ee532f27fa7a9fba19f9898da3c04063c5`. Verified `oracleAttestation()`
+  returns the correct address.
+- Per explicit decision, `ORACLE_ATTESTOR_ROLE` granted to Rudra (tx
+  `0x1d4b012fe30c48cbff4147073f59a0001f9ffaf09b4a64181d46a9c7dc754fbb`) and Shivansh (tx
+  `0x47f9b277725171db8c5866ae156612f8d67c596a6d00318c62e09537a703be18`), 1-year `validUntil`, both
+  verified `hasRole(...) == true`. Not independent from the two Super Admins — a deliberate
+  simplification for this pass, noted here for anyone revisiting attestor-diversity later.
+- `deployments/sepolia.json` updated with `contracts.oracleAttestation` and the new `t016Upgrade`
+  block recording both implementation addresses (proxy addresses for `accessControl`/`assetRegistry`
+  are unchanged — only their implementations were swapped).
+- `.env.local` and Vercel's Production+Preview `NEXT_PUBLIC_ORACLE_ATTESTATION_ADDRESS` set to
+  `0xE3aa1B2406125731711cdC5897Ee665F551D05f3`.
+- Subgraph redeployed as `v13` (real `OracleAttestation` dataSource address/startBlock, replacing
+  the placeholder) — confirmed `hasIndexingErrors: false` and `oracleFacts`/`auditEvents` both
+  queryable before switching anything over. `.env.local` and Vercel's `NEXT_PUBLIC_SUBGRAPH_URL`
+  updated to `v13`.
+- Vercel redeployed to production with all of the above; verified live in a real browser
+  (`/oracle/facts`, `/assets/[tokenId]` — no console errors, correct "no facts yet" empty state
+  against the real wired contract) and via `curl` (`/api/audit/anomalies` still healthy).
+
+**Real production issues found and fixed along the way, not assumed away**: the first Vercel
+deploy attempt failed outright (untracked 592MB zip at the repo root exceeded the 100MB upload
+limit — `.vercelignore` added) and `/api/audit/anomalies` was erroring on every live request from
+a stale `NEXT_PUBLIC_SUBGRAPH_URL` already configured in Vercel, unrelated to this session's other
+work — both fixed and verified (see CHANGELOG.md 0.18.5).
+
+**Real deployment friction worth recording for next time**: Etherscan's co-sign flow was a dead
+end here — `TimeBoundAccessControl`'s implementation was never verified on Etherscan, so both its
+default "Contract" tab and "Write as Proxy" tab showed no usable interface, with no clear error
+pointing at the real cause. Three attempts at walking through it by text failed silently before
+this was diagnosed by literally taking a screenshot of the page. Built a minimal standalone wallet
+tool (raw `eth_call`/`eth_sendTransaction` against the known function selectors, no ABI/Etherscan
+dependency) that worked immediately once pointed at it — worth reaching for directly next time a
+contract needs co-signing rather than assuming Etherscan's UI will just work.
 
 ### T-057 ✅ closed 2026-09-10 — `/onboarding` walkthrough was silently ambiguous about being fake (audit §3)
 `app/onboarding/page.tsx` is pure animation — `Math.random()` for the DID/pubKey shown, no service
