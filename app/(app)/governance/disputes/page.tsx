@@ -101,6 +101,9 @@ export default function DisputesPage() {
         <Card className="mb-4 border-danger-500/25 bg-danger-500/[0.04] text-[13px] text-danger-400">{actionError}</Card>
       )}
 
+      {disputes.length === 0 ? (
+        <Card className="text-[13px] text-ink-400">No queued transactions in the dispute window yet.</Card>
+      ) : (
       <div className="flex flex-col gap-4">
         {disputes.map((tx) => {
           const canExecute = tx.status === "queued" && now >= tx.eta;
@@ -173,6 +176,7 @@ export default function DisputesPage() {
           );
         })}
       </div>
+      )}
 
       <Dialog open={!!disputeTarget} onOpenChange={(open) => !open && setDisputeTarget(null)}>
         <DialogContent>

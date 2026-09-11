@@ -21,13 +21,18 @@ import { useDidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { dataMode } from "@/lib/services/dataMode";
 
+// Ordered longest-prefix-first: pathname.startsWith matches the first entry whose href is a
+// prefix, so a more specific route (e.g. "/governance/disputes") must appear before its parent
+// ("/governance") or it would always resolve to the parent's title instead of its own.
 const titles: Record<string, string> = {
   "/": "Welcome",
   "/dashboard": "Dashboard",
   "/identity": "Identity",
   "/roles": "Roles & Access",
   "/assets": "Assets",
+  "/governance/disputes": "Dispute Resolution",
   "/governance": "Governance",
+  "/oracle/facts": "Oracle Attestation",
   "/audit": "Audit & Anomalies",
   "/settings": "Settings",
   "/compliance": "Compliance",
@@ -44,7 +49,8 @@ export function TopBar() {
   const didService = useDidService(myDid);
   const me = dataMode === "onchain" ? didService.resolveDID() : undefined;
 
-  const openAlertCount = getAnomalies().filter((a) => a.status === "open").length;
+  const openAlerts = getAnomalies().filter((a) => a.status === "open");
+  const openAlertCount = openAlerts.length;
   const activeIdentity = identityByRole[activeRole];
 
   const title =
@@ -120,18 +126,45 @@ export function TopBar() {
 
         <ThemeToggle />
 
-        {/* Notification bell — unread count = open anomaly alerts */}
-        <button
-          aria-label={`${openAlertCount} open anomaly alerts`}
-          className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-400 transition-colors hover:bg-graphite-700/60 hover:text-ink-200"
-        >
-          <Bell size={15} strokeWidth={1.75} />
-          {openAlertCount > 0 && (
-            <span className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-danger-500 text-[9px] font-semibold text-white">
-              {openAlertCount}
-            </span>
-          )}
-        </button>
+        {/* Notification bell — unread count = open anomaly alerts. Opens a real preview panel
+            of those same alerts (getAnomalies() above), not just a static badge — previously
+            the badge counted real alerts but clicking it opened nothing anywhere in the
+            viewport (found live 2026-09-11, T-066). */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`${openAlertCount} open anomaly alerts`}
+            className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink-400 transition-colors hover:bg-graphite-700/60 hover:text-ink-200"
+          >
+            <Bell size={15} strokeWidth={1.75} />
+            {openAlertCount > 0 && (
+              <span className="absolute right-1 top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-danger-500 text-[9px] font-semibold text-white">
+                {openAlertCount}
+              </span>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuLabel>Anomaly alerts</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {openAlerts.length === 0 ? (
+              <p className="px-2.5 py-3 text-[12px] text-ink-500">No open anomaly alerts.</p>
+            ) : (
+              openAlerts.slice(0, 5).map((alert) => (
+                <DropdownMenuItem key={alert.id} asChild>
+                  <a href="/audit/anomalies" className="flex-col items-start gap-0.5">
+                    <span className="text-ink-50">{alert.rule}</span>
+                    <span className="line-clamp-1 text-[11px] text-ink-500">{alert.detail}</span>
+                  </a>
+                </DropdownMenuItem>
+              ))
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <a href="/audit/anomalies" className="justify-center text-signal-400">
+                View all anomaly alerts
+              </a>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* WalletConnect button — real Web3 auth path, independent of the demo role switcher */}
         <w3m-button />

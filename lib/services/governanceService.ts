@@ -34,6 +34,14 @@ import { GET_PLATFORM_ACTIONS, GET_PENDING_GRANTS, GET_GOVERNANCE } from "@/lib/
 const ZERO_ROLE = ("0x" + "0".repeat(64)) as `0x${string}`;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as `0x${string}`;
 
+// The onchain-only kinds ProposalKind gained for real actionType 4-7 labeling (authorizeUpgrade
+// etc., plus the generic "platformAction" fallback — see PLATFORM_ACTION_META below) only ever
+// appear read-side, synthesized by getProposals() from real subgraph data. Nothing in the UI ever
+// proposes one directly — proposeAction's callers (the "Propose Admin change" dialog, pause/
+// unpause) only ever submit the original 5 kinds — so the write-path keeps that narrower type
+// rather than widening to match ProposalKind's full (read-side) union.
+type ProposableKind = Extract<ProposalKind, "addAdmin" | "removeAdmin" | "upgrade" | "pause" | "unpause">;
+
 export interface GovernanceService {
   getProposals: () => GovernanceProposal[];
   /**
@@ -42,7 +50,7 @@ export interface GovernanceService {
    * DID to an address should use `resolveControllerAddress` (lib/hooks/useDIDRegistry.ts), same
    * as rbacService's write paths.
    */
-  proposeAction: (kind: ProposalKind, title: string, proposedBy: string, target?: { account: string; validUntil?: number }) => void;
+  proposeAction: (kind: ProposableKind, title: string, proposedBy: string, target?: { account: string; validUntil?: number }) => void;
   approveProposal: (proposalId: string, signer: string) => void;
   getDisputes: () => TimelockTransaction[];
   raiseDispute: (txId: number, reason: string, raisedBy: string) => void;
@@ -148,14 +156,34 @@ function useOnchainGovernanceService(): GovernanceService {
     refetchInterval: 10000,
   });
 
-  // actionType: 1 = emergencyRevoke (any role, not necessarily Admin — the UI's ProposalKind
-  // union only distinguishes "removeAdmin" as a label, the contract doesn't), 2 = pause, 3 =
-  // unpause. `role`/`account` are always empty here — ActionProposed genuinely doesn't emit them
-  // (contracts/TimeBoundAccessControl.sol:60), so there's nothing honest to show beyond the
-  // action type itself; this is a contract-level limitation, not a subgraph gap.
+  // actionType (contracts/TimeBoundAccessControl.sol:47-49): 1 = emergencyRevoke (any role, not
+  // necessarily Admin — the UI's ProposalKind union only distinguishes "removeAdmin" as a label,
+  // the contract doesn't), 2 = pause, 3 = unpause, 4 = authorizeUpgrade, 5 =
+  // authorizeDIDSignatureVerifier, 6 = authorizeDIDGuardianRecovery, 7 =
+  // authorizeOracleAttestationContract. `role`/`account` are always empty here — ActionProposed
+  // genuinely doesn't emit them (contracts/TimeBoundAccessControl.sol:60), so there's nothing
+  // honest to show beyond the action type itself; this is a contract-level limitation, not a
+  // subgraph gap. Previously actionType 4-7 all fell through to the "unpause"/"Unpause platform"
+  // default (found live in T-066), silently mislabeling real authorizeUpgrade/
+  // authorizeOracleAttestationContract proposals — every declared actionType now gets its real
+  // name, and anything outside 1-7 (which the contract itself rejects via InvalidActionType, so
+  // only reachable if a future contract version adds actionType 8+ ahead of a matching frontend
+  // update) falls back to a generic, honestly-numbered label instead of a wrong one.
+  const PLATFORM_ACTION_META: Record<number, { kind: ProposalKind; title: string }> = {
+    1: { kind: "removeAdmin", title: "Emergency revoke role" },
+    2: { kind: "pause", title: "Emergency pause" },
+    3: { kind: "unpause", title: "Unpause platform" },
+    4: { kind: "authorizeUpgrade", title: "Authorize contract upgrade" },
+    5: { kind: "authorizeDIDSignatureVerifier", title: "Authorize DID signature verifier" },
+    6: { kind: "authorizeDIDGuardianRecovery", title: "Authorize DID guardian recovery contract" },
+    7: { kind: "authorizeOracleAttestationContract", title: "Authorize oracle attestation contract" },
+  };
   const platformActionProposals: GovernanceProposal[] = (actionsQuery.data?.platformActions ?? []).map((a) => {
-    const kind: ProposalKind = a.actionType === 1 ? "removeAdmin" : a.actionType === 2 ? "pause" : "unpause";
-    const title = a.actionType === 1 ? "Emergency revoke role" : a.actionType === 2 ? "Emergency pause" : "Unpause platform";
+    const meta = PLATFORM_ACTION_META[a.actionType] ?? {
+      kind: "platformAction" as ProposalKind,
+      title: `Platform action (type ${a.actionType})`,
+    };
+    const { kind, title } = meta;
     return {
       id: `action-${a.actionId}`,
       kind,

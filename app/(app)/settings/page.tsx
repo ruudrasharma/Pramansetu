@@ -8,13 +8,15 @@ import { Badge } from "@/components/ui/Badge";
 import { IconBadge } from "@/components/ui/IconBadge";
 import { Switch } from "@/components/ui/Switch";
 import { ThemeToggle } from "@/components/shell/ThemeToggle";
-import { useAppStore } from "@/lib/store/appStore";
-import { identityByRole } from "@/lib/mock/fixtures";
+import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { truncateMiddle } from "@/lib/utils";
 
 export default function SettingsPage() {
-  const activeRole = useAppStore((s) => s.activeRole);
-  const me = identityByRole[activeRole];
+  // Was unconditionally identityByRole[activeRole] (the mock-fixture persona's address) — showed
+  // a fabricated wallet address regardless of what was actually connected, the exact same
+  // dishonesty T-064 already fixed on /dashboard. useCurrentIdentity() is the same real
+  // address/DID resolution TopBar.tsx already gets right for this card.
+  const { address: myAddress } = useCurrentIdentity();
   const [notifyAnomalies, setNotifyAnomalies] = useState(true);
   const [notifyGovernance, setNotifyGovernance] = useState(true);
 
@@ -56,7 +58,9 @@ export default function SettingsPage() {
           <IconBadge icon={Wallet} tone="sage" />
           <div>
             <p className="text-[13px] font-medium text-ink-50">Connected wallet</p>
-            <p className="mono-value text-[12px] text-ink-500">{truncateMiddle(me.controller, 10, 6)}</p>
+            <p className="mono-value text-[12px] text-ink-500">
+              {myAddress ? truncateMiddle(myAddress, 10, 6) : "Not connected"}
+            </p>
           </div>
         </div>
         <w3m-button />

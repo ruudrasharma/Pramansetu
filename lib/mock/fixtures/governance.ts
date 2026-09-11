@@ -9,7 +9,22 @@ import { identities, HOUR } from "./identities";
 const now = Date.now();
 const id = (i: number) => identities[i].did;
 
-export type ProposalKind = "addAdmin" | "removeAdmin" | "upgrade" | "pause" | "unpause";
+// authorizeUpgrade/authorizeDIDSignatureVerifier/authorizeDIDGuardianRecovery/
+// authorizeOracleAttestationContract/platformAction are onchain-only kinds (real
+// TimeBoundAccessControl actionType 4-7, plus a generic fallback for any actionType this frontend
+// doesn't recognize) — mock fixtures never produce them, see governanceService.ts's
+// PLATFORM_ACTION_META.
+export type ProposalKind =
+  | "addAdmin"
+  | "removeAdmin"
+  | "upgrade"
+  | "pause"
+  | "unpause"
+  | "authorizeUpgrade"
+  | "authorizeDIDSignatureVerifier"
+  | "authorizeDIDGuardianRecovery"
+  | "authorizeOracleAttestationContract"
+  | "platformAction";
 export type ProposalStatus = "queued" | "executed";
 
 export interface Signer {

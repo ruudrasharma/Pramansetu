@@ -12,7 +12,7 @@ import { EventRow } from "@/components/modules/EventRow";
 import { RoleBadge } from "@/components/modules/RoleBadge";
 import { AlertCard } from "@/components/modules/AlertCard";
 import { useAppStore } from "@/lib/store/appStore";
-import { identityByRole, type EventType, type AuditEvent, ROLE_LABEL } from "@/lib/mock/fixtures";
+import { identityByRole, type EventType, type AuditEvent } from "@/lib/mock/fixtures";
 import { useAuditService } from "@/lib/services/auditService";
 import { useAssetService } from "@/lib/services/assetService";
 import { useRbacService } from "@/lib/services/rbacService";
@@ -42,7 +42,7 @@ export default function DashboardPage() {
   // /roles, /identity, /governance (see those files for the same pattern followed here). In
   // onchain mode this showed a fabricated "Welcome back, <mock name>" greeting and mock role
   // gates no matter who was actually connected.
-  const { did: myDid, address: myAddress } = useCurrentIdentity();
+  const { did: myDid, address: myAddress, isResolving: isResolvingMe, hasNoDid } = useCurrentIdentity();
   const meMock = identityByRole[activeRole];
   const me = dataMode === "onchain" ? { did: myDid ?? "" } : meMock;
   const didService = useDidService(myDid);
@@ -53,8 +53,23 @@ export default function DashboardPage() {
   // credentialStatus likewise. name/roleExpiresAt are honestly left unpopulated onchain (no
   // caller previously needed them) — falls back to the truncated address, matching TopBar.tsx's
   // own onchain-mode identity display, rather than fabricating a name.
-  const myRole = dataMode === "onchain" ? (myRealIdentity?.role ?? "USER") : activeRole;
-  const myCredentialStatus = dataMode === "onchain" ? (myRealIdentity?.credentialStatus ?? "pending") : meMock.credentialStatus;
+  //
+  // A connected wallet with no registered DID (hasNoDid) previously fell through these same
+  // "?? USER" / "?? pending" / "?? 0" defaults forever — myRealIdentity is genuinely undefined
+  // for a role-holder who simply hasn't created a DID yet, not still resolving, so the "My
+  // identity" card showed a permanent "Pending" and the header rendered a fake "User" role +
+  // an already-"Expired" countdown ring for someone who was never granted a role at all (found
+  // live 2026-09-11, T-067 — /identity/page.tsx already handles this exact state correctly via
+  // its own hasNoDid branch). Now surfaced honestly instead of guessing a default.
+  const myRole = dataMode === "onchain" ? (hasNoDid ? undefined : myRealIdentity?.role ?? "USER") : activeRole;
+  const myCredentialStatus =
+    dataMode === "onchain"
+      ? isResolvingMe
+        ? "resolving"
+        : hasNoDid
+          ? "no DID"
+          : myRealIdentity?.credentialStatus ?? "pending"
+      : meMock.credentialStatus;
   const myRoleExpiresAt = dataMode === "onchain" ? (myRealIdentity?.roleExpiresAt ?? 0) : meMock.roleExpiresAt;
   const myDisplayName =
     dataMode === "onchain" ? (myAddress ? truncateMiddle(myAddress, 6, 4) : "…") : meMock.name.split(" ")[0];
@@ -151,8 +166,18 @@ export default function DashboardPage() {
         <div>
           <h2 className="text-[15px] font-medium text-ink-50">Welcome back, {myDisplayName}</h2>
           <div className="mt-1 flex items-center gap-2">
-            <Badge tone="neutral">{ROLE_LABEL[myRole]}</Badge>
-            <RoleBadge role={myRole} expiresAt={myRoleExpiresAt} size="sm" />
+            {/* RoleBadge already renders both the role label and the expiry ring — a separate
+                Badge here duplicated the same label next to it (found live 2026-09-11, T-067:
+                "two overlapping User badges"). No role/expiry to show at all for a connected
+                wallet with no DID yet, rather than a fake "User" badge next to an
+                already-"Expired" ring for a role that was never granted. */}
+            {myRole ? (
+              <RoleBadge role={myRole} expiresAt={myRoleExpiresAt} size="sm" />
+            ) : (
+              <a href="/identity" className="text-[12px] text-signal-400 underline underline-offset-2 hover:text-signal-300">
+                No DID registered — create one
+              </a>
+            )}
           </div>
         </div>
       </div>

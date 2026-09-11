@@ -109,6 +109,13 @@ export default function RolesPage() {
                 </TableCell>
               </TableRow>
             )}
+            {!rbacService.isLoadingIdentities && identities.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={canManage ? 6 : 5} className="text-center text-ink-500">
+                  No identities yet.
+                </TableCell>
+              </TableRow>
+            )}
             {identities.map((identity) => (
               <TableRow key={identity.did}>
                 <TableCell>

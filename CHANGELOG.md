@@ -6,6 +6,42 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.20.2] — 2026-09-11 — Fix 8 live UI bugs found in a real-wallet audit (T-066–T-073)
+
+Frontend-only fixes, no `.sol` change — same "silent UI/data wiring gap" category as T-064/T-065,
+found clicking through the live deployment with a real connected wallet holding `SUPER_ADMIN_ROLE`
+but no registered DID. Full detail in `TODO.md`'s T-066–T-073 entries. Verified live via the Chrome
+extension against a real connected wallet's onchain-mode data, not just source reading or a clean
+build.
+
+### Fixed
+- `app/(app)/settings/page.tsx` (T-066): "Connected wallet" card showed a hardcoded mock-fixture
+  address instead of the real connected wallet — now uses `useCurrentIdentity()`, same as
+  `TopBar.tsx`.
+- `app/(app)/dashboard/page.tsx` (T-067): identity widget stuck permanently on "Pending" for a
+  connected wallet with no registered DID, plus a genuine duplicate role-badge render (a standalone
+  `Badge` next to `RoleBadge`, which already renders that same label) present for every user. Both
+  fixed — honest "No DID" state with a create-identity link, single badge render.
+- `lib/services/governanceService.ts` (T-069): real actionType 4 (`authorizeUpgrade`) and 7
+  (`authorizeOracleAttestationContract`) proposals rendered as "Unpause platform" in the Multisig
+  queue — added real labels for actionType 4-7 plus an honest numbered fallback for anything else.
+- `app/(app)/governance/disputes/page.tsx` (T-070): no empty-state message when the dispute queue
+  is empty — added one, matching `/assets`/`/oracle/facts`.
+- `components/shell/TopBar.tsx` (T-071, T-072): `/oracle/facts` and `/governance/disputes` both kept
+  a stale/wrong page title (fixed the `titles` lookup); the notification bell had no click handler
+  at all despite showing a real unread badge (wired to a real dropdown of the same open anomaly
+  alerts).
+- `app/(app)/roles/page.tsx` (T-073): no empty-state message when the identity table is empty —
+  added one.
+
+### Investigated, not a bug
+- Settings "Theme" copy (T-068): confirmed the live "dark by default" observation was stale
+  `localStorage.theme` from an earlier testing session, not a code defect — `docs/UI_UX_SPEC.md`'s
+  documented light-by-default + `next-themes`-persisted design is implemented correctly and was
+  reproduced live once `localStorage` was cleared.
+
+---
+
 ## [0.20.1] — 2026-09-11 — T-015 Semaphore proof-of-role live on Sepolia
 
 Closes T-015 for real — deployed, wired, and verified live, needing no governance choreography

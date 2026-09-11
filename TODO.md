@@ -5,6 +5,129 @@ Completed items are moved to CHANGELOG.md.
 
 ---
 
+## T-066–T-073 — 2026-09-11 live UI audit (real connected wallet, Chrome extension, no console errors)
+
+Found clicking through the live Vercel deployment with a real connected wallet
+(`0xb28EBde85D12Fd402ff8Daa7CFE1C84Bc449AD88` — holds `SUPER_ADMIN_ROLE` on-chain, no DID
+registered yet). All 8 are frontend-only wiring/data gaps, same category as T-064/T-065 — no
+`.sol` change needed for any of them. Verified twice, not assumed: first locally (`localhost:3001`,
+onchain mode against the real Sepolia deployment) with a different wallet already connected in this
+session's Chrome profile — same "no DID registered" state either way, so the exact code path under
+test was identical — then again after redeploying, on the actual live `pramansetu.vercel.app`
+production URL with the exact audit wallet (`0xb28EBde8…49AD88`) connected, confirming every fix
+end-to-end against the precise scenario the audit reported. `npx tsc --noEmit` clean, `npm run
+lint` unchanged baseline (0 errors, 103 warnings — confirmed pre-existing via `git stash`, not
+introduced by this pass), `npm run build` succeeds, `npm run test` (40/40) and `npm run
+test:contracts` (139/139) unaffected. No console errors on either the local or production pass.
+
+### T-066 ✅ closed 2026-09-11 — Settings page showed a hardcoded mock wallet address
+`app/(app)/settings/page.tsx`'s "Connected wallet" card read `identityByRole[activeRole].controller`
+— the mock-fixture persona's address, shown unconditionally regardless of `dataMode`, same
+dishonesty class as T-064's dashboard bug. Every other real "who am I" surface (`TopBar.tsx`,
+`/dashboard`, `/roles`, `/identity`, `/governance`) already gets this right via
+`useCurrentIdentity()`. Fixed to use the same hook; falls back to "Not connected" rather than any
+address when no wallet is connected. Verified live: the card now shows the exact same truncated
+address as the header/wallet pill, not a stale, non-matching one.
+
+### T-067 ✅ closed 2026-09-11 — Dashboard identity widget had no "no DID yet" state, and duplicated its own role badge
+Two separate root causes under one symptom, both in `app/(app)/dashboard/page.tsx`:
+1. **Duplicate badge, unconditional, every user, every role** — the header rendered a standalone
+   `<Badge tone="neutral">{ROLE_LABEL[myRole]}</Badge>` immediately next to
+   `<RoleBadge role={myRole} .../>`, which *already* renders that same role label plus the expiry
+   ring internally (`components/modules/RoleBadge.tsx`). `/roles/page.tsx` uses `RoleBadge` alone,
+   correctly, for comparison. This is what the audit saw as "two overlapping User badges" — not a
+   loading-skeleton race as first suspected, a genuine literal duplicate render. Fixed by deleting
+   the standalone `Badge`.
+2. **No `hasNoDid` branch** — `myRole`/`myCredentialStatus`/`myRoleExpiresAt` all silently defaulted
+   (`?? "USER"` / `?? "pending"` / `?? 0`) for a connected wallet with no registered DID, identical
+   to what a *still-resolving* wallet would show — so the "My identity" stat card got stuck on
+   "Pending" forever (never becomes "resolved" because there's genuinely no identity to resolve),
+   and the header rendered a fabricated "User" role next to an already-`expired` countdown ring
+   (`expiryLevel(0)` → `"expired"`) for a role that was never granted at all. `/identity/page.tsx`
+   already had the correct `hasNoDid` branch (T-045's `useCurrentIdentity()` addition) — the
+   dashboard's own identity widget was simply never wired to it. Fixed: `myRole` is now `undefined`
+   (not a fake `"USER"`) when `hasNoDid`, the health card shows an honest "No DID" value (distinct
+   from "Resolving…" mid-flight), and the header shows a "No DID registered — create one" link to
+   `/identity` instead of a role/expiry badge with nothing real to display.
+
+Verified live against a real connected wallet with no DID: "My identity" now reads "No DID" (not
+stuck "Pending"), the header shows exactly one CTA link (not two badges + a ring), and
+`/identity`'s own no-DID card renders identically for the same wallet — confirmed the two pages
+are now consistent.
+
+### T-068 — Settings "Theme" copy — investigated live, confirmed NOT a bug
+Audited as "copy says light-by-default, live site renders dark." `docs/UI_UX_SPEC.md` §"Theme
+toggle" explicitly specifies: "Default theme is light, regardless of system preference, persisted
+via `next-themes`/`localStorage`" — and `app/layout.tsx`'s `<ThemeProvider attribute="class"
+defaultTheme="light" enableSystem={false}>` implements exactly that. Verified live, not assumed:
+inspected the browser's `localStorage.theme` key — it held `"dark"`, persisted from an earlier
+toggle in a prior testing session on that same browser profile (this project has done extensive
+Chrome-extension-based audit sessions). Cleared it and reloaded `/settings`: the app rendered
+**light** by default, exactly matching the copy. This is `next-themes` persistence working exactly
+as the spec designed it (dark, once chosen, stays chosen across visits) — not a code defect. No
+code or copy change made; flagging here per the session brief's instruction to record every one of
+the 8 items, not because a fix was needed.
+
+### T-069 ✅ closed 2026-09-11 — Governance queue mislabeled real actionType 4/7 proposals as "Unpause platform"
+`lib/services/governanceService.ts`'s `platformActionProposals` mapping only ever distinguished
+actionType 1/2, falling through to `"unpause"`/`"Unpause platform"` for literally everything else —
+confirmed live, a real `authorizeUpgrade` (actionType 4) and a real
+`authorizeOracleAttestationContract` (actionType 7) proposal, both already `executed` on Sepolia
+from this project's own T-3.1/T-016 deploys, rendered as "Unpause platform" in the Multisig queue.
+Fixed with a `PLATFORM_ACTION_META` lookup covering the contract's full declared range
+(`contracts/TimeBoundAccessControl.sol:47-49`: 1=emergencyRevoke, 2=pause, 3=unpause,
+4=authorizeUpgrade, 5=authorizeDIDSignatureVerifier, 6=authorizeDIDGuardianRecovery,
+7=authorizeOracleAttestationContract), each with its own real kind/title. Anything outside 1-7 (the
+contract's own `InvalidActionType` guard makes this unreachable today, only a future contract
+version could add actionType 8+ ahead of a matching frontend update) now falls back to an honestly-
+numbered "Platform action (type N)" instead of silently reusing "unpause" — per the brief,
+mislabeling is worse than a generic label. `ProposalKind` (`lib/mock/fixtures/governance.ts`)
+extended with the 4 new onchain-only kinds plus a generic `"platformAction"` fallback; kept a
+separate, narrower `ProposableKind` type for `proposeAction`'s write-path parameter (the UI never
+proposes an `authorizeUpgrade` etc. directly — those only ever appear read-side from real subgraph
+data) so the mock store's `proposePlatformAction` didn't need touching at all. Verified live: the
+Multisig queue now shows "Authorize contract upgrade" and "Authorize oracle attestation contract"
+for the real actionType 4/7 entries, both correctly labeled `executed`.
+
+### T-070 ✅ closed 2026-09-11 — `/governance/disputes` had no empty-state message
+`app/(app)/governance/disputes/page.tsx` rendered nothing below the header when `disputes` was
+empty — unlike `/assets` ("No assets minted yet") and `/oracle/facts` ("No oracle facts have been
+submitted yet"). Added a matching `Card` message ("No queued transactions in the dispute window
+yet."), same style as `/oracle/facts`'s inline empty-state (that page's structure is this one's own
+closest sibling — see the file's own header comment). Verified live: renders correctly against the
+real (currently empty) `GovernanceTx` queue.
+
+### T-071 ✅ closed 2026-09-11 — `/oracle/facts` (and `/governance/disputes`) kept the previous route's page title
+`components/shell/TopBar.tsx`'s `titles` lookup only covered `/`, `/dashboard`, `/identity`,
+`/roles`, `/assets`, `/governance`, `/audit`, `/settings`, `/compliance` — `pathname.startsWith(href)`
+never matched `/oracle/facts` against any of them, so the `?? "Dashboard"` fallback fired, leaving
+the header reading "Dashboard" no matter which page was actually open. Added `/oracle/facts` →
+"Oracle Attestation" and (same latent gap, one hop shallower — `/governance/disputes` was falling
+back to the correct-but-generic "Governance" via the `/governance` prefix match, not the wrong
+page, so lower severity, but the same root cause and touched in the same pass) `/governance/disputes`
+→ "Dispute Resolution", ordered before the parent `/governance` entry since `Object.entries().find()`
+resolves to the first matching prefix. Verified live: both routes now show their own distinct title
+instead of "Dashboard"/generic "Governance".
+
+### T-072 ✅ closed 2026-09-11 — Notification bell had no click behavior at all
+`components/shell/TopBar.tsx`'s bell was a plain `<button>` with no `onClick` — showed a real unread
+badge (open anomaly alert count, matching `getAnomalies()`) but opened nothing anywhere in the
+viewport when clicked. Per the brief's "Rule Zero applies to UI affordances too" instruction, wired
+it to a real preview (a `DropdownMenu` listing the same open alerts already counted for the badge,
+each linking to `/audit/anomalies`, plus a "View all anomaly alerts" link) rather than just hiding
+the badge — the underlying data was already real, it just had nowhere to go. Verified live: clicking
+the bell now opens a panel showing the real open "Velocity Check: Rapid Role Grants" alert matching
+the badge's "1" count.
+
+### T-073 ✅ closed 2026-09-11 — `/roles` (Roles & Access) had no empty-state message
+`app/(app)/roles/page.tsx`'s table handled the loading state (`isLoadingIdentities`) but rendered a
+bare header row with zero body rows once loading finished and `identities` was still empty —
+technically honest (matches the real empty subgraph data) but inconsistent with `/assets`/`/oracle/facts`'s
+labeled empty states. Added a matching "No identities yet." row. Verified live against the real
+(currently empty) `Identity` subgraph entity.
+
+---
+
 ### T-065 ✅ closed 2026-09-11 — `AuditEvent.actorDid` crashed the ledger/audit UI on real null values
 Found immediately after T-064, clicking through the local dev server with the real redeployed
 contracts + `v12` subgraph: `/dashboard` threw a full-page client error boundary
