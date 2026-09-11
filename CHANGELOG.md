@@ -6,6 +6,33 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.18.5] — 2026-09-11 — Redeploy to live Vercel with T-016's UI; fix a real production error
+
+Per explicit request, deployed the current `main` (including T-016's frontend) to the existing
+live `crypto-nova1/pramansetu` Vercel project (https://pramansetu.vercel.app) and checked for
+real runtime issues rather than assuming a clean deploy meant a working site.
+
+### Fixed
+- `/api/audit/anomalies` was throwing on every request in production (`Cannot read properties of
+  undefined (reading 'auditEvents')`, caught and surfaced as a generic 500) — root cause:
+  Vercel's stored `NEXT_PUBLIC_SUBGRAPH_URL` for Production/Preview was stale, pointing at a
+  subgraph endpoint that no longer matched the live indexed schema. Verified the correct URL
+  (the same one `.env.local` already uses) by querying it directly, updated both Vercel
+  environments, and redeployed — confirmed fixed via `vercel logs` and repeated live requests
+  (now returns a genuine `[]`, not an error).
+- First deploy attempt failed outright (`File size limit exceeded (100 MB)`) — `vercel deploy`
+  uploads the local directory directly, unlike `git push`, and picked up a stray 592MB zip file
+  sitting untracked at the repo root. Added `.vercelignore` (see `76f662c`) to exclude it and
+  other local clutter/build directories.
+
+### Verified live
+- All key routes (`/`, `/assets/42`, `/oracle/facts`, `/governance`) return 200.
+- `/oracle/facts` and `/assets/[tokenId]` render cleanly in real onchain mode against the live
+  site (no console errors) — `OracleAttestation` isn't deployed yet, so oracle-related reads
+  correctly degrade to empty state rather than crashing.
+
+---
+
 ## [0.18.4] — 2026-09-11 — Build T-016 Oracle Attestation: contract, tests, subgraph, frontend (not yet deployed)
 
 Closes the design/build phase of T-016 (gap analysis §2.2.5, "decentralized oracle design with
