@@ -6,6 +6,28 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.20.1] — 2026-09-11 — T-015 Semaphore proof-of-role live on Sepolia
+
+Closes T-015 for real — deployed, wired, and verified live, needing no governance choreography
+(a standalone contract that only reads `TimeBoundAccessControl`, unlike T-016's upgrades).
+
+### Added
+- `SemaphoreRoleGroups` deployed to Sepolia (`0x0fa48402ee578d6579B68da85B9910bFec1e7B47`),
+  creating 5 real groups on the official Semaphore contract — group ids matched the fork
+  rehearsal's predictions exactly.
+- `deployments/sepolia.json`, `.env.local`, and Vercel's env vars updated; production redeployed
+  and verified live (no console errors, `/api/audit/anomalies` still healthy).
+
+### Notes
+- A real browser check surfaced an honest, expected state rather than a bug: the connected test
+  wallet has no DID registered yet, so `/identity` shows its existing onboarding card before ever
+  reaching the ZK card — pre-existing page behavior, not something T-015 changed. The full
+  interactive prove/verify/revoke flow wasn't forced through a real DID creation for a real
+  person's address without asking; correctness is established via the fork rehearsal (identical
+  flow, real official Semaphore contract) and 11 passing Hardhat tests instead.
+
+---
+
 ## [0.20.0] — 2026-09-11 — Build T-015 real ZK proof-of-role (Semaphore) — not yet deployed
 
 Closes the design/build phase of T-015 (gap analysis §2.1.4, "selective disclosure via

@@ -1091,10 +1091,30 @@ ZK feature otherwise.
   (`audit`/`dashboard`/`DateStrip`) but weren't exercised by this session's testing — left alone,
   out of scope for this pass.
 
-**Not yet done**: the actual live Sepolia broadcast. Unlike T-016, this deployment needs **no
-governance choreography at all** — `SemaphoreRoleGroups` is a new, standalone contract that only
-*reads* `TimeBoundAccessControl.hasRole()`, so a single deploy transaction from a funded key is
-sufficient, no 2-of-N co-sign required. Awaiting explicit go-ahead before broadcasting.
+**2026-09-11 — ✅ fully closed, live on Sepolia.** Deployed for real, per explicit go-ahead — as
+predicted, needed no governance choreography, just one deploy transaction:
+
+- `SemaphoreRoleGroups`: `0x0fa48402ee578d6579B68da85B9910bFec1e7B47`, deploy tx
+  `0x2174680f37c9e761d5bc23751c01e41ffc3f11353d29793de4d17b9c909960e5`. Verified live: 5 distinct
+  Semaphore group ids created (`SUPER_ADMIN_ROLE=649, ADMIN_ROLE=650, MANAGER_ROLE=651,
+  AUDITOR_ROLE=652, USER_ROLE=653` on the real official Semaphore contract) — these matched the
+  fork rehearsal's predicted ids exactly, a strong consistency signal that the rehearsal was a
+  faithful dry run.
+- `deployments/sepolia.json`, `.env.local`, and Vercel's Production+Preview
+  `NEXT_PUBLIC_SEMAPHORE_ROLE_GROUPS_ADDRESS`/`NEXT_PUBLIC_SEMAPHORE_ADDRESS` all updated;
+  `pramansetu.vercel.app` redeployed and verified live (`/`, `/identity` both 200, no console
+  errors, `/api/audit/anomalies` still healthy).
+- **Real browser check surfaced a real, honest limitation, not a bug**: the connected test wallet
+  (Rudra's real address) has no DID registered on the live `DIDRegistry` yet, so `/identity`
+  correctly shows the "create identity" onboarding card rather than reaching the ZK proof card at
+  all — this is the page's existing, pre-T-015 behavior (a DID is a prerequisite for the whole
+  identity page, not something T-015 introduced), working exactly as designed. **The full
+  interactive prove→verify→revoke→clean-up flow has not been exercised in a live browser against
+  the real deployed contract** — deliberately not forced by creating a real DID for Rudra's actual
+  address without asking first. Real-flow correctness is established instead by: the fork
+  rehearsal (identical flow, real official Semaphore contract, forked real Sepolia state) and 11
+  passing Hardhat tests exercising the exact same sequence end-to-end. Offer still open: set up a
+  disposable test DID + role grant if a live interactive walkthrough is wanted.
 
 ### T-016 ✅ closed 2026-09-11 — Oracle Attestation, live on Sepolia
 Integrate decentralized oracles for off-chain data validation.
