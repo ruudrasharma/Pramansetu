@@ -29,4 +29,9 @@ export const contractAddresses = {
   guardianRecovery: process.env.NEXT_PUBLIC_GUARDIAN_RECOVERY_ADDRESS as `0x${string}` | undefined,
   governanceTimelock: process.env.NEXT_PUBLIC_GOVERNANCE_TIMELOCK_ADDRESS as `0x${string}` | undefined,
   oracleAttestation: process.env.NEXT_PUBLIC_ORACLE_ATTESTATION_ADDRESS as `0x${string}` | undefined,
+  semaphoreRoleGroups: process.env.NEXT_PUBLIC_SEMAPHORE_ROLE_GROUPS_ADDRESS as `0x${string}` | undefined,
+  // The official, audited Semaphore V4 deployment on Sepolia (semaphore-protocol/semaphore) — not
+  // deployed by this project, so this isn't a "not yet deployed" placeholder; the env var exists
+  // for consistency/overridability, with the known official address as a fallback (T-015).
+  semaphore: (process.env.NEXT_PUBLIC_SEMAPHORE_ADDRESS ?? "0x8A1fd199516489B0Fb7153EB5f075cDAC83c693D") as `0x${string}`,
 };

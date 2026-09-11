@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Copy, ExternalLink, ShieldCheck, Lock, Loader2, CheckCircle2, Check, Users } from "lucide-react";
+import { useAccount } from "wagmi";
+import {
+  Copy,
+  ExternalLink,
+  ShieldCheck,
+  Lock,
+  Loader2,
+  CheckCircle2,
+  Check,
+  Users,
+  AlertTriangle,
+  Eye,
+} from "lucide-react";
 import { Card, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -16,6 +28,26 @@ import { useDidService, type DidService } from "@/lib/services/didService";
 import { useCurrentIdentity } from "@/lib/hooks/useCurrentIdentity";
 import { useHasIssuerRole } from "@/lib/hooks/useCredentialRegistry";
 import { dataMode } from "@/lib/services/dataMode";
+import { ROLE, useHasRole } from "@/lib/hooks/useAccessControl";
+import {
+  useCommitmentOf,
+  useGroupIdOf,
+  useIsMember,
+  useRegisterCommitment,
+  useSyncMember,
+  useRemoveMemberFromRole,
+  useVerifyProofOnchain,
+} from "@/lib/hooks/useSemaphoreRoleGroups";
+import {
+  getOrCreateIdentity,
+  hasLocalIdentity,
+  reconstructGroup,
+  proveRole,
+  verifyRoleProofLocal,
+  toOnchainProof,
+  type SemaphoreProof,
+  type Identity as SemaphoreIdentityType,
+} from "@/lib/services/semaphoreIdentity";
 
 const candidateGuardians = identities.filter((i) => i.credentialStatus === "verified").slice(0, 8);
 
@@ -187,6 +219,240 @@ function CreateIdentityCard({ onCreate }: { onCreate: (input: { name: string; de
   );
 }
 
+const ROLE_HASHES: { label: string; hash: `0x${string}` }[] = [
+  { label: "SUPER_ADMIN", hash: ROLE.SUPER_ADMIN_ROLE },
+  { label: "ADMIN", hash: ROLE.ADMIN_ROLE },
+  { label: "MANAGER", hash: ROLE.MANAGER_ROLE },
+  { label: "AUDITOR", hash: ROLE.AUDITOR_ROLE },
+  { label: "USER", hash: ROLE.USER_ROLE },
+];
+
+/**
+ * Real zero-knowledge proof-of-role (T-015, gap analysis §2.1.4) — not split by dataMode, since a
+ * Semaphore proof is real cryptography against the real connected wallet regardless of whether
+ * the rest of the page is showing mock or onchain contract data. Operates on whichever role the
+ * REAL connected wallet actually, currently holds (same highest-privilege-first derivation
+ * didService.ts's onchain resolveDID already uses) — not the mock role-switcher persona.
+ */
+function ZkRoleProofCard() {
+  const { address } = useAccount();
+
+  // Real, live role checks against the real connected wallet — independent of dataMode/activeRole.
+  // Called individually (not via .map()) since React Hooks can't be called inside a callback —
+  // the array is fixed-length (ROLE_HASHES never changes), so this is a fixed 5 calls, not a
+  // variable-length loop, but the hook itself still has to be invoked directly per Rules of Hooks.
+  const hasSuperAdmin = useHasRole(ROLE.SUPER_ADMIN_ROLE, address);
+  const hasAdmin = useHasRole(ROLE.ADMIN_ROLE, address);
+  const hasManager = useHasRole(ROLE.MANAGER_ROLE, address);
+  const hasAuditor = useHasRole(ROLE.AUDITOR_ROLE, address);
+  const hasUser = useHasRole(ROLE.USER_ROLE, address);
+  const roleChecks = [hasSuperAdmin, hasAdmin, hasManager, hasAuditor, hasUser];
+  const heldIndex = roleChecks.findIndex((q) => q.data === true);
+  const myRole = heldIndex >= 0 ? ROLE_HASHES[heldIndex] : undefined;
+
+  const { data: commitment } = useCommitmentOf(address);
+  const isRegistered = !!commitment && commitment !== 0n;
+  const { data: isMemberOfMyRole } = useIsMember(myRole?.hash, address);
+
+  // Surface any stale membership across all 5 groups (a role this wallet no longer holds but is
+  // still synced into) — this is what makes the "revoked mid-session, live root not cached"
+  // edge case (docs/FEATURES.md F1.4) a real, actionable UI state, not just a comment.
+  const memberSuperAdmin = useIsMember(ROLE.SUPER_ADMIN_ROLE, address);
+  const memberAdmin = useIsMember(ROLE.ADMIN_ROLE, address);
+  const memberManager = useIsMember(ROLE.MANAGER_ROLE, address);
+  const memberAuditor = useIsMember(ROLE.AUDITOR_ROLE, address);
+  const memberUser = useIsMember(ROLE.USER_ROLE, address);
+  const staleChecks = [memberSuperAdmin, memberAdmin, memberManager, memberAuditor, memberUser];
+  const staleRoles = ROLE_HASHES.filter((_, i) => staleChecks[i]?.data === true && roleChecks[i]?.data === false);
+
+  const [identity, setIdentity] = useState<SemaphoreIdentityType | null>(null);
+  const [proof, setProof] = useState<SemaphoreProof | null>(null);
+  const [proving, setProving] = useState(false);
+  const [cleaning, setCleaning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { registerCommitment, isPending: registering } = useRegisterCommitment();
+  const { syncMember, isPending: syncing } = useSyncMember();
+  const { removeMemberFromRole, isPending: removing } = useRemoveMemberFromRole();
+
+  useEffect(() => {
+    setIdentity(null);
+    setProof(null);
+    if (!address || !hasLocalIdentity(address)) return;
+    try {
+      setIdentity(getOrCreateIdentity(address));
+    } catch {
+      // storage unavailable — leave identity null, "Set up" button will surface the same error.
+    }
+  }, [address]);
+
+  const { data: myGroupId } = useGroupIdOf(myRole?.hash);
+  const onchainProof = proof ? toOnchainProof(proof) : undefined;
+  const { data: onchainValid, isLoading: verifyingOnchain, refetch: refetchOnchain } = useVerifyProofOnchain(
+    myGroupId,
+    onchainProof
+  );
+
+  async function handleSetUpIdentity() {
+    if (!address) return;
+    setError(null);
+    try {
+      setIdentity(getOrCreateIdentity(address));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set up a local identity");
+    }
+  }
+
+  async function handleRegister() {
+    if (!identity) return;
+    setError(null);
+    try {
+      registerCommitment(identity.commitment);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to register commitment");
+    }
+  }
+
+  async function handleSync() {
+    if (!myRole || !address) return;
+    setError(null);
+    try {
+      syncMember({ role: myRole.hash, account: address });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to sync group membership");
+    }
+  }
+
+  async function handleProve() {
+    if (!identity || !myRole) return;
+    setError(null);
+    setProving(true);
+    setProof(null);
+    try {
+      const group = await reconstructGroup(myRole.hash);
+      const generated = await proveRole(identity, group, myRole.hash);
+      const valid = await verifyRoleProofLocal(generated);
+      if (!valid) throw new Error("Generated proof did not verify locally — try again.");
+      setProof(generated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate proof");
+    } finally {
+      setProving(false);
+    }
+  }
+
+  async function handleCleanUp(role: { label: string; hash: `0x${string}` }) {
+    if (!address) return;
+    setError(null);
+    setCleaning(role.hash);
+    try {
+      const group = await reconstructGroup(role.hash);
+      const index = group.indexOf(commitment ?? 0n);
+      if (index === -1) throw new Error("Could not find this commitment in the reconstructed group — try refreshing.");
+      const merkleProof = group.generateMerkleProof(index);
+      removeMemberFromRole({ role: role.hash, account: address, merkleProofSiblings: merkleProof.siblings });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clean up stale membership");
+    } finally {
+      setCleaning(null);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-start gap-3">
+        <IconBadge icon={ShieldCheck} tone="signal" className="mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-[14px] font-medium text-ink-50">Prove role without revealing identity</h3>
+            <Badge tone="verified">Real zero-knowledge proof (Semaphore)</Badge>
+          </div>
+          <p className="mt-1 max-w-lg text-[13px] text-ink-400">
+            Uses your connected wallet and the official Semaphore protocol contract on Sepolia —
+            proves membership in a role&apos;s group without revealing which wallet you are. See{" "}
+            <code className="mono-value text-[11px]">docs/FEATURES.md</code> F1.4.
+          </p>
+
+          {error && (
+            <p className="mt-3 rounded-xl border border-danger-500/25 bg-danger-500/[0.04] px-3 py-2 text-[12px] text-danger-400">
+              {error}
+            </p>
+          )}
+
+          {!address ? (
+            <p className="mt-3 text-[12px] text-ink-600">Connect a wallet to use this feature.</p>
+          ) : !identity ? (
+            <Button variant="secondary" className="mt-3" onClick={handleSetUpIdentity}>
+              Set up anonymous proof
+            </Button>
+          ) : !isRegistered ? (
+            <Button variant="secondary" className="mt-3" onClick={handleRegister} disabled={registering}>
+              {registering && <Loader2 size={14} className="animate-spin" />}
+              {registering ? "Registering…" : "Register identity commitment"}
+            </Button>
+          ) : !myRole ? (
+            <p className="mt-3 text-[12px] text-ink-600">
+              Your connected wallet doesn&apos;t currently hold a role — nothing to prove yet.
+            </p>
+          ) : !isMemberOfMyRole ? (
+            <Button variant="secondary" className="mt-3" onClick={handleSync} disabled={syncing}>
+              {syncing && <Loader2 size={14} className="animate-spin" />}
+              {syncing ? "Syncing…" : `Sync ${ROLE_LABEL[myRole.label as keyof typeof ROLE_LABEL] ?? myRole.label} membership`}
+            </Button>
+          ) : (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button variant="secondary" onClick={handleProve} disabled={proving}>
+                {proving && <Loader2 size={14} className="animate-spin" />}
+                {proof ? <CheckCircle2 size={14} className="text-verified-400" /> : null}
+                {proving ? "Generating proof…" : proof ? "Proved (verified locally)" : `Prove ${ROLE_LABEL[myRole.label as keyof typeof ROLE_LABEL] ?? myRole.label} anonymously`}
+              </Button>
+              {proof && (
+                <Button variant="secondary" className="px-2.5 py-1 text-[12px]" onClick={() => refetchOnchain()} disabled={verifyingOnchain}>
+                  {verifyingOnchain ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : onchainValid === true ? (
+                    <CheckCircle2 size={12} className="text-verified-400" />
+                  ) : (
+                    <Eye size={12} />
+                  )}
+                  {verifyingOnchain ? "Verifying on-chain…" : onchainValid === true ? "Verified on-chain" : "Also verify on-chain"}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {staleRoles.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-alert-500/25 bg-alert-500/[0.06] p-3">
+              <p className="flex items-center gap-1.5 text-[12px] font-medium text-alert-400">
+                <AlertTriangle size={13} /> Stale group membership detected
+              </p>
+              <p className="mt-1 text-[11px] text-ink-500">
+                You no longer hold {staleRoles.map((r) => ROLE_LABEL[r.label as keyof typeof ROLE_LABEL] ?? r.label).join(", ")}, but
+                your identity is still synced into that group — a proof against the old root stays
+                valid until it&apos;s cleaned up (or the root&apos;s grace window elapses).
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {staleRoles.map((role) => (
+                  <Button
+                    key={role.hash}
+                    variant="danger"
+                    className="px-2.5 py-1 text-[11px]"
+                    onClick={() => handleCleanUp(role)}
+                    disabled={removing && cleaning === role.hash}
+                  >
+                    {removing && cleaning === role.hash && <Loader2 size={12} className="animate-spin" />}
+                    Clean up {ROLE_LABEL[role.label as keyof typeof ROLE_LABEL] ?? role.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function IdentityPage() {
   const activeRole = useAppStore((s) => s.activeRole);
   const { did: myDid, address: myAddress, isResolving: isResolvingMe, hasNoDid } = useCurrentIdentity();
@@ -196,13 +462,6 @@ export default function IdentityPage() {
   const guardianSet = didService.getGuardians();
   const { data: hasIssuerRoleOnchain } = useHasIssuerRole(myAddress);
   const isIssuer = dataMode === "onchain" ? !!hasIssuerRoleOnchain : activeRole === "ADMIN" || activeRole === "SUPER_ADMIN";
-
-  const [zkState, setZkState] = useState<"idle" | "proving" | "proved">("idle");
-
-  function runZkDemo() {
-    setZkState("proving");
-    setTimeout(() => setZkState("proved"), 1400);
-  }
 
   if (dataMode === "onchain" && !myDid) {
     return (
@@ -281,7 +540,7 @@ export default function IdentityPage() {
           </div>
           <div>
             <p className="mb-1 text-[12px] uppercase tracking-wide text-ink-600">Created</p>
-            <span className="text-[13px] text-ink-200">{new Date(me.createdAt).toLocaleDateString()}</span>
+            <span className="text-[13px] text-ink-200">{new Date(me.createdAt).toLocaleDateString("en-US")}</span>
           </div>
           <div>
             <p className="mb-1 text-[12px] uppercase tracking-wide text-ink-600">Key type</p>
@@ -313,37 +572,7 @@ export default function IdentityPage() {
         )}
       </div>
 
-      {dataMode === "mock" && (
-        <Card>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <IconBadge icon={ShieldCheck} tone="signal" className="mt-0.5" />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-[14px] font-medium text-ink-50">Prove role without revealing identity</h3>
-                  <Badge tone="alert">Illustrative — not a real proof</Badge>
-                </div>
-                <p className="mt-1 max-w-md text-[13px] text-ink-400">
-                  Demo walkthrough of a planned zero-knowledge proof (Semaphore) that you hold a valid{" "}
-                  {ROLE_LABEL[activeRole]} credential without disclosing which DID you are. No ZK circuit
-                  exists in this build yet — see <code className="mono-value text-[11px]">docs/SECURITY.md</code>{" "}
-                  §5.2 and the Phase 4 roadmap in <code className="mono-value text-[11px]">TODO.md</code> (T-015).
-                </p>
-              </div>
-            </div>
-            <Button variant="secondary" className="shrink-0" onClick={runZkDemo} disabled={zkState === "proving"}>
-              {zkState === "proving" && <Loader2 size={14} className="animate-spin" />}
-              {zkState === "proved" && <CheckCircle2 size={14} className="text-verified-400" />}
-              {zkState === "idle" ? "Generate proof" : zkState === "proving" ? "Proving…" : "Proved"}
-            </Button>
-          </div>
-          {zkState === "proved" && (
-            <div className="mt-3 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
-              Illustrative result only — no real proof was generated or verified.
-            </div>
-          )}
-        </Card>
-      )}
+      <ZkRoleProofCard />
     </div>
   );
 }

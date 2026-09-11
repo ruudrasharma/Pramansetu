@@ -1035,7 +1035,7 @@ Sepolia and the live Graph Studio subgraph in this session — not from a doc, f
 
 ## 🟢 Medium Priority — Polish & Robustness
 
-### T-015: ZK Privacy Module (Phase 4) — labeling fixed 2026-09-10, implementation still open
+### T-015 ✅ built+tested+fork-rehearsed 2026-09-11 — ZK Privacy Module, real Semaphore integration
 Implement Zero-Knowledge proofs for selective credential disclosure and transaction privacy.
 **2026-09-10 (audit §4.2):** the `/identity` page's "Generate proof" button (`runZkDemo`) fabricated a
 Semaphore-style verification result via `setTimeout` in *every* data mode, with no ZK library anywhere
@@ -1046,10 +1046,55 @@ its copy no longer implies a live Merkle-root check, and `docs/FEATURES.md` F1.4
 reading like a shipped mitigation. The actual Semaphore/snarkjs integration remains open.
 
 **2026-09-11 scope decision**: per explicit instruction from Rudra, this is no longer staying as a
-roadmap item for the hackathon submission — the real Semaphore/snarkjs integration is now in scope
-to build. Not started yet as of this note; needs its own implementation plan (circuit design,
-`snarkjs`/`circomlib` dependency choice, where verification happens on/off-chain) before writing
-code, given the size of this addition.
+roadmap item for the hackathon submission — the real Semaphore integration is now in scope to build.
+
+**2026-09-11 — built, tested, and fork-rehearsed; NOT YET deployed to live Sepolia.** Researched
+the real Semaphore protocol ecosystem (package versions, on-chain deployment options, circuit
+artifact hosting) before designing anything, not assumed — see
+`/Users/rudra/.claude/plans/hashed-doodling-moore.md`. Key finding that shaped the whole design:
+Semaphore V4 has an **official, audited deployment on Sepolia**
+(`0x8A1fd199516489B0Fb7153EB5f075cDAC83c693D`, verifier `0x4DeC9E3784EcC1eE002001BfE91deEf4A48931f8`)
+— confirmed by checking real bytecode via `eth_getCode`, not just trusting docs — so this project
+never needs its own trusted setup or verifier deployment, the single biggest scope risk for a real
+ZK feature otherwise.
+
+- New `contracts/SemaphoreRoleGroups.sol` — one Semaphore group per `TimeBoundAccessControl` role,
+  `registerCommitment`/`syncMember` (real, permissionless, reconciles against live `hasRole()`)/
+  `removeMemberFromRole` (real on-chain Merkle-proof removal, not just documented as needed).
+  Non-upgradeable, standalone — no changes to `TimeBoundAccessControl.sol` or `DIDRegistry.sol`
+  (the latter has no UUPS proxy at all, confirmed before designing around it).
+- 11 new `test/SemaphoreRoleGroups.test.ts` cases against a **real locally-deployed Semaphore
+  instance** (not a hand-rolled mock) — including a genuine end-to-end proof generation → local
+  verify → on-chain verify → revoke → real Merkle-proof removal → stale-root-rejected cycle, which
+  is `docs/FEATURES.md` F1.4's flagged edge case actually exercised, not just asserted. Real
+  function signatures and the `SemaphoreProof` struct shape were pulled directly from the verified
+  Sepolia source and the installed package's type definitions, not guessed. 139 total Hardhat
+  tests passing.
+- `scripts/forkRehearsal_semaphoreRoleGroups.ts` — deployed against the **real official Semaphore
+  contract** on a fork of live Sepolia state, ran a full register → sync → real proof generation
+  (circuit artifacts genuinely downloaded) → local verify → on-chain verify cycle. Passed cleanly.
+- Frontend: `lib/services/semaphoreIdentity.ts` (identity generation/storage mirrors
+  `didService.ts`'s existing client-side-key convention exactly, same "prototype-grade, not
+  recoverable" caveat), `lib/hooks/useSemaphoreRoleGroups.ts`, and a real card on `/identity`
+  (replacing the old mock-only illustrative one) — not split by `dataMode`, since a Semaphore proof
+  is real cryptography against the real connected wallet regardless of what the rest of the page
+  shows. `@semaphore-protocol/proof` (pulls in snarkjs, large) is dynamically imported only when
+  actually proving, not at module load — cut `/identity`'s bundle from 164kB to 68.7kB First Load JS.
+- **Caught and fixed during real-browser verification, not assumed away**: two `.map()` calls that
+  invoked React hooks inside a callback (`react-hooks/rules-of-hooks` — worked at runtime since the
+  array is fixed-length, but is genuinely against the rules and real ESLint errors, not warnings)
+  — rewritten as individual named hook calls. Also found and fixed a real, **pre-existing**
+  hydration bug on this same page unrelated to T-015: `new Date(...).toLocaleDateString()` with no
+  explicit locale renders differently server vs. client — pinned to `"en-US"` on both occurrences
+  that actually render on `/identity` (the identity card's "Created" field and `CredentialCard`'s
+  "Valid until"). Other `toLocaleDateString()` call sites exist elsewhere in the app
+  (`audit`/`dashboard`/`DateStrip`) but weren't exercised by this session's testing — left alone,
+  out of scope for this pass.
+
+**Not yet done**: the actual live Sepolia broadcast. Unlike T-016, this deployment needs **no
+governance choreography at all** — `SemaphoreRoleGroups` is a new, standalone contract that only
+*reads* `TimeBoundAccessControl.hasRole()`, so a single deploy transaction from a funded key is
+sufficient, no 2-of-N co-sign required. Awaiting explicit go-ahead before broadcasting.
 
 ### T-016 ✅ closed 2026-09-11 — Oracle Attestation, live on Sepolia
 Integrate decentralized oracles for off-chain data validation.

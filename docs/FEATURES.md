@@ -58,16 +58,30 @@ call(s) behind it, the UI surface, and the edge cases it must handle.
   simply stalls, no partial state change). **Not yet handled**: no UI flags an off-boarded guardian —
   tracked as a follow-up, not built this pass.
 
-### F1.4 Zero-Knowledge Role Proof — **Phase 4 roadmap, not shipped in this build**
-- **Status:** Not implemented. No `semaphore`/`snarkjs` dependency exists in `package.json`. The
-  `/identity` page's "Prove role without revealing identity" card is a `dataMode === "mock"`-only,
-  clearly-labeled illustrative demo (`setTimeout`-based UI walkthrough) — see `docs/SECURITY.md` §5.2
-  and `TODO.md` T-015.
-- **Behavior (planned):** Prove role membership without revealing which DID holds it.
-- **Tooling (planned):** Semaphore / snarkjs (prototype)
-- **UI (planned):** Contextual "Prove without revealing identity" toggle on any role-gated read action
-- **Edge cases (planned):** proof generated against a credential that gets revoked mid-session —
-  verification must re-check the live Merkle root, not a cached one.
+### F1.4 Zero-Knowledge Role Proof — **real, T-015, gap analysis §2.1.4**
+- **Status:** Implemented for real. `contracts/SemaphoreRoleGroups.sol` bridges live
+  `TimeBoundAccessControl` role state into one Semaphore group per role, using the official,
+  audited Semaphore V4 deployment on Sepolia (`0x8A1fd199516489B0Fb7153EB5f075cDAC83c693D`) — no
+  custom trusted setup or verifier deployed by this project. The `/identity` page's "Prove role
+  without revealing identity" card is real end-to-end: real client-side `Identity` generation
+  (`@semaphore-protocol/identity`), real on-chain group membership sync, real Groth16 proof
+  generation (`@semaphore-protocol/proof`, circuit artifacts fetched from PSE's official
+  `snark-artifacts` repo), and real verification both locally (free, instant) and on-chain
+  against the official Semaphore contract. Not split by `dataMode` — a Semaphore proof is real
+  cryptography against the real connected wallet regardless of whether the rest of the app is
+  showing mock or onchain contract data.
+- **Behavior:** Prove role membership without revealing which DID/wallet holds it.
+- **Tooling:** `@semaphore-protocol/core`/`identity`/`group`/`proof`/`contracts` v4.14.3.
+- **UI:** "Prove role without revealing identity" card on `/identity` — set up identity → register
+  commitment → sync group membership → generate + verify proof (local, then optionally on-chain).
+- **Edge case, actually handled, not just documented:** a role revoked mid-session no longer lets
+  a stale proof verify once its Merkle root ages past Semaphore's default 1-hour root-history
+  window — `SemaphoreRoleGroups.removeMemberFromRole` performs the real on-chain removal (computed
+  from a real Merkle proof over the reconstructed group), surfaced in the UI as a "Clean up stale
+  membership" action the moment a synced role is detected as no longer held.
+- **Known limitation:** `registerCommitment` has no rotation path — a lost local identity secret
+  (cleared browser storage) means that commitment is stuck unusable for future proofs, same class
+  of caveat as `didService.ts`'s own client-side DID key storage.
 
 ## M2 — Smart-Contract RBAC Engine
 

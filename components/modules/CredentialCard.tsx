@@ -32,7 +32,7 @@ export function CredentialCard({ credential }: { credential: Credential }) {
         </div>
         <div>
           <p className="mb-0.5 text-ink-600">Valid until</p>
-          <MonoValue className="text-[12px]">{new Date(credential.validUntil).toLocaleDateString()}</MonoValue>
+          <MonoValue className="text-[12px]">{new Date(credential.validUntil).toLocaleDateString("en-US")}</MonoValue>
         </div>
         <div>
           <p className="mb-0.5 text-ink-600">Time left</p>

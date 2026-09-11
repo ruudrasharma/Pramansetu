@@ -58,7 +58,7 @@ token. Every function below reverts if the caller's DID does not hold the requir
 | Oracle fact history | `oracleFactsOf(uint256 tokenId, uint256 index) view → (uint8 factType, bytes32 dataHash, uint256 factId, uint256 finalizedAt)` | Public read — append-only per-token history (T-016) |
 | Latest oracle fact | `latestOracleFactType(uint256 tokenId) view → uint8` | Public read — cheap "current status" mirror (T-016) |
 
-### OracleAttestation (T-016, gap analysis §2.2.5 — not yet deployed to live Sepolia)
+### OracleAttestation (T-016, gap analysis §2.2.5 — live on Sepolia)
 Decentralized oracle design with multiple independent attestors and a dispute window before an
 oracle-fed real-world fact (e.g. "this physical asset was delivered") becomes final on-chain —
 distinct from `AssetRegistry`'s dual-attestation mint flow, which only guards mint-time fraud.
@@ -72,6 +72,25 @@ distinct from `AssetRegistry`'s dual-attestation mint flow, which only guards mi
 | Finalize | `finalize(uint256 factId)` | Anyone, once the dispute window has elapsed undisputed — calls `AssetRegistry.recordOracleFact` |
 | Fact lookup | `facts(uint256 factId) view → (...)` | Public read — dynamic `attestors[]` member dropped by the auto-generated getter, use `getAttestors` |
 | Attestors lookup | `getAttestors(uint256 factId) view → address[]` | Public read |
+
+### SemaphoreRoleGroups (T-015, gap analysis §2.1.4)
+Real zero-knowledge proof-of-role — a user proves "I hold role X" without revealing which
+DID/wallet they are, using the official, audited Semaphore V4 deployment on Sepolia
+(`0x8A1fd199516489B0Fb7153EB5f075cDAC83c693D`) rather than a custom trusted setup.
+
+| Function | Signature | Access |
+|---|---|---|
+| Register commitment | `registerCommitment(uint256 commitment)` | Anyone, once per account — reverts `AlreadyRegistered` on a second call |
+| Sync membership | `syncMember(bytes32 role, address account)` | Anyone — reconciles against live `TimeBoundAccessControl.hasRole()`, no-ops if already synced |
+| Remove stale membership | `removeMemberFromRole(bytes32 role, address account, uint256[] merkleProofSiblings)` | Anyone, once `hasRole()` is false — needs Merkle proof siblings computed off-chain (`@semaphore-protocol/group`) |
+| Group lookup | `groupIdOf(bytes32 role) view → uint256` | Public read — one Semaphore group per role |
+| Commitment lookup | `commitmentOf(address account) view → uint256` | Public read |
+| Membership lookup | `isMember(bytes32 role, address account) view → bool` | Public read |
+
+Proof generation/verification happens off-chain (client-side `generateProof`/`verifyProof` from
+`@semaphore-protocol/proof`) and, optionally, on-chain via the official Semaphore contract's own
+`verifyProof(uint256 groupId, SemaphoreProof proof) view` / `validateProof(...)` — not a function
+on `SemaphoreRoleGroups` itself.
 
 ### GuardianRecovery
 | Function | Signature | Access |

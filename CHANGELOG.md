@@ -6,6 +6,43 @@ Versioning is `MAJOR.MINOR.PATCH` starting from `0.1.0` (pre-deployment).
 
 ---
 
+## [0.20.0] — 2026-09-11 — Build T-015 real ZK proof-of-role (Semaphore) — not yet deployed
+
+Closes the design/build phase of T-015 (gap analysis §2.1.4, "selective disclosure via
+zero-knowledge proofs"), replacing the old `setTimeout`-faked demo with a real Semaphore
+integration. Live Sepolia deployment is a separate, not-yet-executed step (needs no governance
+choreography, unlike T-016 — a single standalone deploy transaction).
+
+### Added
+- `contracts/SemaphoreRoleGroups.sol` — bridges `TimeBoundAccessControl`'s live role state into
+  one Semaphore group per role, using the **official, audited Semaphore V4 deployment on Sepolia**
+  (confirmed via real `eth_getCode`, not assumed) rather than any custom trusted setup.
+  `registerCommitment`/`syncMember` (permissionless, self-correcting) and `removeMemberFromRole`
+  (real Merkle-proof-based on-chain removal) are both real, not placeholders.
+- `lib/services/semaphoreIdentity.ts`, `lib/hooks/useSemaphoreRoleGroups.ts`, and a real "Prove
+  role without revealing identity" card on `/identity` — client-side identity generation (same
+  storage convention as `didService.ts`'s existing DID keys), real group reconstruction from
+  on-chain events, real Groth16 proof generation, real local + on-chain verification.
+- `test/SemaphoreRoleGroups.test.ts` — 11 new cases against a real locally-deployed Semaphore
+  instance, including a genuine end-to-end submit→prove→verify→revoke→remove→stale-proof-fails
+  cycle (139 total Hardhat tests passing; 40 Vitest tests unaffected).
+- `scripts/forkRehearsal_semaphoreRoleGroups.ts` — proved the real deploy + full identity lifecycle
+  against a fork of live Sepolia state, using the real official Semaphore contract. Passed cleanly.
+
+### Fixed
+- Two `.map()`-based React Hook calls (real `react-hooks/rules-of-hooks` ESLint errors, not
+  warnings) rewritten as individual named hook calls.
+- A real, pre-existing hydration bug on `/identity` unrelated to T-015: `toLocaleDateString()`
+  with no explicit locale renders differently server vs. client — pinned to `"en-US"` on the two
+  call sites that actually render on this page (`CredentialCard`'s "Valid until" too). Other call
+  sites elsewhere in the app weren't exercised this session and were left alone.
+
+### Performance
+- `@semaphore-protocol/proof` (pulls in snarkjs) is now dynamically imported only when a user
+  actually clicks "Prove", not at module load — cut `/identity`'s First Load JS from 164kB to 68.7kB.
+
+---
+
 ## [0.19.0] — 2026-09-11 — T-016 Oracle Attestation live on Sepolia
 
 Closes T-016 for real — the design/build (0.18.4) is now deployed, wired, and verified live, not
