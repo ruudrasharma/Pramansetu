@@ -1156,7 +1156,34 @@ Rudra's or Shivansh's own wallet):
    `NEXT_PUBLIC_ORACLE_ATTESTATION_ADDRESS`, redeploy the subgraph, redeploy Vercel
    (`pramansetu.vercel.app` is live as of this session — see CHANGELOG.md 0.18.5).
 
-Awaiting Rudra's or Shivansh's co-sign on actionId 3 and 4 to continue.
+**2026-09-11 update — both upgrades executed live; one co-sign remaining.** Co-signing actionId
+3/4 via Etherscan's default "Write Contract" tab silently failed three times in a row — root cause
+turned out to be that `TimeBoundAccessControl` is a proxy whose *implementation* was never
+verified on Etherscan, so the default tab shows "no public Write functions found" and even "Write
+as Proxy" shows "unable to locate a matching Contract ABI." No error, just nothing to click. Built
+a minimal standalone tool (a Claude Artifact) that talks to the contract directly via the
+browser's injected wallet (`eth_call`/`eth_sendTransaction`), entirely independent of Etherscan
+verification — Rudra used it successfully; both co-signs verified independently via
+`pendingActions(3)`/`pendingActions(4)` → `executed: true` and `upgradeAuthorized(...) → true` for
+both implementations before proceeding.
+
+Executed for real, verified after each step:
+- `TimeBoundAccessControl.upgradeToAndCall(0x1Be5125fEB98401Ec27A3EF79c7f41B490Fe3C49, <reinitializer calldata>)`
+  — tx `0x71b82546cf8afa5e4ea96dec399d44e0d07f1e5da226018a419741b15564fb1c`. Verified
+  `getRoleAdmin(ORACLE_ATTESTOR_ROLE) == SUPER_ADMIN_ROLE` afterward, and separately re-verified
+  Rudra/Shivansh/recovery's `SUPER_ADMIN_ROLE`/`DEFAULT_ADMIN_ROLE` state from T-020 is fully
+  intact — nothing regressed from the upgrade.
+- `AssetRegistry.upgradeToAndCall(0x82e14A3CeE7ce1eF53D1C8D07fac15FDe5A0F08F, "0x")` — tx
+  `0x68d9fe12d0b018d3bdd3ecbca744e7222ec923d65487a0c0638371d7791bc792`. Verified
+  `oracleAttestation()` callable and correctly still `address(0)` (not wired yet).
+- `proposePlatformAction(7, 0x0, 0xE3aa1B2406125731711cdC5897Ee665F551D05f3)` — now valid since the
+  upgrade above is live, not just proposed (this is the exact ordering bug caught earlier) —
+  **actionId 5**, tx `0x7370f3ed3bb8b63dc468710b4b093dff0ab3554a8a25c84e3ea3774ce101fd03`.
+
+**Awaiting one more co-sign: actionId 5** (the OracleAttestation wiring authorization), via the
+same tool. Once co-signed: `AssetRegistry.setOracleAttestationContract(0xE3aa1B2406125731711cdC5897Ee665F551D05f3)`,
+grant `ORACLE_ATTESTOR_ROLE` to real attestor addresses, then the off-chain wiring (§9 in the
+original sequence: `deployments/sepolia.json`, `.env.local`/Vercel env, subgraph redeploy).
 
 ### T-057 ✅ closed 2026-09-10 — `/onboarding` walkthrough was silently ambiguous about being fake (audit §3)
 `app/onboarding/page.tsx` is pure animation — `Math.random()` for the DID/pubKey shown, no service
