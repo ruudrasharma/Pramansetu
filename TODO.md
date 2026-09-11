@@ -1114,14 +1114,49 @@ contract deploy, the actionType-7 wiring, and a full submit→attest→wait→fi
 against a forked copy of real Sepolia state, impersonating the two real Super Admin addresses (Rudra,
 Shivansh; no private keys needed). It passed cleanly.
 
-**Not yet done**: the actual live Sepolia broadcast. Per this project's established discipline
-(design → write → test, deploy only as an explicit separate step) and the plan's own risk note — this
-touches two already-live contracts with real state, including the `SUPER_ADMIN_ROLE`/
-`DEFAULT_ADMIN_ROLE` assignments this session's T-020 correction just set up — the live transaction
-sequence is written up and ready (`docs/DEPLOYMENT.md`, once added) but has **not been broadcast**.
-It also cannot complete unattended: automation only has one of the two Super Admins' private keys, so
-the 2-of-N co-signs on the upgrade/wiring proposals need Rudra's or Shivansh's own wallet for the
-second signature. Awaiting explicit go-ahead before broadcasting anything to live Sepolia.
+**2026-09-11 — live Sepolia deployment started, per explicit go-ahead; in progress, awaiting a
+co-sign.** Deployed for real and proposed via Shivansh's key:
+
+- New `TimeBoundAccessControl` implementation: `0x1Be5125fEB98401Ec27A3EF79c7f41B490Fe3C49`
+  — `proposePlatformAction(4, ...)` → **actionId 3**, tx
+  `0x2f0360bd9e753c335af7f5e0fda3de9e2f9b6d7c7879a186003013220ad2ffde`.
+- New `AssetRegistry` implementation: `0x82e14A3CeE7ce1eF53D1C8D07fac15FDe5A0F08F`
+  — `proposePlatformAction(4, ...)` → **actionId 4**, tx
+  `0x728c0397a5f88d086f2a58a5b73b06dd39bbbf28ff796aff1b523a16ff1d4122`.
+- `OracleAttestation` deployed (standalone, no approval needed to deploy it, only to wire it):
+  `0xE3aa1B2406125731711cdC5897Ee665F551D05f3`.
+
+**Real sequencing bug caught live, not in the fork rehearsal — the fork missed it because it
+impersonated both Super Admins and could complete the whole sequence in one script, never actually
+separating "propose" from "execute" in time.** Proposing `actionType 7` (the OracleAttestation
+wiring) reverted: the *currently live* `TimeBoundAccessControl` bytecode still only accepts
+actionTypes 1–6 (the new actionType 7 branch doesn't exist until the upgrade in actionId 3 is
+**executed**, not just proposed) — so actionType 7 cannot be proposed until *after* actionId 3's
+`upgradeToAndCall` actually runs. The original plan's "propose all 3, co-sign all 3 in one sitting"
+batching was wrong for this reason; corrected sequence below. Verified via `pendingActions(3)`/
+`pendingActions(4)` that both real proposals landed correctly and nothing else was affected.
+
+**Corrected remaining sequence** (`[AUTO]` = scriptable now with Shivansh's key; `[HUMAN]` = needs
+Rudra's or Shivansh's own wallet):
+1. `[HUMAN]` Co-sign actionId 3 and actionId 4 — `coSignPlatformAction(3)` then `coSignPlatformAction(4)`
+   on `TimeBoundAccessControl` (`0x0a100F8c9389B723Aa0c92F63fE4F05E7737ECC3`), via Etherscan's
+   "Write Contract" tab (connect wallet, `coSignPlatformAction`, enter the actionId) — the simplest
+   path since our own Governance UI doesn't yet label actionType 4/7 proposals descriptively (they'd
+   show as generic/mislabeled "Unpause platform" — `lib/services/governanceService.ts`'s
+   `platformActionProposals` mapping only has friendly labels for actionType 1/2/3, a pre-existing
+   gap, not touched here).
+2. `[AUTO]` Execute the `TimeBoundAccessControl` upgrade: `upgradeToAndCall(0x1Be5125f..., <reinitializer calldata>)`.
+3. `[AUTO]` Verify `getRoleAdmin(ORACLE_ATTESTOR_ROLE) == SUPER_ADMIN_ROLE`.
+4. `[AUTO]` Execute the `AssetRegistry` upgrade: `upgradeToAndCall(0x82e14A3C..., "0x")`.
+5. `[AUTO]` **Now** propose actionType 7 for `0xE3aa1B24...` (valid only after step 2) → new actionId.
+6. `[HUMAN]` Co-sign that actionId.
+7. `[AUTO]` `arProxy.setOracleAttestationContract(0xE3aa1B24...)`.
+8. `[AUTO]` Grant `ORACLE_ATTESTOR_ROLE` to real attestor addresses via `grantTimedRole`.
+9. Off-chain: update `deployments/sepolia.json`, `.env.local`'s and Vercel's
+   `NEXT_PUBLIC_ORACLE_ATTESTATION_ADDRESS`, redeploy the subgraph, redeploy Vercel
+   (`pramansetu.vercel.app` is live as of this session — see CHANGELOG.md 0.18.5).
+
+Awaiting Rudra's or Shivansh's co-sign on actionId 3 and 4 to continue.
 
 ### T-057 ✅ closed 2026-09-10 — `/onboarding` walkthrough was silently ambiguous about being fake (audit §3)
 `app/onboarding/page.tsx` is pure animation — `Math.random()` for the DID/pubKey shown, no service
