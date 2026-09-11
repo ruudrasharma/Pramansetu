@@ -49,3 +49,5 @@ test-results/
 *.jpg
 task.md         # internal build tracker, not project source
 tsconfig.tsbuildinfo
+.vercel
+.env*

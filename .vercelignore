@@ -1,0 +1,16 @@
+# Stray local files at repo root that are not part of the app — accidentally swept into
+# `vercel deploy`'s direct-upload (unlike `git push`, it doesn't only send git-tracked files).
+*.zip
+*.pdf
+Praman_Setu_Implementation_Gap_Audit.md
+
+# Hardhat / subgraph build output — not needed for the Next.js app deploy.
+artifacts/
+cache/
+typechain-types/
+deployments/
+coverage/
+coverage.json
+subgraph/build/
+subgraph/generated/
+subgraph/node_modules/
