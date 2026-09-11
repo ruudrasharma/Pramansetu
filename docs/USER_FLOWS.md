@@ -62,13 +62,40 @@
 4. Super Admin multisig either resolves the dispute (transaction proceeds) or cancels the queued
    transaction — either outcome is itself logged as an auditable governance event.
 
-## 7. Proving Role Membership Without Revealing Identity (Zero-Knowledge Flow)
-1. A user needs to prove "I hold a valid Auditor credential" to access a sensitive read (e.g. a
-   compliance report) without revealing which specific DID/wallet they are.
-2. The frontend generates a Semaphore zero-knowledge proof referencing the user's credential membership
-   set.
-3. The verifying contract/service checks the proof against the on-chain credential-issuance Merkle root
-   — access is granted without the verifier ever learning the specific DID.
+## 7. Proving Role Membership Without Revealing Identity (Zero-Knowledge Flow) — **real, T-015, live on Sepolia**
+1. On `/identity`, a user with a real connected wallet clicks "Set up anonymous proof" — a
+   Semaphore `Identity` (a real EdDSA keypair) is generated client-side and stored locally, the
+   same convention as this app's existing DID key storage (`docs/SECURITY.md` — prototype-grade,
+   not recoverable if cleared).
+2. The user registers their identity's commitment on-chain via `SemaphoreRoleGroups.registerCommitment`
+   — one real transaction, one time.
+3. If the wallet currently holds a role (checked live against `TimeBoundAccessControl.hasRole()`,
+   not cached), the user syncs into that role's Semaphore group via `syncMember` — permissionless,
+   self-correcting, real `addMember` call on the official Semaphore contract.
+4. Clicking "Prove [role] anonymously" reconstructs the group from real on-chain events, generates
+   a real Groth16 proof client-side (`@semaphore-protocol/proof`, circuit artifacts fetched from
+   the Semaphore project's own `snark-artifacts` repo), and verifies it instantly off-chain — with
+   an optional "verify on-chain" call against the same official Semaphore contract for genuine
+   on-chain settlement.
+5. If the role is later revoked or expires, `/identity` surfaces a "Clean up stale membership"
+   action — `removeMemberFromRole` performs a real on-chain Merkle-tree removal (computed from the
+   reconstructed group), so a proof against the old root stops verifying once its ~1-hour grace
+   window elapses. This is what makes step 4's "live root, not cached" property actually true.
+
+## 8. Attesting a Real-World Fact About an Asset (Oracle Attestation) — **real, T-016, live on Sepolia**
+1. An `ORACLE_ATTESTOR_ROLE` account (e.g. a field inspector confirming physical delivery) calls
+   `OracleAttestation.submitFact(tokenId, factType, dataHash)` for a minted asset — auto-signs as
+   the first of two required independent attestors.
+2. A second, distinct `ORACLE_ATTESTOR_ROLE` account calls `attestFact(factId)`. Once 2-of-N
+   attestors agree, the fact enters a dispute window (demo-scale: 15 minutes) rather than
+   finalizing immediately.
+3. Any Auditor-role account reviewing `/oracle/facts` (or the asset's own "Oracle facts" card) can
+   freeze the fact mid-window via `raiseDispute(factId, reason)` if something looks wrong.
+4. If undisputed, anyone can permissionlessly call `finalize(factId)` once the window elapses —
+   the fact writes real state into `AssetRegistry` (`recordOracleFact`), finally making the
+   frontend's `"disputed"` asset status a real, live-derived value instead of a permanent gap.
+5. If disputed, Super Admin multisig adjudicates via `resolveDispute(factId, proceed)` — proceed
+   finalizes immediately, reject permanently discards the fact.
 
 Each flow above maps directly to functional requirements in [PRD.md](./PRD.md) §5 and to the
 threat-mitigation table in [SECURITY.md](./SECURITY.md) §5.

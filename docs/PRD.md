@@ -48,7 +48,7 @@ Full behavior per role is in [USER_FLOWS.md](./USER_FLOWS.md).
 - FR-1.1: System issues a DID (`did:ethr:0x...`) on verified onboarding; no DID exists without a linked Verifiable Credential from an authorized issuer.
 - FR-1.2: Authentication is exclusively challenge-response signature verification — no password field exists anywhere in the schema.
 - FR-1.3: Users register 3–5 guardian DIDs; losing a private key triggers an M-of-N guardian-signed recovery inside a time-locked window.
-- FR-1.4: Sensitive role-proof actions support zero-knowledge disclosure (prove "I hold role X" without revealing which DID).
+- FR-1.4: Sensitive role-proof actions support zero-knowledge disclosure (prove "I hold role X" without revealing which DID). **Implemented (T-015)** — `SemaphoreRoleGroups.sol`, live on Sepolia, using the official Semaphore V4 protocol deployment. See §5.7.
 
 ### 5.2 Access Control (M2)
 - FR-2.1: Every role grant carries an expiry timestamp; `hasRole()` returns false automatically once expired — no separate revocation transaction required for expiry.
@@ -72,6 +72,29 @@ Full behavior per role is in [USER_FLOWS.md](./USER_FLOWS.md).
 - FR-5.2: High-value transfers pass through a `TimelockController` with a 24–48h cooling-off window.
 - FR-5.3: Any Auditor-role DID can raise a dispute during the cooling-off window, freezing the queued transaction pending Super Admin review.
 
+### 5.6 Oracle Attestation (M6) — **implemented, T-016, gap analysis §2.2.5, live on Sepolia**
+- FR-6.1: Any real-world fact about a minted asset (e.g. "this asset was delivered") requires
+  2-of-N independent `ORACLE_ATTESTOR_ROLE` attestors to submit and co-sign before it's considered
+  attested — distinct from `AssetRegistry`'s mint-time dual attestation, which only guards minting.
+- FR-6.2: An attested fact enters a dispute window (demo-scale: 15 minutes) before it finalizes
+  and writes into `AssetRegistry` state; any Auditor-role account can freeze it mid-window.
+- FR-6.3: A disputed fact is adjudicated by Super Admin multisig — proceed (finalize) or reject
+  permanently — mirroring `GovernanceTimelock`'s existing propose/dispute/resolve shape.
+- Contract: `OracleAttestation.sol` (`0xE3aa1B2406125731711cdC5897Ee665F551D05f3`), wired into
+  `AssetRegistry` via a real in-place UUPS upgrade to both `TimeBoundAccessControl` (introducing
+  `ORACLE_ATTESTOR_ROLE`) and `AssetRegistry` itself (introducing `recordOracleFact`).
+
+### 5.7 Zero-Knowledge Proof-of-Role (M7) — **implemented, T-015, gap analysis §2.1.4, live on Sepolia**
+- FR-7.1: A user can prove "I hold role X" without revealing which wallet/DID they are, using a
+  real Semaphore group per `TimeBoundAccessControl` role.
+- FR-7.2: Group membership is kept in sync with live, time-bound role state — not a static
+  snapshot — including real on-chain removal once a role is revoked or expires, so a stale proof's
+  Merkle root stops verifying once its grace window elapses (not just documented as a gap).
+- FR-7.3: Verification is available both instantly off-chain (free, no wallet) and on-chain against
+  the official Semaphore contract, with no custom trusted setup or verifier deployed by this project.
+- Contract: `SemaphoreRoleGroups.sol` (`0x0fa48402ee578d6579B68da85B9910bFec1e7B47`), bridging into
+  the official, audited Semaphore V4 deployment on Sepolia (`0x8A1fd199516489B0Fb7153EB5f075cDAC83c693D`).
+
 ## 6. Non-Functional Requirements
 
 | Category | Requirement |
@@ -86,7 +109,7 @@ Full behavior per role is in [USER_FLOWS.md](./USER_FLOWS.md).
 ## 7. Problem → Requirement Traceability
 
 Full stated / unstated / future-facing problem mapping lives in Section 10 of `Complete_Solution_Document.pdf`
-and is mirrored functionally above (FR-1.x through FR-5.x cover all three tiers).
+and is mirrored functionally above (FR-1.x through FR-7.x cover all three tiers).
 
 ## 8. Release Plan
 

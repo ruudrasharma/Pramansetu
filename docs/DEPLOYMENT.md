@@ -51,6 +51,53 @@ This is the exact runbook actually followed for the live deployment currently in
    ```
    This single script does the entire post-deploy checklist below — do **not** perform any of these steps manually/separately in between. Doing so (a one-off manual `grantTimedRole` call before running this script) is exactly what caused the incident documented in `TODO.md`'s "Resolved — T-017/T-018" entry: an untracked address ended up holding `SUPER_ADMIN_ROLE`, and the eventual fix for that left the contract in a state where no new Super Admin could ever be added. Run `deploy.ts` then `postDeploySetup.ts` back-to-back with nothing manual in between.
 
+### 3.1 In-Place UUPS Upgrade Runbook (T-016, first performed for real 2026-09-11)
+
+Every prior "upgrade" on this project (T-3.1/T-3.2) was actually a full fresh redeploy —
+abandoning old addresses is fine when there's no real state yet, but T-016 needed to add a role
+(`ORACLE_ATTESTOR_ROLE`) to the *already-live* `TimeBoundAccessControl` without disturbing its real
+`SUPER_ADMIN_ROLE`/`DEFAULT_ADMIN_ROLE` state (T-020). This is the exact real sequence used —
+**always rehearse it on a fork first** (`scripts/forkRehearsal_oracleAttestation.ts` as the
+template), impersonating the real Super Admin addresses, no private keys needed:
+
+1. Deploy the new implementation contract(s) — no approval needed to deploy, only to authorize the
+   upgrade itself.
+2. `proposePlatformAction(4, 0x0, newImplementationAddr)` per contract being upgraded — actionType
+   4 = `authorizeUpgrade`.
+3. **A second, real Super Admin must co-sign** (`coSignPlatformAction(actionId)`) — this needs
+   their own wallet signature; it cannot be scripted with a single available key. If Etherscan's
+   Write Contract tab shows no usable interface for the proxy (its implementation may not be
+   verified there), a minimal standalone wallet-connect page calling
+   `coSignPlatformAction(uint256)` directly by raw selector works without any Etherscan dependency
+   — see the note at the end of this section.
+4. Once both co-signs land (verify via `pendingActions(actionId).executed == true`, not assumed),
+   execute: `proxy.upgradeToAndCall(newImplementationAddr, initCalldata)`. If the upgrade
+   introduces something needing one-time setup (like `ORACLE_ATTESTOR_ROLE`'s role-admin), pass a
+   `reinitializer(N)`-guarded function's calldata as `initCalldata` so the setup is atomic with the
+   upgrade itself — no window where the new code is live but its setup isn't.
+5. Verify immediately after each individual step (not just at the end) — e.g.
+   `getRoleAdmin(NEW_ROLE) == SUPER_ADMIN_ROLE`, and separately re-verify the *existing* role state
+   (`hasRole` for every account that mattered before the upgrade) is unchanged.
+
+**Note on co-signing without a working Etherscan UI**: if a proxy's implementation was never
+verified on Etherscan, both its default "Contract" tab and "Write as Proxy" tab can silently show
+no usable functions, with no clear error explaining why. A minimal HTML page using
+`window.ethereum`'s `eth_call`/`eth_sendTransaction` directly against the known function selector
+(e.g. `coSignPlatformAction(uint256)` = `0x26ac1c20`) sidesteps this entirely — the signer still
+does all the actual signing, this just avoids the broken UI.
+
+### 3.2 Standalone New-Contract Deploy Runbook (T-015)
+
+Simpler than an upgrade — a new contract that only *reads* from `TimeBoundAccessControl` (never
+modifies it, never needs to be authorized by it) needs no governance choreography at all:
+
+1. Rehearse on a fork first anyway if the contract references a real external dependency (T-015's
+   `SemaphoreRoleGroups` constructor calls into the official Semaphore contract's `createGroup` —
+   worth proving that interaction against forked real state before spending real gas on it).
+2. Deploy directly from any funded key: `Factory.deploy(...)`. No proposal, no co-sign.
+3. Verify whatever the constructor is expected to have set up (e.g. T-015's 5 distinct
+   `groupIdOf(role)` values) before wiring the frontend to the new address.
+
 ## 4. Post-Deploy Checklist (performed by `postDeploySetup.ts`)
 
 **Reordered (2026-09-11, TODO.md §3.2/§3.3, audit §2.3/§2.5)** — `DIDRegistry.setGuardianRecoveryContract`/
@@ -154,12 +201,17 @@ jobs:
 |---|---|
 | **Phase 1 — Hackathon MVP** | DID registry, VC issuance, time-bound RBAC, ERC-721 minting with dual attestation, basic audit dashboard, testnet deployment |
 | **Phase 2 — Pilot Hardening** | Multisig governance, timelock dispute resolution, guardian recovery, IPFS metadata pipeline, external contract audit |
-| **Phase 3 — Production Migration** | Permissioned chain deployment, L2 scaling, self-hosted indexing, full AI anomaly-detection service, ZK privacy layer |
+| **Phase 3 — Production Migration** | Permissioned chain deployment, L2 scaling, self-hosted indexing, full AI anomaly-detection service |
 | **Phase 4 — Forward-Looking** | Post-quantum signature migration activated, legal-tech bridge integration, cross-organization DID interoperability |
 
 ## 9. Rollback Plan
 
 - Contracts: UUPS proxies allow logic rollback to the previous implementation via the same governed
-  upgrade path — no state loss.
+  upgrade path (§3.1) — no state loss. `deployments/sepolia.json`'s `t016Upgrade` block records the
+  pre-upgrade implementation addresses for `TimeBoundAccessControl`/`AssetRegistry` for exactly
+  this purpose.
+- `SemaphoreRoleGroups` (T-015) is non-upgradeable and standalone — "rollback" means simply
+  pointing the frontend's `NEXT_PUBLIC_SEMAPHORE_ROLE_GROUPS_ADDRESS` at nothing (or a redeployed
+  instance); it can't corrupt `TimeBoundAccessControl`'s own state since it only ever reads from it.
 - Frontend: Vercel/Docker image rollback to previous tagged release.
 - Indexer: subgraph redeploy from any prior commit — always safely re-derivable from raw chain data.

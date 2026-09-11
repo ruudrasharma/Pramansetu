@@ -10,10 +10,12 @@
 | `AssetRegistry.test.ts` | dual-attestation mint (reverts with single signer, succeeds with two distinct signers); transfer reverts on invalid/revoked recipient credential; tokenURI returns correct CID |
 | `GuardianRecovery.test.ts` | registration bounds (3–5 guardians); M-of-N threshold enforcement; timelock window respected; finalize reverts before threshold met |
 | `GovernanceTimelock.test.ts` | queue/execute happy path; dispute freezes execution even after `eta`; only `AUDITOR_ROLE` can dispute |
-| Upgrade tests | UUPS upgrade preserves all existing role/asset state; unauthorized upgrade attempt reverts |
+| `OracleAttestation.test.ts` (T-016) | 2-of-N attestor threshold; dispute window role-gating and expiry; Super Admin dispute resolution (both branches); permissionless finalize before/after the window; end-to-end fact recorded on `AssetRegistry`; `recordOracleFact` gated to only the wired `OracleAttestation` address |
+| `SemaphoreRoleGroups.test.ts` (T-015) | Against a **real locally-deployed Semaphore instance** (not a mock) — commitment registration idempotency; `syncMember`'s live-`hasRole()` reconciliation; `removeMemberFromRole`'s real Merkle-proof-based removal; genuine end-to-end proof generation → local verify → on-chain verify → revoke → remove → stale-root-rejected cycle (`docs/FEATURES.md` F1.4's edge case, actually exercised) |
+| Upgrade tests | UUPS upgrade preserves all existing role/asset state; unauthorized upgrade attempt reverts; `ORACLE_ATTESTOR_ROLE`'s `reinitializer(2)`-based introduction (T-016) — role-admin set atomically with the upgrade, double-init reverts, atomic failure if the caller isn't authorized even once the implementation itself is |
 
 **Target coverage:** 100% branch coverage on `TimeBoundAccessControl` and `AssetRegistry` (the two
-modules where a missed branch = a security bypass), ≥90% overall.
+modules where a missed branch = a security bypass), ≥90% overall. 139 tests passing as of T-015/T-016.
 
 **Static analysis:** run Slither and Mythril in CI on every PR touching `contracts/`.
 
@@ -45,6 +47,11 @@ separate `__tests__/` tree.
   verify DID's linked roles/assets survive unchanged.
 - Emergency pause flow: trigger pause mid-transaction-queue → verify all pending privileged actions
   revert → unpause → verify queue resumes correctly.
+- **Fork rehearsal (established T-016/T-015)**: before any transaction sequence touches live
+  Sepolia state — especially an in-place contract upgrade — replay the exact sequence against a
+  `HARDHAT_FORK_URL`-forked copy of real Sepolia state, impersonating the real signer addresses
+  (`hardhat_impersonateAccount`, no private keys needed). See `scripts/forkRehearsal_*.ts` for the
+  established pattern; delete/keep as a reusable tool per the task, but always rehearse first.
 
 ## 4. End-to-End Tests (Playwright)
 
@@ -54,6 +61,8 @@ separate `__tests__/` tree.
 | Mint & view asset | Admin proposes mint → Manager co-signs (second wallet) → asset appears in Assets grid with correct CID |
 | Emergency pause UX | Super Admin triggers pause → verify all privileged UI actions show "paused" state, not silent failure |
 | Dispute flow | Queue a transfer → Auditor raises dispute → verify Governance screen shows frozen state → Super Admin resolves |
+| Oracle attestation (T-016) | Attestor submits a fact → second attestor co-signs → Auditor disputes mid-window → Super Admin resolves → asset's real `"disputed"` status reflects live |
+| ZK proof-of-role (T-015) | Set up anonymous identity → register commitment → sync into role group → generate + verify proof (local, then on-chain) → revoke role → clean up stale membership |
 
 ## 5. Security Testing
 

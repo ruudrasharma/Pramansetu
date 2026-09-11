@@ -12,15 +12,16 @@
 ┌───────────────────────────────────────────────────────────┐
 │ LAYER 3 — Off-Chain Services                                │
 │ Indexer (The Graph subgraph) · Anomaly Detection service     │
-│ Oracle node (multi-attestor) · IPFS/Filecoin metadata store   │
-│ Guardian Recovery coordination service                       │
+│ IPFS/Filecoin metadata store · Guardian Recovery coordination │
+│ ZK proof generation (client-side, snarkjs — see M7 below)     │
 └───────────────────────────────────────────────────────────┘
         ▲ ▼  Web3 calls / on-chain events
 ┌───────────────────────────────────────────────────────────┐
 │ LAYER 2 — Smart Contract Layer (trust core)                  │
 │ DIDRegistry · CredentialRegistry · TimeBoundAccessControl     │
 │ AssetRegistry (ERC-721) · GovernanceTimelock (multisig)        │
-│ GuardianRecovery · Pausable emergency stop · UUPS proxies      │
+│ GuardianRecovery · OracleAttestation (M6, T-016)                │
+│ SemaphoreRoleGroups (M7, T-015) · Pausable · UUPS proxies        │
 └───────────────────────────────────────────────────────────┘
         ▲ ▼
 ┌───────────────────────────────────────────────────────────┐
@@ -50,6 +51,8 @@ graph — see [SECURITY.md §6](./SECURITY.md).
 | `AssetRegistry.sol` | ERC-721 mint/transfer with dual attestation | IPFS (metadata), `CredentialRegistry` |
 | `GuardianRecovery.sol` | M-of-N key-rotation recovery flow | `DIDRegistry` |
 | `GovernanceTimelock.sol` | Multisig + timelock + dispute veto | All privileged calls across modules |
+| `OracleAttestation.sol` (M6) | 2-of-N independent attestor + dispute-window facts about minted assets | `TimeBoundAccessControl` (role checks), `AssetRegistry` (writes `recordOracleFact`) |
+| `SemaphoreRoleGroups.sol` (M7) | Bridges live role state into Semaphore groups for anonymous proof-of-role | `TimeBoundAccessControl` (reads `hasRole()`), the official Semaphore protocol contract (not deployed by this project) |
 | The Graph subgraph | Index all contract events into queryable API | Auditor Dashboard, Anomaly Detection |
 | Anomaly Detection service | Rule-based heuristics on indexed events (prototype); lightweight ML is a Phase 3 roadmap item | Subgraph → Admin/Auditor alert feed |
 | IPFS/Pinata | Content-addressed metadata storage | `AssetRegistry` (CID reference only) |
