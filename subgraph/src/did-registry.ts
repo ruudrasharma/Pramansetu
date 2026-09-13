@@ -5,6 +5,7 @@ import {
   DIDRegistry,
 } from "../generated/DIDRegistry/DIDRegistry";
 import { Identity, AuditEvent } from "../generated/schema";
+import { truncateMiddle } from "./utils";
 
 export function handleDIDCreated(event: DIDCreatedEvent): void {
   // Create or update the Identity entity keyed by DID hash
@@ -33,7 +34,7 @@ export function handleDIDCreated(event: DIDCreatedEvent): void {
   audit.type          = "DIDCreated";
   audit.actorAddress  = event.params.controller;
   audit.actorDid      = event.params.did;
-  audit.summary       = "DID created: " + event.params.did.toHexString().slice(0, 14) + "…";
+  audit.summary       = "DID created: " + truncateMiddle(event.params.did.toHexString());
   audit.timestamp     = event.block.timestamp;
   audit.blockNumber   = event.block.number;
   audit.txHash        = event.transaction.hash;
@@ -62,7 +63,7 @@ export function handleKeyRotated(event: KeyRotatedEvent): void {
   audit.type         = "KeyRotated"; // lib/mock-data.ts's EventType already includes this — no need to reuse DIDCreated
   audit.actorAddress = event.transaction.from;
   audit.actorDid     = event.params.did;
-  audit.summary      = "Key rotated for: " + event.params.did.toHexString().slice(0, 14) + "…";
+  audit.summary      = "Key rotated for: " + truncateMiddle(event.params.did.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

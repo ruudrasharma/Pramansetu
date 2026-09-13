@@ -6,6 +6,7 @@
  */
 
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { readContract } from "wagmi/actions";
 import { keccak256, toBytes, decodeEventLog } from "viem";
@@ -61,6 +62,73 @@ export async function findActiveRole(account: `0x${string}`): Promise<{ name: st
     if (held) return { name, hash };
   }
   return undefined;
+}
+
+// ── Pending grant discovery ─────────────────────────────────────────────────
+// proposePrivilegedGrant/coSignGrant's 2-of-N queue had no way for a second Super Admin to ever
+// discover a pending grantId short of the proposer telling them out-of-band — the UI only ever
+// showed it in the proposer's own transient state.
+//
+// This used to scan GrantProposed/GrantCoSigned event logs in 10-block eth_getLogs windows (the
+// same technique lib/services/semaphoreIdentity.ts's reconstructGroup uses), but that only made
+// sense when the contract's deployment block was recent — as the chain grows, the block range to
+// scan grows every day, and at a few thousand blocks it was already taking the better part of a
+// minute of sequential chunked requests (almost certainly why a pending grant "didn't show up" —
+// the scan just hadn't finished yet). nextGrantId is a small, cheap public counter, so reading
+// pendingGrants(id) directly for every id below it is a handful of plain contract reads instead —
+// no block scanning, no growing cost over time. The only thing this can't recover is the exact
+// signer count from GrantCoSigned, but that's inferable for free: GRANT_THRESHOLD is 2, and any
+// grant this query returns is (by definition, since we already filtered on !executed) not yet
+// executed, so it can only have exactly 1 signature (the proposer's) — the moment a second
+// signature lands, coSignGrant auto-executes it and it drops out of this list.
+export interface PendingGrantInfo {
+  grantId: bigint;
+  role: `0x${string}`;
+  account: `0x${string}`;
+  proposer: `0x${string}`;
+  validUntil: bigint;
+  signatureCount: number;
+}
+
+/** Live list of every SUPER_ADMIN-tier grant proposed but not yet executed — the discovery
+ * mechanism the 2-of-N flow was missing (any Super Admin sees the same list, no out-of-band
+ * grantId hand-off needed). */
+export function usePendingGrants() {
+  return useQuery({
+    // Deliberately distinct from governanceService.ts's GraphQL-backed ["pendingGrants"] key —
+    // this one is direct on-chain reads (see components/shell/Web3Providers.tsx's
+    // SUBGRAPH_QUERY_KEY_TAGS) and should keep getting invalidated every block, unlike that one.
+    queryKey: ["pendingSuperAdminGrants", address],
+    queryFn: async (): Promise<PendingGrantInfo[]> => {
+      if (!address) return [];
+      const nextGrantId = (await readContract(wagmiConfig, {
+        address,
+        abi: TimeBoundAccessControlAbi,
+        functionName: "nextGrantId",
+      })) as bigint;
+
+      const ids = Array.from({ length: Number(nextGrantId) }, (_, i) => BigInt(i));
+      const grants = await Promise.all(
+        ids.map(async (grantId) => {
+          const onchain = (await readContract(wagmiConfig, {
+            address,
+            abi: TimeBoundAccessControlAbi,
+            functionName: "pendingGrants",
+            args: [grantId],
+          })) as readonly [`0x${string}`, `0x${string}`, bigint, `0x${string}`, boolean];
+          const [role, account, validUntil, proposer, executed] = onchain;
+          return { grantId, role, account, validUntil, proposer, executed };
+        }),
+      );
+
+      return grants
+        .filter((g) => !g.executed)
+        .map((g) => ({ ...g, signatureCount: 1 }))
+        .sort((a, b) => Number(b.grantId - a.grantId));
+    },
+    staleTime: 15_000,
+    enabled: !!address,
+  });
 }
 
 // ── Read hooks ──────────────────────────────────────────────────────────────
@@ -124,7 +192,10 @@ export function useGrantTimedRole() {
     validUntil: bigint;
   }) {
     if (!address) throw new Error("AccessControl address not configured");
-    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "grantTimedRole", args: [role, account, validUntil] });
+    // Explicit gas: some wallets fall back to a very high estimate (seen: 21,000,000) when their
+    // own eth_estimateGas is ambiguous, which public RPC providers like Infura then reject for
+    // exceeding a per-tx cap — a plain SSTORE-sized call like this needs nowhere near that much.
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "grantTimedRole", args: [role, account, validUntil], gas: 300_000n });
   }
 
   return { grantTimedRole, hash, isPending: isPending || isConfirming, isSuccess, error };
@@ -149,7 +220,7 @@ export function useProposePrivilegedGrant() {
     validUntil: bigint;
   }) {
     if (!address) throw new Error("AccessControl address not configured");
-    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "proposePrivilegedGrant", args: [role, account, validUntil] });
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "proposePrivilegedGrant", args: [role, account, validUntil], gas: 400_000n });
   }
 
   // Decode the real grantId from the mined transaction's GrantProposed log — same pattern as
@@ -182,7 +253,7 @@ export function useCoSignGrant() {
 
   function coSignGrant(grantId: bigint) {
     if (!address) throw new Error("AccessControl address not configured");
-    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "coSignGrant", args: [grantId] });
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "coSignGrant", args: [grantId], gas: 400_000n });
   }
 
   return { coSignGrant, hash, isPending: isPending || isConfirming, isSuccess, error };
@@ -211,6 +282,7 @@ export function useProposePlatformAction() {
       abi: TimeBoundAccessControlAbi,
       functionName: "proposePlatformAction",
       args: [actionType, role, account],
+      gas: 400_000n,
     });
   }
 
@@ -244,7 +316,7 @@ export function useCoSignPlatformAction() {
 
   function coSignPlatformAction(actionId: bigint) {
     if (!address) throw new Error("AccessControl address not configured");
-    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "coSignPlatformAction", args: [actionId] });
+    writeContract({ address, abi: TimeBoundAccessControlAbi, functionName: "coSignPlatformAction", args: [actionId], gas: 500_000n });
   }
 
   return { coSignPlatformAction, hash, isPending: isPending || isConfirming, isSuccess, error };

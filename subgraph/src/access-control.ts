@@ -12,6 +12,7 @@ import {
   TimeBoundAccessControl,
 } from "../generated/TimeBoundAccessControl/TimeBoundAccessControl";
 import { RoleGrant, PlatformAction, PendingGrant, AuditEvent } from "../generated/schema";
+import { truncateMiddle } from "./utils";
 
 // Human-readable role label lookup (keccak256 of the name, as stored in the contract)
 function roleLabel(roleHash: Bytes): string {
@@ -19,7 +20,7 @@ function roleLabel(roleHash: Bytes): string {
   // These are the keccak256("ROLE_NAME") values from the contract
   if (hex == "0x0000000000000000000000000000000000000000000000000000000000000000") return "DEFAULT_ADMIN_ROLE";
   // For all other roles, we store the raw hex — the frontend can decode these
-  return hex.slice(0, 10) + "…";
+  return truncateMiddle(hex);
 }
 
 export function handleTimedRoleGranted(event: TimedRoleGrantedEvent): void {
@@ -39,7 +40,7 @@ export function handleTimedRoleGranted(event: TimedRoleGrantedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "RoleGranted";
   audit.actorAddress = event.transaction.from;
-  audit.summary      = "Role granted: " + roleLabel(event.params.role) + " → " + event.params.account.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Role granted: " + roleLabel(event.params.role) + " → " + truncateMiddle(event.params.account.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -53,7 +54,7 @@ export function handleRoleRevoked(event: RoleRevokedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "RoleRevoked";
   audit.actorAddress = event.params.sender;
-  audit.summary      = "Role revoked: " + roleLabel(event.params.role) + " from " + event.params.account.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Role revoked: " + roleLabel(event.params.role) + " from " + truncateMiddle(event.params.account.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -115,7 +116,7 @@ export function handleActionExecuted(event: ActionExecutedEvent): void {
   // action.account was populated in handleActionProposed above via a bound pendingActions() call
   // (ActionExecuted itself carries no account param either) — real target address for 4/5/6, not
   // guessed or omitted.
-  let accountStr = action.account.toHexString().slice(0, 10) + "…";
+  let accountStr = truncateMiddle(action.account.toHexString());
   let summary =
     event.params.actionType == 1 ? "Emergency role revocation executed"
     : event.params.actionType == 2 ? "Platform pause executed"
@@ -169,7 +170,7 @@ export function handleGrantCoSigned(event: GrantCoSignedEvent): void {
   audit.type         = "RoleGranted";
   audit.actorAddress = event.params.signer;
   audit.summary      = "Privileged grant #" + event.params.grantId.toString() + " co-signed — role granted to "
-                      + grant.account.toHexString().slice(0, 10) + "…";
+                      + truncateMiddle(grant.account.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -181,7 +182,7 @@ export function handlePaused(event: PausedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "EmergencyPaused";
   audit.actorAddress = event.params.account;
-  audit.summary      = "Platform paused by " + event.params.account.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Platform paused by " + truncateMiddle(event.params.account.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -193,7 +194,7 @@ export function handleUnpaused(event: UnpausedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "GovernanceExecuted";
   audit.actorAddress = event.params.account;
-  audit.summary      = "Platform unpaused by " + event.params.account.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Platform unpaused by " + truncateMiddle(event.params.account.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

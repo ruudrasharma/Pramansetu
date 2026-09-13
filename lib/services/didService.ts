@@ -25,13 +25,13 @@ import {
   useSignRecovery as useSignRecoveryOnchain,
   useFinalizeRecovery as useFinalizeRecoveryOnchain,
 } from "@/lib/hooks/useGuardianRecovery";
-import { useIssueCredential as useIssueCredentialOnchain } from "@/lib/hooks/useCredentialRegistry";
+import { useIssueCredential as useIssueCredentialOnchain, useCredentialsOnchain } from "@/lib/hooks/useCredentialRegistry";
 import { useQuery } from "@tanstack/react-query";
 import { getGraphQLClient } from "@/lib/graphql";
-import { GET_CREDENTIALS_BY_SUBJECT, GET_RECOVERY } from "@/lib/queries";
+import { GET_RECOVERY } from "@/lib/queries";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { keccak256, encodePacked } from "viem";
-import { adaptCredentials, deriveCredentialStatus, type RawCredential } from "@/lib/services/shared/credentials";
+import { deriveCredentialStatus } from "@/lib/services/shared/credentials";
 
 export interface DidService {
   resolveDID: () => Identity | undefined;
@@ -128,19 +128,6 @@ function useMockDidService(did: string | undefined): DidService {
   };
 }
 
-function useCredentialsQuery(did: string | undefined) {
-  return useQuery({
-    queryKey: ["credentials", did],
-    queryFn: async () => {
-      const data = await getGraphQLClient().request<{ credentials: RawCredential[] }>(GET_CREDENTIALS_BY_SUBJECT, {
-        subject: did,
-      });
-      return data.credentials;
-    },
-    enabled: !!did,
-  });
-}
-
 interface RawRecovery {
   newController: string;
   initiatedBy: string;
@@ -171,8 +158,12 @@ function useOnchainDidService(did: string | undefined): DidService {
   const { data: doc, isLoading: isLoadingDoc } = useResolveDID(bytes32Did);
   const controller = doc?.exists ? doc.controller : undefined;
 
-  const credentialsQuery = useCredentialsQuery(did);
-  const credentials = did && credentialsQuery.data ? adaptCredentials(did, credentialsQuery.data) : [];
+  // Direct on-chain scan (see useCredentialRegistry.ts's useCredentialsOnchain) rather than the
+  // subgraph — this is the "am I verified" read backing the Identity page's own credential status,
+  // and it going dark whenever Graph Studio's free-tier query endpoint rate-limits (which doesn't
+  // take much) was a real, repeated production outage in this project's own session history.
+  const credentialsQuery = useCredentialsOnchain(bytes32Did);
+  const credentials = credentialsQuery.data ?? [];
 
   // Real role derivation: check all 5 roles against the resolved controller and take the
   // highest-privilege one held. Nothing currently reads `.role` off resolveDID's result (the

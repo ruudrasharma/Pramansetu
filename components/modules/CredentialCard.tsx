@@ -28,7 +28,7 @@ export function CredentialCard({ credential }: { credential: Credential }) {
         </div>
         <div>
           <p className="mb-0.5 text-ink-600">VC ID</p>
-          <MonoValue className="text-[12px]">{credential.vcId}</MonoValue>
+          <MonoValue className="text-[12px]">{truncateMiddle(credential.vcId, 10, 4)}</MonoValue>
         </div>
         <div>
           <p className="mb-0.5 text-ink-600">Valid until</p>

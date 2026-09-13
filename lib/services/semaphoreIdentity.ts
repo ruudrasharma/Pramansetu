@@ -17,6 +17,92 @@ import { SemaphoreRoleGroupsAbi } from "@/lib/abis";
 
 const IDENTITY_STORAGE_PREFIX = "praman-setu:semaphore-identity:";
 
+// SemaphoreRoleGroups' Sepolia deployment block (see deployments/sepolia.json) — starting
+// eth_getLogs here instead of block 0 keeps the scan short.
+const SEMAPHORE_ROLE_GROUPS_DEPLOY_BLOCK = 11_681_658n;
+// Alchemy's free tier rejects eth_getLogs ranges wider than 10 blocks, so range width is capped
+// at 9 (fromBlock..fromBlock+9 inclusive = 10 blocks) and results are stitched back together.
+const GET_LOGS_MAX_BLOCK_SPAN = 9n;
+// Keep this low: the free tier's rate limit is what turns a burst of parallel eth_getLogs calls
+// into "Failed to fetch" connection resets, not just the 10-block range cap.
+const GET_LOGS_CONCURRENCY = 4;
+const GET_LOGS_BATCH_DELAY_MS = 250;
+const GET_LOGS_MAX_RETRIES = 4;
+const GET_LOGS_RETRY_BASE_DELAY_MS = 400;
+
+// keccak256("MemberSynced(bytes32,address,uint256)") / keccak256("MemberRemovedFromRole(bytes32,address,uint256)")
+const MEMBER_SYNCED_TOPIC = "0x2d2ebb812bde7c6deed704c25b440f92c6a67f2e33fb4cc10c402a0994d80a3c" as const;
+const MEMBER_REMOVED_TOPIC = "0x49f11a6ba631f126e6c7e7e42c561ed45c5b1e7b0d3979daa3991bfd0f585a3e" as const;
+
+type PublicClient = NonNullable<ReturnType<typeof getPublicClient>>;
+type RawLog = { blockNumber: `0x${string}`; logIndex: `0x${string}`; topics: `0x${string}`[]; data: `0x${string}` };
+type RoleEvent = { blockNumber: bigint; logIndex: number; kind: "add" | "remove"; commitment: bigint };
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchRoleLogsWithRetry(
+  client: PublicClient,
+  address: `0x${string}`,
+  role: `0x${string}`,
+  fromBlock: bigint,
+  toBlock: bigint,
+  attempt = 0,
+): Promise<RawLog[]> {
+  try {
+    const logs = await client.request({
+      method: "eth_getLogs",
+      params: [
+        {
+          address,
+          topics: [[MEMBER_SYNCED_TOPIC, MEMBER_REMOVED_TOPIC], role],
+          fromBlock: `0x${fromBlock.toString(16)}`,
+          toBlock: `0x${toBlock.toString(16)}`,
+        },
+      ],
+    });
+    return logs as RawLog[];
+  } catch (err) {
+    if (attempt >= GET_LOGS_MAX_RETRIES) throw err;
+    await sleep(GET_LOGS_RETRY_BASE_DELAY_MS * 2 ** attempt);
+    return fetchRoleLogsWithRetry(client, address, role, fromBlock, toBlock, attempt + 1);
+  }
+}
+
+/** Combines MemberSynced + MemberRemovedFromRole into one filter per window (half the requests) */
+async function getRoleGroupEvents(
+  client: PublicClient,
+  address: `0x${string}`,
+  role: `0x${string}`,
+  fromBlock: bigint,
+  toBlock: bigint,
+): Promise<RoleEvent[]> {
+  const windows: Array<{ fromBlock: bigint; toBlock: bigint }> = [];
+  for (let start = fromBlock; start <= toBlock; start += GET_LOGS_MAX_BLOCK_SPAN + 1n) {
+    const end = start + GET_LOGS_MAX_BLOCK_SPAN > toBlock ? toBlock : start + GET_LOGS_MAX_BLOCK_SPAN;
+    windows.push({ fromBlock: start, toBlock: end });
+  }
+
+  const events: RoleEvent[] = [];
+  for (let i = 0; i < windows.length; i += GET_LOGS_CONCURRENCY) {
+    const batch = windows.slice(i, i + GET_LOGS_CONCURRENCY);
+    const batchLogs = await Promise.all(
+      batch.map((w) => fetchRoleLogsWithRetry(client, address, role, w.fromBlock, w.toBlock)),
+    );
+    for (const logs of batchLogs) {
+      for (const log of logs) {
+        events.push({
+          blockNumber: BigInt(log.blockNumber),
+          logIndex: Number(log.logIndex),
+          kind: log.topics[0] === MEMBER_SYNCED_TOPIC ? "add" : "remove",
+          commitment: BigInt(log.data),
+        });
+      }
+    }
+    if (i + GET_LOGS_CONCURRENCY < windows.length) await sleep(GET_LOGS_BATCH_DELAY_MS);
+  }
+  return events;
+}
+
 /**
  * Reads (or generates and persists) this account's Semaphore identity. Same "prototype-grade
  * only, not recoverable if storage is cleared" caveat as didService.ts's own client-side key
@@ -56,57 +142,16 @@ export async function reconstructGroup(role: `0x${string}`): Promise<Group> {
   const client = getPublicClient(wagmiConfig);
   if (!client) throw new Error("No public RPC client available");
 
-  const [syncedLogs, removedLogs] = await Promise.all([
-    client.getLogs({
-      address,
-      event: {
-        type: "event",
-        name: "MemberSynced",
-        inputs: [
-          { name: "role", type: "bytes32", indexed: true },
-          { name: "account", type: "address", indexed: true },
-          { name: "commitment", type: "uint256", indexed: false },
-        ],
-      },
-      args: { role },
-      fromBlock: 0n,
-      toBlock: "latest",
-    }),
-    client.getLogs({
-      address,
-      event: {
-        type: "event",
-        name: "MemberRemovedFromRole",
-        inputs: [
-          { name: "role", type: "bytes32", indexed: true },
-          { name: "account", type: "address", indexed: true },
-          { name: "commitment", type: "uint256", indexed: false },
-        ],
-      },
-      args: { role },
-      fromBlock: 0n,
-      toBlock: "latest",
-    }),
-  ]);
+  const latestBlock = await client.getBlockNumber();
+  const fromBlock =
+    SEMAPHORE_ROLE_GROUPS_DEPLOY_BLOCK < latestBlock ? SEMAPHORE_ROLE_GROUPS_DEPLOY_BLOCK : latestBlock;
 
   // Replay in block/log order: an add followed later by a remove for the same commitment nets
   // out to "not currently a member" — reconstructing the group means applying both event types
   // in the order they actually happened on-chain, not just listing every MemberSynced.
-  type Ev = { blockNumber: bigint; logIndex: number; kind: "add" | "remove"; commitment: bigint };
-  const events: Ev[] = [
-    ...syncedLogs.map((l) => ({
-      blockNumber: l.blockNumber ?? 0n,
-      logIndex: l.logIndex ?? 0,
-      kind: "add" as const,
-      commitment: (l.args as { commitment?: bigint }).commitment ?? 0n,
-    })),
-    ...removedLogs.map((l) => ({
-      blockNumber: l.blockNumber ?? 0n,
-      logIndex: l.logIndex ?? 0,
-      kind: "remove" as const,
-      commitment: (l.args as { commitment?: bigint }).commitment ?? 0n,
-    })),
-  ].sort((a, b) => (a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : Number(a.blockNumber - b.blockNumber)));
+  const events = (await getRoleGroupEvents(client, address, role, fromBlock, latestBlock)).sort((a, b) =>
+    a.blockNumber === b.blockNumber ? a.logIndex - b.logIndex : Number(a.blockNumber - b.blockNumber),
+  );
 
   const group = new Group();
   for (const ev of events) {

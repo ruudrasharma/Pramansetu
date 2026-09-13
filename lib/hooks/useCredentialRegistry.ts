@@ -5,10 +5,12 @@
  */
 
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { decodeEventLog, keccak256, toBytes } from "viem";
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { CredentialRegistryAbi } from "@/lib/abis";
 import { contractAddresses } from "@/lib/wagmi";
+import type { Credential, Role } from "@/lib/mock/fixtures";
 
 const address = contractAddresses.credentialRegistry;
 
@@ -62,6 +64,45 @@ export function useGetCredential(vcId: `0x${string}` | undefined) {
     functionName: "credentials",
     args: vcId ? [vcId] : undefined,
     query: { enabled: !!vcId && !!address },
+  });
+}
+
+// ── Direct on-chain credential lookup (subgraph-independent) ────────────────
+// didService.ts's own credential list for the CURRENT user's identity used to go exclusively
+// through the subgraph (GET_CREDENTIALS_BY_SUBJECT). That's fine in general — a subgraph is the
+// right tool for "list everything" queries — but it means "am I verified" on the Identity page,
+// arguably this app's single most load-bearing read, goes dark the moment Graph Studio's free-tier
+// query endpoint rate-limits (which it can, hard, under nothing more than ordinary multi-tab
+// testing — confirmed the hard way in this project's own session history).
+//
+// This first shipped as a client-side chunked eth_getLogs scan (same technique as
+// lib/services/semaphoreIdentity.ts's reconstructGroup) filtering CredentialIssued by its indexed
+// subjectDid topic. That scan is correct — it does find the real event — but Alchemy's free tier
+// caps eth_getLogs at a 10-block range per call, and CredentialRegistry's deployment-to-now block
+// range had grown to well over a thousand 10-block windows by the time this ran, taking well over
+// a minute to finish; from the page it just looked like "still pending" forever. There's no
+// on-chain counter to enumerate credentials by subject the way usePendingSuperAdminGrants could
+// for grantIds, so the fix here is routing the log search through app/api/credentials/route.ts
+// instead, which uses Etherscan's getLogs API (no per-call range cap) to do the same topic-filtered
+// search in one request, then reads each vcId's live credentials(vcId) struct for authoritative
+// role/validUntil/revoked state. Kept as an addition alongside the GraphQL hook, not a replacement
+// for it: the Roles & Access page's "list every identity on the platform" table has no per-account
+// DID to scan by and still needs the subgraph for that broader query.
+export function useCredentialsOnchain(did: `0x${string}` | undefined) {
+  return useQuery({
+    queryKey: ["credentialsOnchain", did],
+    queryFn: async (): Promise<Credential[]> => {
+      if (!did) return [];
+      const res = await fetch(`/api/credentials?did=${did}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Failed to load credentials for ${did}`);
+      }
+      const data = (await res.json()) as { credentials: (Omit<Credential, "role"> & { role: string })[] };
+      return data.credentials.map((c) => ({ ...c, role: c.role as Role }));
+    },
+    staleTime: 15_000,
+    enabled: !!did,
   });
 }
 

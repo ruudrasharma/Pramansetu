@@ -288,10 +288,12 @@ function ZkRoleProofCard() {
 
   const { data: myGroupId } = useGroupIdOf(myRole?.hash);
   const onchainProof = proof ? toOnchainProof(proof) : undefined;
-  const { data: onchainValid, isLoading: verifyingOnchain, refetch: refetchOnchain } = useVerifyProofOnchain(
-    myGroupId,
-    onchainProof
-  );
+  const {
+    data: onchainValid,
+    isLoading: verifyingOnchain,
+    error: onchainError,
+    refetch: refetchOnchain,
+  } = useVerifyProofOnchain(myGroupId, onchainProof);
 
   async function handleSetUpIdentity() {
     if (!address) return;
@@ -407,16 +409,31 @@ function ZkRoleProofCard() {
                 {proving ? "Generating proof…" : proof ? "Proved (verified locally)" : `Prove ${ROLE_LABEL[myRole.label as keyof typeof ROLE_LABEL] ?? myRole.label} anonymously`}
               </Button>
               {proof && (
-                <Button variant="secondary" className="px-2.5 py-1 text-[12px]" onClick={() => refetchOnchain()} disabled={verifyingOnchain}>
-                  {verifyingOnchain ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : onchainValid === true ? (
-                    <CheckCircle2 size={12} className="text-verified-400" />
-                  ) : (
-                    <Eye size={12} />
+                <>
+                  <Button variant="secondary" className="px-2.5 py-1 text-[12px]" onClick={() => refetchOnchain()} disabled={verifyingOnchain}>
+                    {verifyingOnchain ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : onchainValid === true ? (
+                      <CheckCircle2 size={12} className="text-verified-400" />
+                    ) : onchainError ? (
+                      <AlertTriangle size={12} className="text-danger-400" />
+                    ) : (
+                      <Eye size={12} />
+                    )}
+                    {verifyingOnchain
+                      ? "Verifying on-chain…"
+                      : onchainValid === true
+                        ? "Verified on-chain"
+                        : onchainError
+                          ? "Retry on-chain verify"
+                          : "Also verify on-chain"}
+                  </Button>
+                  {onchainError && !verifyingOnchain && (
+                    <p className="w-full text-[11px] text-danger-400">
+                      {onchainError instanceof Error ? onchainError.message : "On-chain verification failed."}
+                    </p>
                   )}
-                  {verifyingOnchain ? "Verifying on-chain…" : onchainValid === true ? "Verified on-chain" : "Also verify on-chain"}
-                </Button>
+                </>
               )}
             </div>
           )}

@@ -85,7 +85,13 @@ function useMockAssetService(): AssetService {
   };
 }
 
-const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
+// This app pins metadata to Pinata (app/api/ipfs/upload/route.ts), so the public ipfs.io gateway
+// this used to hardcode has to find it via the wider IPFS DHT first — slow, and prone to timing
+// out or 504ing before that propagation finishes. NEXT_PUBLIC_IPFS_GATEWAY is already configured
+// (Pinata's own gateway, which has the content immediately since it's the one holding the pin)
+// but was never actually wired up anywhere in the codebase — this was the only place that fetches
+// IPFS content, and it went straight to ipfs.io instead of reading that env var at all.
+const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://ipfs.io/ipfs/";
 
 async function fetchAssetMetadata(cid: string): Promise<{ name: string; category: string }> {
   const hash = cid.replace(/^ipfs:\/\//, "");

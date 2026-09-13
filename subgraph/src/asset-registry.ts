@@ -8,6 +8,7 @@ import {
   AssetRegistry,
 } from "../generated/AssetRegistry/AssetRegistry";
 import { Asset, MintRequest, AuditEvent, Identity } from "../generated/schema";
+import { truncateMiddle } from "./utils";
 
 export function handleMintProposed(event: MintProposedEvent): void {
   let req = new MintRequest(event.params.requestId.toString());
@@ -90,7 +91,7 @@ export function handleAssetMinted(event: AssetMintedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "AssetMinted";
   audit.actorAddress = event.transaction.from;
-  audit.summary      = "Asset minted: token #" + event.params.tokenId.toString() + " → " + event.params.recipientDid.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Asset minted: token #" + event.params.tokenId.toString() + " → " + truncateMiddle(event.params.recipientDid.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -119,7 +120,7 @@ export function handleTransfer(event: TransferEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "AssetTransferred";
   audit.actorAddress = event.params.from;
-  audit.summary      = "Asset #" + event.params.tokenId.toString() + " transferred to " + event.params.to.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Asset #" + event.params.tokenId.toString() + " transferred to " + truncateMiddle(event.params.to.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

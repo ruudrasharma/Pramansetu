@@ -30,7 +30,7 @@ describe("computeAnomalies", () => {
         {
           id: "anomaly-emergency-e1",
           rule: "Emergency Action",
-          detail: "Platform was paused by 0xSuperAdm... Requires immediate review.",
+          detail: "Platform was paused by 0xSuperAdmin1. Requires immediate review.",
           severity: "critical",
           riskScore: 90,
           actorDid: "0xSuperAdmin1",

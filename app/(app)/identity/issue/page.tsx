@@ -191,7 +191,7 @@ export default function IssueCredentialPage() {
         {didService.isIssueConfirmed && didService.lastIssuedVcId && (
           <div className="mt-3 flex items-center gap-2 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
             <CheckCircle2 size={14} />
-            Issued — vcId <span className="mono-value">{didService.lastIssuedVcId}</span>
+            Issued — vcId <span className="mono-value">{truncateMiddle(didService.lastIssuedVcId ?? "", 8, 4)}</span>
           </div>
         )}
       </Card>

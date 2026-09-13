@@ -11,6 +11,7 @@ import { useAppStore } from "@/lib/store/appStore";
 import { identityByRole, identities } from "@/lib/mock/fixtures";
 import { useAssetService } from "@/lib/services/assetService";
 import { dataMode } from "@/lib/services/dataMode";
+import { truncateMiddle } from "@/lib/utils";
 
 async function uploadMetadataToIPFS(metadata: { name: string; category: string }): Promise<string> {
   const res = await fetch("/api/ipfs/upload", {
@@ -193,7 +194,7 @@ export default function MintAssetPage() {
             </div>
           ) : (
             <div className="flex items-center gap-2 rounded-2xl border border-verified-500/25 bg-verified-500/10 px-3 py-2 text-[12px] text-verified-400">
-              <FileCheck size={13} /> <span className="mono-value truncate">{cid}</span>
+              <FileCheck size={13} /> <span className="mono-value">{truncateMiddle(cid, 14, 6)}</span>
             </div>
           )}
 

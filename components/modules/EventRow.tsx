@@ -83,7 +83,7 @@ export function EventRow({ event, index = 0 }: { event: AuditEvent; index?: numb
         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-ink-600">
           <span className="mono-value">{truncateMiddle(event.actorDid ?? event.actorAddress ?? "", 12, 4)}</span>
           <span>·</span>
-          <span className="mono-value">{event.txHash}</span>
+          <span className="mono-value">{truncateMiddle(event.txHash, 8, 6)}</span>
         </div>
       </div>
       <span className="mono-value shrink-0 text-[11px] text-ink-600">

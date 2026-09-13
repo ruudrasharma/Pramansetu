@@ -5,6 +5,7 @@ import {
   CredentialRegistry,
 } from "../generated/CredentialRegistry/CredentialRegistry";
 import { Credential, Identity, AuditEvent } from "../generated/schema";
+import { truncateMiddle } from "./utils";
 
 export function handleCredentialIssued(event: CredentialIssuedEvent): void {
   // Ensure a stub Identity exists for the subject even if DIDCreated hasn't been indexed yet
@@ -41,7 +42,7 @@ export function handleCredentialIssued(event: CredentialIssuedEvent): void {
   audit.type         = "CredentialIssued";
   audit.actorAddress = event.transaction.from;
   audit.actorDid     = event.params.issuerDid;
-  audit.summary      = "Credential issued: " + event.params.role + " to " + subjectId.slice(0, 14) + "…";
+  audit.summary      = "Credential issued: " + event.params.role + " to " + truncateMiddle(subjectId);
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -61,7 +62,7 @@ export function handleCredentialRevoked(event: CredentialRevokedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "CredentialRevoked";
   audit.actorAddress = event.transaction.from;
-  audit.summary      = "Credential revoked: " + event.params.vcId.toHexString().slice(0, 14) + "…";
+  audit.summary      = "Credential revoked: " + truncateMiddle(event.params.vcId.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

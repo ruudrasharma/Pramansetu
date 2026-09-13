@@ -22,7 +22,16 @@ export function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(diffHr / 24)}d ago`;
 }
 
+// Grants meant to never lapse (e.g. TimeBoundAccessControl.initialize() sets the bootstrap
+// deployer's SUPER_ADMIN_ROLE roleExpiry to Solidity's type(uint256).max) still need a concrete
+// validUntil wherever the UI sources an expiry from a credential's validity window rather than
+// the role grant itself — this threshold (~year 2286) is this app's convention for "effectively
+// forever," far enough out that no real countdown will ever reach it, but small enough to stay a
+// safe JS number/Date unlike type(uint256).max itself.
+export const NEVER_EXPIRES_THRESHOLD_MS = 9_999_999_000_000;
+
 export function formatCountdown(targetTimestamp: number): string {
+  if (targetTimestamp >= NEVER_EXPIRES_THRESHOLD_MS) return "Never expires";
   const diffMs = targetTimestamp - Date.now();
   if (diffMs <= 0) return "expired";
   const hrs = Math.floor(diffMs / 3_600_000);
@@ -34,6 +43,7 @@ export function formatCountdown(targetTimestamp: number): string {
 export type ExpiryLevel = "safe" | "warning" | "critical" | "expired";
 
 export function expiryLevel(targetTimestamp: number): ExpiryLevel {
+  if (targetTimestamp >= NEVER_EXPIRES_THRESHOLD_MS) return "safe";
   const diffMs = targetTimestamp - Date.now();
   if (diffMs <= 0) return "expired";
   const hrs = diffMs / 3_600_000;

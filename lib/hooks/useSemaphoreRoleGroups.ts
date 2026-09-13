@@ -66,7 +66,13 @@ export function useVerifyProofOnchain(
     abi: ISemaphoreAbi,
     functionName: "verifyProof",
     args: groupId !== undefined && proof ? [groupId, proof] : undefined,
-    query: { enabled: groupId !== undefined && !!proof },
+    query: {
+      enabled: groupId !== undefined && !!proof,
+      // A revert (stale root, bad proof) shouldn't look identical to "still loading" for
+      // 10-30s of default exponential-backoff retries — fail fast and let the caller show why.
+      retry: 1,
+      retryDelay: 1000,
+    },
   });
 }
 

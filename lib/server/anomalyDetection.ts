@@ -5,6 +5,8 @@
  * (velocity check, emergency-pause detection), same thresholds, same output shape.
  */
 
+import { truncateMiddle } from "@/lib/utils";
+
 export interface RawAuditEvent {
   id: string;
   type: string;
@@ -51,7 +53,7 @@ export function computeAnomalies(events: RawAuditEvent[]): ComputedAnomaly[] {
       anomalies.push({
         id: `anomaly-emergency-${event.id}`,
         rule: "Emergency Action",
-        detail: `Platform was paused by ${event.actorAddress.slice(0, 10)}... Requires immediate review.`,
+        detail: `Platform was paused by ${truncateMiddle(event.actorAddress)}. Requires immediate review.`,
         severity: "critical",
         riskScore: 90,
         actorDid: event.actorAddress,
@@ -72,7 +74,7 @@ export function computeAnomalies(events: RawAuditEvent[]): ComputedAnomaly[] {
         anomalies.push({
           id: `anomaly-velocity-${actor}-${times[i]}`,
           rule: "Velocity Check: Rapid Role Grants",
-          detail: `Actor ${actor.slice(0, 10)}... performed 3+ role operations within 1 hour.`,
+          detail: `Actor ${truncateMiddle(actor)} performed 3+ role operations within 1 hour.`,
           severity: "warning",
           riskScore: 75,
           actorDid: actor,

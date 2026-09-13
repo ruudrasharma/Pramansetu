@@ -5,6 +5,7 @@ import {
   RecoveryFinalized as RecoveryFinalizedEvent,
 } from "../generated/GuardianRecovery/GuardianRecovery";
 import { Recovery, AuditEvent } from "../generated/schema";
+import { truncateMiddle } from "./utils";
 
 // T-039/T-046: GuardianRecovery had no subgraph mapping at all before this — none of its events
 // ever reached the audit trail, and activeRecovery(did)'s auto-generated getter can't expose
@@ -17,7 +18,7 @@ export function handleGuardiansRegistered(event: GuardiansRegisteredEvent): void
   audit.type         = "GuardianRegistered";
   audit.actorAddress = event.transaction.from;
   audit.summary      = event.params.threshold.toString() + "-of-" + event.params.guardians.length.toString()
-                      + " guardian set registered for " + event.params.did.toHexString().slice(0, 10) + "…";
+                      + " guardian set registered for " + truncateMiddle(event.params.did.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -41,7 +42,7 @@ export function handleRecoveryInitiated(event: RecoveryInitiatedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "RecoveryInitiated";
   audit.actorAddress = event.params.initiatedBy;
-  audit.summary      = "Guardian recovery initiated for " + event.params.did.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Guardian recovery initiated for " + truncateMiddle(event.params.did.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;
@@ -60,7 +61,7 @@ export function handleRecoverySigned(event: RecoverySignedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "RecoveryInitiated"; // no dedicated "RecoverySigned" EventType member exists
   audit.actorAddress = event.params.guardian;
-  audit.summary      = "Guardian recovery for " + event.params.did.toHexString().slice(0, 10) + "… signed ("
+  audit.summary      = "Guardian recovery for " + truncateMiddle(event.params.did.toHexString()) + " signed ("
                       + event.params.signatureCount.toString() + " of threshold)";
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
@@ -80,8 +81,8 @@ export function handleRecoveryFinalized(event: RecoveryFinalizedEvent): void {
   let audit = new AuditEvent(auditId);
   audit.type         = "RecoveryFinalized";
   audit.actorAddress = event.transaction.from;
-  audit.summary      = "Guardian recovery finalized for " + event.params.did.toHexString().slice(0, 10)
-                      + "… — key rotated to " + event.params.newController.toHexString().slice(0, 10) + "…";
+  audit.summary      = "Guardian recovery finalized for " + truncateMiddle(event.params.did.toHexString())
+                      + " — key rotated to " + truncateMiddle(event.params.newController.toHexString());
   audit.timestamp    = event.block.timestamp;
   audit.blockNumber  = event.block.number;
   audit.txHash       = event.transaction.hash;

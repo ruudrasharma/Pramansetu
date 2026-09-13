@@ -93,7 +93,7 @@ export function useProposeMint() {
     recipient: `0x${string}`;
   }) {
     if (!address) throw new Error("AssetRegistry address not configured");
-    writeContract({ address, abi: AssetRegistryAbi, functionName: "proposeMint", args: [cid, vcId, recipient] });
+    writeContract({ address, abi: AssetRegistryAbi, functionName: "proposeMint", args: [cid, vcId, recipient], gas: 400_000n });
   }
 
   // Decode the real requestId from the mined transaction's MintProposed log — never guessed
@@ -129,7 +129,7 @@ export function useCoSignMint() {
 
   function coSignMint(requestId: bigint) {
     if (!address) throw new Error("AssetRegistry address not configured");
-    writeContract({ address, abi: AssetRegistryAbi, functionName: "coSignMint", args: [requestId] });
+    writeContract({ address, abi: AssetRegistryAbi, functionName: "coSignMint", args: [requestId], gas: 500_000n });
   }
 
   // Decode the real tokenId from the mined transaction's AssetMinted log — same pattern as
@@ -166,7 +166,10 @@ export function useTransferAsset() {
 
   function transferAsset({ from, to, tokenId }: { from: `0x${string}`; to: `0x${string}`; tokenId: bigint }) {
     if (!address) throw new Error("AssetRegistry address not configured");
-    writeContract({ address, abi: AssetRegistryAbi, functionName: "transferFrom", args: [from, to, tokenId] });
+    // Explicit gas: some wallets fall back to a very high estimate when their own eth_estimateGas
+    // is ambiguous, which public RPC providers (Infura in particular) then reject for exceeding a
+    // per-tx cap — same root cause and fix as lib/hooks/useAccessControl.ts's grantTimedRole.
+    writeContract({ address, abi: AssetRegistryAbi, functionName: "transferFrom", args: [from, to, tokenId], gas: 400_000n });
   }
 
   return { transferAsset, hash, isPending: isPending || isConfirming, isSuccess, error };
@@ -182,7 +185,7 @@ export function useAttachLegalReference() {
 
   function attachLegalReference(tokenId: bigint, documentHash: `0x${string}`) {
     if (!address) throw new Error("AssetRegistry address not configured");
-    writeContract({ address, abi: AssetRegistryAbi, functionName: "attachLegalReference", args: [tokenId, documentHash] });
+    writeContract({ address, abi: AssetRegistryAbi, functionName: "attachLegalReference", args: [tokenId, documentHash], gas: 300_000n });
   }
 
   return { attachLegalReference, hash, isPending: isPending || isConfirming, isSuccess, error };
