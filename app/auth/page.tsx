@@ -25,7 +25,19 @@ const steps: { key: Step; label: string; icon: typeof Wallet }[] = [
 
 export default function AuthPage() {
   const router = useRouter();
-  const { isConnected, address } = useAccount();
+  // Same hydration-mismatch fix as lib/hooks/useCurrentIdentity.ts (see its comment for the full
+  // explanation): SSR always renders with no wallet state, but wagmi restores a persisted
+  // connection on the client often before React's first client render even commits, so
+  // isConnected/address here could already differ from what the server sent. That mismatch is
+  // exactly what threw the React hydration errors (#418/#423) confirmed live on this page — React
+  // discards and fully re-renders the tree when it hits one, which is what full-page "auto
+  // reload" flicker looks like from the outside. This page called useAccount() directly instead of
+  // going through useCurrentIdentity(), so it wasn't covered by that hook's existing fix.
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => setHasMounted(true), []);
+  const { isConnected: rawIsConnected, address: rawAddress } = useAccount();
+  const isConnected = hasMounted && rawIsConnected;
+  const address = hasMounted ? rawAddress : undefined;
   // No onError handler previously existed here — a rejected/failed signature (wallet locked,
   // permission revoked, user hit Reject) left the user stuck on this step with zero feedback,
   // indistinguishable from the button doing nothing. That's what "connecting doesn't take me to

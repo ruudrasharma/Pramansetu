@@ -235,7 +235,15 @@ const ROLE_HASHES: { label: string; hash: `0x${string}` }[] = [
  * didService.ts's onchain resolveDID already uses) — not the mock role-switcher persona.
  */
 function ZkRoleProofCard() {
-  const { address } = useAccount();
+  // Same hydration-mismatch fix as lib/hooks/useCurrentIdentity.ts: SSR always renders with no
+  // wallet state, but wagmi can restore a persisted connection on the client before the first
+  // render commits, so `address` here could already differ from what the server sent by the time
+  // the `!address` branch below is reconciled — this card calls useAccount() directly instead of
+  // going through useCurrentIdentity(), so it wasn't covered by that hook's existing fix.
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => setHasMounted(true), []);
+  const { address: rawAddress } = useAccount();
+  const address = hasMounted ? rawAddress : undefined;
 
   // Real, live role checks against the real connected wallet — independent of dataMode/activeRole.
   // Called individually (not via .map()) since React Hooks can't be called inside a callback —
