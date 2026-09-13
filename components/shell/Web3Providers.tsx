@@ -8,40 +8,39 @@ import { useEffect, useRef, useState } from "react";
 // Initialize Web3Modal (this attaches it to the Wagmi config and injects the UI)
 import "@/lib/web3modal";
 
-// Query-key tags used by this app's GraphQL/subgraph-backed useQuery hooks (lib/services/
-// rbacService.ts, didService.ts, assetService.ts, governanceService.ts, auditService.ts,
-// oracleAttestationService.ts) — see lib/queries.ts for the actual GET_* documents. These hit
-// Graph Studio's free tier, which rate-limits ("Too many requests") far sooner than Alchemy's RPC
-// does; the very first version of BlockWatcher invalidated ALL queries every block, which
-// hammered the subgraph into that rate limit within minutes and made credentials/identities look
-// "pending"/missing even though the real on-chain data was fine. Direct on-chain reads (wagmi's
-// own useReadContract/useBalance/etc., and this app's own RPC-backed hooks like usePendingGrants
-// in useAccessControl.ts and useGuardiansList in useGuardianRecovery.ts) aren't in this set and
-// still get invalidated every block — only the GraphQL-backed ones fall back to their existing
-// staleTime-driven refetch (on navigation/focus) instead of a constant background poll.
-// IMPORTANT: adding a new subgraph-backed useQuery hook means adding its key here too.
-const SUBGRAPH_QUERY_KEY_TAGS = new Set([
-  "identities",
-  "credentials",
-  "recovery",
-  "assets",
-  "auditEvents",
-  "anomalyAlerts",
-  "oracleFacts",
-  "platformActions",
-  "pendingGrants", // governanceService.ts's GraphQL one — distinct from useAccessControl.ts's
-  // RPC-backed "pendingSuperAdminGrants" key, which is deliberately NOT in this set.
-  "governanceTxs",
+// Custom (non-wagmi) RPC-backed useQuery tags that should refresh on every new block — narrow,
+// cheap, cross-session queue reads like usePendingGrants' "pendingSuperAdminGrants"
+// (useAccessControl.ts). Distinct from the GraphQL/subgraph-backed tags below, which never belong
+// here (see that comment).
+const LIVE_REFRESH_QUERY_TAGS = new Set(["pendingSuperAdminGrants"]);
+
+// wagmi's own useReadContract hook tags EVERY contract read with the same literal queryKey[0]
+// ("readContract" — see @wagmi/core's readContractQueryKey), no matter which contract or function
+// it's reading. An earlier version of this file tried to invalidate "every on-chain read except
+// the subgraph-tagged ones" on every block, which — because of that shared tag — actually meant
+// *every single* useReadContract call in the entire app (tokenURI, ownerOf, resolveDID, didOf,
+// credentials, isValid, facts, commitmentOf, isMember, ...) refetched every ~12s on every page,
+// not just the multisig/queue reads that actually need live cross-session freshness. That's the
+// root cause behind "the app keeps auto-reloading on every page" — confirmed by inspecting
+// @wagmi/core/query/readContract.js's queryKey builder, not just suspected. Only the specific
+// contract functions below (multisig/queue state where a *different* session's action, like a
+// second Super Admin co-signing, needs to show up without a manual reload) get the block-driven
+// refresh now; everything else falls back to the QueryClient's normal 15s staleTime (refetch on
+// navigation/focus), same as before BlockWatcher existed.
+const LIVE_REFRESH_FUNCTION_NAMES = new Set([
+  "hasRole", // role checks — a grant landing (this session's or another's) should reflect fast
+  "roleExpiry",
+  "paused", // pause/unpause is a platform-wide 2-of-N action another session can execute
+  "pendingMints", // AssetRegistry — dual-attestation mint co-sign queue
+  "activeRecovery", // GuardianRecovery — in-flight recovery signature count
+  "queue", // GovernanceTimelock — queued transaction state
+  "nextTxId",
 ]);
 
 /**
- * Invalidates direct on-chain read queries on each new Sepolia block, so pages relying on them
- * (role checks, pending grants, guardian lists, balances, ...) refresh on their own instead of
- * needing a manual page reload — covers both "my own transaction just landed" and "someone else
- * changed on-chain state" (e.g. a second Super Admin co-signing a grant from a different session)
- * with one mechanism, rather than wiring a refetch call into every individual write hook across
- * the app. Sepolia blocks land roughly every 12s, so that's the cadence this runs at. Explicitly
- * excludes the GraphQL/subgraph-backed queries — see SUBGRAPH_QUERY_KEY_TAGS above for why.
+ * Invalidates only the specific on-chain read queries above on each new Sepolia block — see the
+ * comments on LIVE_REFRESH_QUERY_TAGS/LIVE_REFRESH_FUNCTION_NAMES for why the scope is this narrow.
+ * Sepolia blocks land roughly every 12s, so that's the cadence this runs at.
  */
 function BlockWatcher() {
   const queryClient = useQueryClient();
@@ -54,7 +53,12 @@ function BlockWatcher() {
     queryClient.invalidateQueries({
       predicate: (query) => {
         const tag = query.queryKey[0];
-        return typeof tag !== "string" || !SUBGRAPH_QUERY_KEY_TAGS.has(tag);
+        if (typeof tag === "string") return LIVE_REFRESH_QUERY_TAGS.has(tag);
+        if (tag === "readContract") {
+          const functionName = (query.queryKey[1] as { functionName?: string } | undefined)?.functionName;
+          return !!functionName && LIVE_REFRESH_FUNCTION_NAMES.has(functionName);
+        }
+        return false;
       },
     });
   }, [blockNumber, queryClient]);

@@ -26,8 +26,17 @@ const steps: { key: Step; label: string; icon: typeof Wallet }[] = [
 export default function AuthPage() {
   const router = useRouter();
   const { isConnected, address } = useAccount();
+  // No onError handler previously existed here — a rejected/failed signature (wallet locked,
+  // permission revoked, user hit Reject) left the user stuck on this step with zero feedback,
+  // indistinguishable from the button doing nothing. That's what "connecting doesn't take me to
+  // the dashboard" looks like from the outside: the flow never reaches the resolving/redirect
+  // step at all, silently.
+  const [signError, setSignError] = useState<string | null>(null);
   const { signMessage, isPending: isSigning } = useSignMessage({
-    mutation: { onSuccess: () => setStep("resolving") },
+    mutation: {
+      onSuccess: () => setStep("resolving"),
+      onError: (err) => setSignError(err instanceof Error ? err.message : "Signature request failed."),
+    },
   });
   const [step, setStep] = useState<Step>("connect");
   // T-045: this is what actually resolves the "resolving" step — didOf(address) only needs the
@@ -41,6 +50,7 @@ export default function AuthPage() {
   const currentIndex = steps.findIndex((s) => s.key === step);
 
   function handleSign() {
+    setSignError(null);
     signMessage({ message: CHALLENGE });
   }
 
@@ -130,6 +140,11 @@ export default function AuthPage() {
                 </Button>
               )}
             </div>
+            {signError && (
+              <p className="text-center text-[12px] text-danger-400">
+                {signError} — check your wallet for a pending request, or try again.
+              </p>
+            )}
           </div>
         )}
 
